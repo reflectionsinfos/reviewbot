@@ -54,6 +54,7 @@ services:
       - .:/app:cached
     depends_on:
       - db
+      - redis
     networks:
       - ai-review-network
     restart: unless-stopped
@@ -63,6 +64,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  # --------------------------------------------
+  # Redis Cache (NEW for v2.0)
+  # --------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: ai-review-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - ai-review-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # --------------------------------------------
   # Database Service (PostgreSQL for Production)
@@ -144,6 +165,8 @@ volumes:
   app_reports:
     driver: local
   app_chroma:
+    driver: local
+  redis_data:
     driver: local
   postgres_data:
     driver: local

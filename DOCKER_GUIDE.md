@@ -1,46 +1,82 @@
-# Docker Deployment Guide
+# ReviewBot v2.0 - Docker Development Guide
 
-## 📋 Overview
+> Complete Docker setup for Phase 1 implementation
 
-This guide covers Docker deployment for the AI Tech & Delivery Review Agent.
+**Version:** 2.0  
+**Last Updated:** March 27, 2026  
+**Status:** Ready for Phase 1  
+**Owner:** DevOps Team
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start for Phase 1
 
-### **1. Clone and Configure**
+### **Step 1: Setup Environment**
 
 ```bash
-cd c:\projects\project-reviews
+# Navigate to project
+cd c:\projects\reviewbot
 
 # Copy environment template
 copy .env.docker .env
 
-# Edit .env and add your API keys
+# Edit .env with your configuration
 notepad .env
 ```
 
-### **2. Start with Docker Compose**
+### **Step 2: Add Required Environment Variables**
 
-```bash
-# Development (with hot reload)
-docker-compose --profile tools up --build
+Minimum required for Phase 1:
 
-# Production
-docker-compose --profile production up -d --build
+```env
+# Application
+APP_NAME="ReviewBot v2.0"
+DEBUG=true
+ENVIRONMENT=development
+
+# Database (PostgreSQL)
+DATABASE_URL="postgresql+asyncpg://review_user:review_password_change_me@localhost:5432/reviews_db"
+POSTGRES_USER=review_user
+POSTGRES_PASSWORD=review_password_change_me
+POSTGRES_DB=reviews_db
+
+# API Keys
+OPENAI_API_KEY="sk-your-actual-api-key-here"
+
+# Security (CHANGE IN PRODUCTION!)
+SECRET_KEY="your-super-secret-key-change-this"
+ALGORITHM="HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# Redis (for Celery caching)
+REDIS_URL="redis://localhost:6379/0"
 ```
 
-### **3. Verify**
+### **Step 3: Start Development Environment**
 
 ```bash
-# Check status
+# Development mode (with hot reload and tools)
+docker-compose --profile tools up --build
+
+# Or in background
+docker-compose --profile tools up -d --build
+```
+
+### **Step 4: Verify Setup**
+
+```bash
+# Check all services are running
 docker-compose ps
 
-# View logs
+# View application logs
 docker-compose logs -f app
 
 # Test health endpoint
 curl http://localhost:8000/health
+
+# Access pgAdmin (database management)
+# Open browser: http://localhost:5050
+# Login: admin@example.com / admin_change_me
 ```
 
 ---
@@ -48,98 +84,171 @@ curl http://localhost:8000/health
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Docker Network                        │
-│                                                         │
-│  ┌─────────────┐     ┌─────────────┐                   │
-│  │   Nginx     │────▶│    App      │                   │
-│  │   (Proxy)   │     │  (FastAPI)  │                   │
-│  │  :80, :443  │     │    :8000    │                   │
-│  └─────────────┘     └──────┬──────┘                   │
-│                             │                           │
-│                      ┌──────▼──────┐                   │
-│                      │  PostgreSQL │                   │
-│                      │    :5432    │                   │
-│                      └─────────────┘                   │
-│                                                         │
-│  ┌─────────────┐     (Optional)                        │
-│  │   pgAdmin   │                                       │
-│  │    :5050    │                                       │
-│  └─────────────┘                                       │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│              ReviewBot v2.0 - Docker Architecture           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐                                           │
+│  │   Browser   │                                           │
+│  └──────┬──────┘                                           │
+│         │                                                   │
+│         ▼                                                   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Docker Network                         │   │
+│  │                                                     │   │
+│  │  ┌──────────┐     ┌──────────┐     ┌──────────┐   │   │
+│  │  │   App    │────▶│PostgreSQL│     │  Redis   │   │   │
+│  │  │ FastAPI  │     │    DB    │     │  Cache   │   │   │
+│  │  │  :8000   │     │  :5432   │     │  :6379   │   │   │
+│  │  └──────────┘     └──────────┘     └──────────┘   │   │
+│  │       │                  │                         │   │
+│  │       ▼                  ▼                         │   │
+│  │  ┌──────────┐     ┌──────────┐                    │   │
+│  │  │ pgAdmin  │     │  Volume  │                    │   │
+│  │  │  :5050   │     │ Storage  │                    │   │
+│  │  └──────────┘     └──────────┘                    │   │
+│  │                                                     │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📦 Docker Compose Profiles
+## 📦 Docker Compose Services
 
-### **Development**
-```bash
-docker-compose up --build
-```
-- App with hot reload
-- PostgreSQL database
-- pgAdmin (optional)
+### **1. Application Service (app)**
 
-### **Production**
-```bash
-docker-compose --profile production up -d --build
+```yaml
+app:
+  build: .
+  ports:
+    - "8000:8000"
+  environment:
+    - DATABASE_URL=postgresql+asyncpg://review_user:review_password@db:5432/reviews_db
+    - REDIS_URL=redis://redis:6379/0
+    - OPENAI_API_KEY=${OPENAI_API_KEY}
+  volumes:
+    - .:/app:cached  # Hot reload for development
+    - app_data:/app/data
+  depends_on:
+    - db
+    - redis
 ```
-- App (optimized)
-- PostgreSQL database
-- Nginx reverse proxy
-- SSL termination
 
-### **With Tools**
-```bash
-docker-compose --profile tools up --build
-```
-- Includes pgAdmin for database management
+**Features:**
+- ✅ Hot reload (code changes auto-restart)
+- ✅ Port 8000 exposed
+- ✅ Depends on PostgreSQL and Redis
+- ✅ Health checks enabled
 
 ---
 
-## 🔧 Configuration
+### **2. PostgreSQL Database (db)**
 
-### **Environment Variables**
+```yaml
+db:
+  image: postgres:15-alpine
+  ports:
+    - "5432:5432"
+  environment:
+    - POSTGRES_USER=review_user
+    - POSTGRES_PASSWORD=review_password_change_me
+    - POSTGRES_DB=reviews_db
+  volumes:
+    - postgres_data:/var/lib/postgresql/data
+    - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+```
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `APP_PORT` | App port | 8000 |
-| `OPENAI_API_KEY` | OpenAI API key | Required |
-| `SECRET_KEY` | JWT signing key | Change me! |
-| `DATABASE_URL` | Database connection | PostgreSQL |
-| `POSTGRES_USER` | DB username | review_user |
-| `POSTGRES_PASSWORD` | DB password | Change me! |
-| `PGADMIN_EMAIL` | pgAdmin email | admin@example.com |
-| `PGADMIN_PASSWORD` | pgAdmin password | Change me! |
-| `BUILD_TARGET` | production/development | production |
+**Features:**
+- ✅ PostgreSQL 15 Alpine (lightweight)
+- ✅ Persistent data volume
+- ✅ Port 5432 exposed (local access)
+- ✅ Auto-run init script
 
 ---
 
-## 🎯 Common Commands
+### **3. Redis Cache (redis)** - NEW for v2.0
+
+```yaml
+redis:
+  image: redis:7-alpine
+  ports:
+    - "6379:6379"
+  volumes:
+    - redis_data:/data
+  command: redis-server --appendonly yes
+```
+
+**Features:**
+- ✅ Redis 7 Alpine
+- ✅ AOF persistence enabled
+- ✅ Used by Celery for task queue
+- ✅ Response caching
+
+---
+
+### **4. pgAdmin (tools profile)**
+
+```yaml
+pgadmin:
+  image: dpage/pgadmin4:latest
+  ports:
+    - "5050:80"
+  environment:
+    - PGADMIN_DEFAULT_EMAIL=admin@example.com
+    - PGADMIN_DEFAULT_PASSWORD=admin_change_me
+  profiles:
+    - tools
+```
+
+**Access:**
+- URL: http://localhost:5050
+- Email: admin@example.com
+- Password: admin_change_me
+
+---
+
+## 🔧 Common Commands
 
 ### **Start Services**
-```bash
-# Development
-docker-compose up --build
 
-# Production (detached)
+```bash
+# Development (with tools)
+docker-compose --profile tools up --build
+
+# Development (background)
+docker-compose --profile tools up -d --build
+
+# Production
 docker-compose --profile production up -d --build
 
-# Specific service only
-docker-compose up db
+# Only app service
+docker-compose up app
+
+# Rebuild and restart
+docker-compose up --build --force-recreate
 ```
 
+---
+
 ### **Stop Services**
+
 ```bash
-# Stop all
+# Stop all services
 docker-compose down
 
 # Stop and remove volumes (WARNING: deletes data!)
 docker-compose down -v
+
+# Stop specific service
+docker-compose stop app
 ```
 
+---
+
 ### **View Logs**
+
 ```bash
 # All services
 docker-compose logs -f
@@ -147,279 +256,207 @@ docker-compose logs -f
 # Specific service
 docker-compose logs -f app
 docker-compose logs -f db
+docker-compose logs -f redis
+
+# Last 100 lines
+docker-compose logs --tail=100 app
 ```
 
-### **Execute Commands**
-```bash
-# Run migrations
-docker-compose exec app python -c "from app.db.session import init_db; import asyncio; asyncio.run(init_db())"
+---
 
-# Open shell
+### **Execute Commands**
+
+```bash
+# Open shell in app container
 docker-compose exec app bash
+
+# Run Python commands
+docker-compose exec app python -c "print('Hello')"
+
+# Run database migrations
+docker-compose exec app alembic upgrade head
 
 # Run tests
 docker-compose exec app pytest tests/ -v
+
+# Check database connection
+docker-compose exec app python -c "from app.db.session import AsyncSessionLocal; print('DB Connected!')"
 ```
 
-### **Database Access**
+---
+
+### **Database Management**
+
 ```bash
 # Connect to PostgreSQL
 docker-compose exec db psql -U review_user -d reviews_db
 
-# Export database
+# Backup database
 docker-compose exec db pg_dump -U review_user reviews_db > backup.sql
 
-# Import database
-docker-compose exec -T db psql -U review_user reviews_db < backup.sql
+# Restore database
+docker-compose exec -T db psql -U review_user -d reviews_db < backup.sql
+
+# Reset database (WARNING: deletes all data!)
+docker-compose exec db psql -U review_user -d reviews_db -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 ```
 
 ---
 
-## 🔐 Security
+## 🗄️ Database Migration (Week 1 Task)
 
-### **Production Checklist**
-
-1. **Change all passwords:**
-   ```bash
-   # In .env
-   POSTGRES_PASSWORD=secure-random-password
-   SECRET_KEY=secure-random-secret-key
-   PGADMIN_PASSWORD=secure-random-password
-   ```
-
-2. **Enable HTTPS:**
-   - Get SSL certificates (Let's Encrypt)
-   - Uncomment HTTPS server in `nginx/nginx.conf`
-   - Mount certificates in docker-compose.yml
-
-3. **Restrict database access:**
-   ```yaml
-   # In docker-compose.yml, remove or restrict:
-   ports:
-     - "5432:5432"  # Remove for production
-   ```
-
-4. **Use secrets management:**
-   ```yaml
-   # docker-compose.yml
-   secrets:
-     - openai_key
-     - db_password
-   
-   services:
-     app:
-       secrets:
-         - openai_key
-   ```
-
----
-
-## 📊 Monitoring
-
-### **Health Checks**
+### **Task 1.1.2: Create Migration 001**
 
 ```bash
-# Check service health
-docker-compose ps
+# Open shell in app container
+docker-compose exec app bash
 
-# Health endpoint
-curl http://localhost:8000/health
+# Generate migration
+alembic revision --autogenerate -m "Initial v2.0 schema - 21 tables"
 
-# Database health
-docker-compose exec db pg_isready
+# Review migration script
+# File created in: alembic/versions/001_initial_v2_schema.py
+
+# Apply migration
+alembic upgrade head
+
+# Verify tables created
+docker-compose exec db psql -U review_user -d reviews_db -c "\dt"
 ```
 
-### **Resource Usage**
-
-```bash
-# View resource usage
-docker stats
-
-# Container inspect
-docker inspect ai-review-agent
+**Expected Output:**
+```
+                     List of relations
+ Schema |            Name             | Type  |  Owner   
+--------+-----------------------------+-------+----------
+ public | users                       | table | review_user
+ public | projects                    | table | review_user
+ public | project_members             | table | review_user
+ public | checklists                  | table | review_user
+ public | checklist_items             | table | review_user
+ public | review_sessions             | table | review_user
+ public | recurring_review_schedules  | table | review_user
+ public | milestone_review_triggers   | table | review_user
+ public | review_instances            | table | review_user
+ public | self_review_sessions        | table | review_user
+ public | autonomous_review_results   | table | review_user
+ public | human_review_results        | table | review_user
+ public | override_requests           | table | review_user
+ public | override_approvals          | table | review_user
+ public | final_review_results        | table | review_user
+ public | consolidated_self_review_reports | table | review_user
+ public | reminder_queue              | table | review_user
+ public | meeting_blocks              | table | review_user
+ public | stakeholder_preparation     | table | review_user
+ public | review_trend_analytics      | table | review_user
+ public | gap_tracking                | table | review_user
+(21 rows)
 ```
 
 ---
 
-## 🔄 Updates
+## 🔍 Troubleshooting
 
-### **Update Application**
-
-```bash
-# Pull latest code
-git pull
-
-# Rebuild and restart
-docker-compose up -d --build --force-recreate app
-
-# View logs
-docker-compose logs -f app
-```
-
-### **Database Migrations**
+### **Issue: Port Already in Use**
 
 ```bash
-# Run Alembic migrations (if using)
-docker-compose exec app alembic upgrade head
+# Check what's using the port
+netstat -ano | findstr :8000
+netstat -ano | findstr :5432
 
-# Or initialize via Python
-docker-compose exec app python -c "from app.db.session import init_db; import asyncio; asyncio.run(init_db())"
+# Stop conflicting service or change port in .env
+APP_PORT=8001
+DB_PORT=5433
 ```
 
 ---
 
-## 🐛 Troubleshooting
-
-### **App Won't Start**
-
-```bash
-# Check logs
-docker-compose logs app
-
-# Common issues:
-# 1. Database not ready - wait for db health check
-# 2. Missing .env variables - check .env file
-# 3. Port conflicts - change APP_PORT in .env
-```
-
-### **Database Connection Failed**
+### **Issue: Database Connection Failed**
 
 ```bash
 # Check database is running
 docker-compose ps db
 
-# Test connection
-docker-compose exec app python -c "from app.db.session import engine; print(engine)"
+# Check database logs
+docker-compose logs db
 
-# Reset database (WARNING: deletes data!)
+# Test connection from app
+docker-compose exec app python -c "
+from app.db.session import AsyncSessionLocal
+import asyncio
+async def test():
+    async with AsyncSessionLocal() as session:
+        result = await session.execute('SELECT 1')
+        print('Connection successful!')
+asyncio.run(test())
+"
+```
+
+---
+
+### **Issue: Migration Failed**
+
+```bash
+# Check current migration version
+docker-compose exec app alembic current
+
+# Rollback one migration
+docker-compose exec app alembic downgrade -1
+
+# Rollback to specific version
+docker-compose exec app alembic downgrade <revision_id>
+
+# Wipe and recreate (development only!)
 docker-compose down -v
 docker-compose up -d db
-```
-
-### **Port Already in Use**
-
-```bash
-# Find process using port 8000
-netstat -ano | findstr :8000
-
-# Kill process or change port in .env
-APP_PORT=8001
+docker-compose exec app alembic upgrade head
 ```
 
 ---
 
-## 📦 Backup & Restore
+## 📊 Phase 1 Docker Tasks
 
-### **Backup Database**
+### Week 1 Docker-Related Tasks
 
-```bash
-# PostgreSQL backup
-docker-compose exec db pg_dump -U review_user reviews_db > backup_$(date +%Y%m%d).sql
+- [ ] **1.1.1** Setup PostgreSQL development database
+  ```bash
+  docker-compose up -d db
+  docker-compose logs db  # Verify started
+  ```
 
-# Backup volumes
-docker run --rm \
-  -v ai-review-agent_postgres_data:/data \
-  -v $(pwd)/backups:/backup \
-  alpine tar czf /backup/postgres_data.tar.gz /data
-```
+- [ ] **1.1.2** Create Migration 001 script
+  ```bash
+  docker-compose exec app alembic revision --autogenerate -m "Initial v2.0 schema"
+  ```
 
-### **Restore Database**
+- [ ] **1.1.3** Test migration on dev database
+  ```bash
+  docker-compose exec app alembic upgrade head
+  docker-compose exec db psql -U review_user -d reviews_db -c "\dt"
+  ```
 
-```bash
-# Restore from SQL dump
-docker-compose exec -T db psql -U review_user reviews_db < backup_20260327.sql
+- [ ] **1.2.1** Setup Docker development environment
+  ```bash
+  docker-compose --profile tools up --build
+  docker-compose ps  # Verify all services running
+  ```
 
-# Restore from volume backup
-docker run --rm \
-  -v ai-review-agent_postgres_data:/data \
-  -v $(pwd)/backups:/backup \
-  alpine tar xzf /backup/postgres_data.tar.gz -C /
-```
-
----
-
-## 🚀 Production Deployment
-
-### **1. Prepare Server**
-
-```bash
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sh get-docker.sh
-
-# Install Docker Compose
-pip install docker-compose
-```
-
-### **2. Deploy**
-
-```bash
-# Clone repository
-git clone <your-repo>
-cd project-reviews
-
-# Configure environment
-cp .env.docker .env
-nano .env  # Edit with production values
-
-# Start services
-docker-compose --profile production up -d --build
-
-# Verify
-docker-compose ps
-curl http://localhost/health
-```
-
-### **3. SSL with Let's Encrypt**
-
-```bash
-# Install Certbot
-apt install certbot python3-certbot-nginx
-
-# Get certificates
-certbot --nginx -d your-domain.com
-
-# Certificates auto-mounted to nginx/ssl
-```
+- [ ] **1.2.3** Setup Redis for caching
+  ```bash
+  docker-compose up -d redis
+  docker-compose exec redis redis-cli ping  # Should return PONG
+  ```
 
 ---
 
-## 📈 Performance Tuning
+## 🔗 Related Documents
 
-### **App Workers**
-
-```bash
-# In docker-compose.yml, modify CMD:
-command: >
-  uvicorn main:app
-  --host 0.0.0.0
-  --port 8000
-  --workers 4
-  --worker-class uvicorn.workers.UvicornWorker
-```
-
-### **Database Connection Pool**
-
-```python
-# In app/db/session.py
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    pool_size=20,
-    max_overflow=40,
-    pool_pre_ping=True
-)
-```
+- [ROAD_MAP.md](ROAD_MAP.md) - Phase 1 implementation plan
+- [DATABASE_SCHEMA_V2.md](DATABASE_SCHEMA_V2.md) - Database schema
+- [DESIGN_PHASE_KICKOFF.md](DESIGN_PHASE_KICKOFF.md) - Implementation kickoff
 
 ---
 
-## 🎯 Next Steps
-
-1. ✅ Configure `.env` with your settings
-2. ✅ Run `docker-compose up --build`
-3. ✅ Access http://localhost:8000/docs
-4. ✅ Create global templates
-5. ✅ Start reviewing projects!
-
----
-
-*For more information, see QWEN.md and PRODUCTION_READINESS.md*
+*Document Owner: DevOps Team*  
+*Last Updated: March 27, 2026*  
+*Next Update: After Phase 1 Week 1 completion*

@@ -87,7 +87,7 @@ data/archive/
 !.agent/skills/
 
 # Keep documentation
-docs/
+# docs/ - commented out, we track docs now!
 *.md
 
 # Keep LLM context files
