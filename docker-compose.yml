@@ -1,0 +1,153 @@
+# ============================================
+# AI Tech & Delivery Review Agent
+# Docker Compose for Development & Production
+# ============================================
+
+version: '3.8'
+
+services:
+  # --------------------------------------------
+  # Application Service
+  # --------------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${BUILD_TARGET:-production}
+    container_name: ai-review-agent
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      # Application
+      - APP_NAME=${APP_NAME:-AI Tech & Delivery Review Agent}
+      - DEBUG=${DEBUG:-false}
+      
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:///./reviews.db}
+      
+      # API Keys
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      
+      # Security
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      
+      # Storage
+      - DATA_DIR=/app/data
+      - UPLOAD_DIR=/app/uploads
+      - REPORTS_DIR=/app/reports
+      - CHROMA_PERSIST_DIR=/app/chroma_db
+      
+      # Agent Settings
+      - VOICE_ENABLED=${VOICE_ENABLED:-true}
+      - REQUIRE_HUMAN_APPROVAL=${REQUIRE_HUMAN_APPROVAL:-true}
+      - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-en}
+    volumes:
+      # Persist data
+      - app_data:/app/data
+      - app_uploads:/app/uploads
+      - app_reports:/app/reports
+      - app_chroma:/app/chroma_db
+      # For development, mount source code
+      - .:/app:cached
+    depends_on:
+      - db
+    networks:
+      - ai-review-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # --------------------------------------------
+  # Database Service (PostgreSQL for Production)
+  # --------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: ai-review-db
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-review_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-review_password_change_me}
+      - POSTGRES_DB=${POSTGRES_DB:-reviews_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - ai-review-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-review_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --------------------------------------------
+  # pgAdmin (Optional - Database Management)
+  # --------------------------------------------
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ai-review-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin_change_me}
+      - PGADMIN_CONFIG_SERVER_MODE=False
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      - db
+    networks:
+      - ai-review-network
+    restart: unless-stopped
+    profiles:
+      - tools
+
+  # --------------------------------------------
+  # Nginx Reverse Proxy (Production Only)
+  # --------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: ai-review-nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - ai-review-network
+    restart: unless-stopped
+    profiles:
+      - production
+
+networks:
+  ai-review-network:
+    driver: bridge
+
+volumes:
+  app_data:
+    driver: local
+  app_uploads:
+    driver: local
+  app_reports:
+    driver: local
+  app_chroma:
+    driver: local
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  nginx_logs:
+    driver: local
