@@ -73,3 +73,23 @@ data/archive/
 
 # But track templates
 !data/templates/
+
+# LLM Agent Configuration (keep configs, ignore sensitive data)
+.qwen/secrets/
+.claude/secrets/
+.agent/secrets/
+
+# Keep LLM configs and skills
+!.qwen/config.md
+!.qwen/skills/
+!.claude/config.md
+!.claude/skills/
+!.agent/skills/
+
+# Keep documentation
+docs/
+*.md
+
+# Keep LLM context files
+llms.txt
+llms-public.txt

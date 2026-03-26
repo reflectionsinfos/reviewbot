@@ -8,7 +8,7 @@ from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from app.core.config import settings
-from app.agents.states import ReviewState
+from app.agents.review_agent.states import ReviewState
 from app.services.report_generator import get_report_generator
 from app.services.checklist_optimizer import get_checklist_optimizer
 

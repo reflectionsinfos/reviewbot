@@ -18,6 +18,39 @@ This AI agent acts as an expert team member who knows everything about your proj
 
 ---
 
+## 📚 Documentation
+
+### Quick Links
+
+| Audience | Documentation | Description |
+|----------|---------------|-------------|
+| **Everyone** | [`docs/`](docs/) | Documentation hub with all guides |
+| **New Users** | [`docs/external/getting-started.md`](docs/external/getting-started.md) | Getting started guide |
+| **Users** | [`docs/external/workflows/`](docs/external/workflows/) | Step-by-step workflows |
+| **Developers** | [`docs/internal/`](docs/internal/) | Developer documentation |
+| **DevOps** | [`docs/internal/deployment/`](docs/internal/deployment/) | Deployment guides |
+| **API Consumers** | [`docs/api/`](docs/api/) | API documentation |
+
+### Documentation Categories
+
+- **📖 External Docs** (`docs/external/`) - For end users, PMs, stakeholders
+- **🔒 Internal Docs** (`docs/internal/`) - For developers, DevOps, maintainers
+- **🔌 API Docs** (`docs/api/`) - For API consumers and integrators
+
+### AI/LLM Context
+
+- **Full Context:** [`llms.txt`](llms.txt) - Complete project context for AI agents
+- **Public Context:** [`llms-public.txt`](llms-public.txt) - Public-only context (no secrets)
+- **Qwen Config:** [`.qwen/`](.qwen/) - Qwen AI configuration and skills
+- **Claude Config:** [`.claude/`](.claude/) - Claude AI configuration and skills
+- **Generic Agent:** [`.agent/`](.agent/) - Generic AI agent configuration
+
+---
+
+## 🏗️ Architecture
+
+---
+
 ## 🏗️ Architecture
 
 ```
