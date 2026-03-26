@@ -1,17 +1,34 @@
--- Initialize PostgreSQL database for AI Review Agent
--- This script runs automatically on first database creation
+-- ============================================
+-- ReviewBot v2.0 - Database Initialization
+-- ============================================
+-- This script runs automatically when the PostgreSQL
+-- container is first created.
 
--- Create extensions
+-- Create database for ReviewBot
+CREATE DATABASE reviews_db;
+
+-- Connect to the database
+\c reviews_db;
+
+-- Create extension for UUID (if needed)
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Note: Tables are created by SQLAlchemy migrations
--- This script is for database-level setup only
+-- Create extension for full-text search
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
--- Create index for performance (optional - SQLAlchemy creates most)
-CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
-CREATE INDEX IF NOT EXISTS idx_reviews_status ON reviews(status);
-CREATE INDEX IF NOT EXISTS idx_reports_approval ON reports(approval_status);
+-- Grant privileges
+GRANT ALL PRIVILEGES ON DATABASE reviews_db TO review_user;
 
--- Grant permissions (if needed)
--- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO review_user;
--- GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO review_user;
+-- Set search path
+ALTER USER review_user SET search_path TO public;
+
+-- Create schema comment
+COMMENT ON DATABASE reviews_db IS 'ReviewBot v2.0 - AI Tech & Delivery Review Agent Database';
+
+-- Log success
+DO $$
+BEGIN
+    RAISE NOTICE 'ReviewBot database initialized successfully!';
+    RAISE NOTICE 'Database: reviews_db';
+    RAISE NOTICE 'User: review_user';
+END $$;

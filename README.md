@@ -83,41 +83,161 @@ This AI agent acts as an expert team member who knows everything about your proj
 
 ## 🚀 Quick Start
 
+### Prerequisites
+
+- **Docker Desktop** (Windows/Mac) or Docker + Docker Compose (Linux)
+- **OpenAI API Key** (for LLM and voice features)
+
+---
+
 ### Option 1: Docker (Recommended) ⭐
 
-**Prerequisites:**
-- Docker Desktop (Windows/Mac) or Docker + Docker Compose (Linux)
-- OpenAI API Key
+**Perfect for Windows 11 with Docker Desktop**
 
-**Steps:**
+#### Step 1: Clone and Configure
 
 ```bash
-# 1. Navigate to project
-cd c:\projects\project-reviews
+# Navigate to project
+cd c:\projects\reviewbot
 
-# 2. Copy environment template
+# Copy environment template
 copy .env.docker .env
 
-# 3. Edit .env and add your OpenAI API key
+# Edit .env and add your API keys
 notepad .env
-
-# 4. Start all services
-docker-compose up --build
-
-# 5. Access the application
-# - API: http://localhost:8000
-# - Docs: http://localhost:8000/docs
-# - pgAdmin: http://localhost:5050 (optional)
 ```
 
-**Quick Commands:**
+**Required environment variables:**
+```env
+# OpenAI API Key (REQUIRED)
+OPENAI_API_KEY=sk-your-actual-api-key-here
+
+# Database (PostgreSQL)
+DATABASE_URL="postgresql+asyncpg://review_user:review_password_change_me@localhost:5432/reviews_db"
+
+# Security (CHANGE IN PRODUCTION!)
+SECRET_KEY=your-super-secret-key-change-this
+```
+
+#### Step 2: Start Docker Containers
+
 ```bash
-make up          # Start services
-make down        # Stop services
-make logs        # View logs
-make shell       # Open shell in app
-make test        # Run tests
+# Development mode (with pgAdmin tools)
+docker-compose --profile tools up --build
+
+# Or run in background
+docker-compose --profile tools up -d --build
 ```
+
+#### Step 3: Setup Database
+
+**Windows (PowerShell):**
+```bash
+# Run database setup script
+.\scripts\setup-database.ps1
+```
+
+**Manual setup:**
+```bash
+# Wait for PostgreSQL to be ready
+docker-compose logs db
+
+# Run migrations
+docker-compose exec app alembic upgrade head
+
+# Verify tables created (should show 21 tables)
+docker-compose exec db psql -U review_user -d reviews_db -c "\dt"
+```
+
+#### Step 4: Verify Setup
+
+```bash
+# Check all services are running
+docker-compose ps
+
+# Test health endpoint
+curl http://localhost:8000/health
+
+# Expected response:
+# {"status":"healthy","database":"connected","voice_enabled":true}
+```
+
+#### Step 5: Access Services
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **API** | http://localhost:8000 | - |
+| **API Docs** | http://localhost:8000/docs | - |
+| **pgAdmin** | http://localhost:5050 | admin@example.com / admin_change_me |
+
+---
+
+### Quick Commands
+
+```bash
+# Start all services
+docker-compose --profile tools up -d
+
+# Stop all services
+docker-compose down
+
+# View logs
+docker-compose logs -f app
+docker-compose logs -f db
+
+# Open shell in app container
+docker-compose exec app bash
+
+# Run database migrations
+docker-compose exec app alembic upgrade head
+
+# Run tests
+docker-compose exec app pytest tests/ -v
+
+# Reset database (WARNING: deletes all data!)
+docker-compose down -v
+docker-compose up -d db
+docker-compose exec app alembic upgrade head
+```
+
+---
+
+### Troubleshooting
+
+**Issue: Port already in use**
+```bash
+# Check what's using the port
+netstat -ano | findstr :8000
+netstat -ano | findstr :5432
+
+# Stop conflicting service or change port in .env
+APP_PORT=8001
+DB_PORT=5433
+```
+
+**Issue: Database connection failed**
+```bash
+# Check database is running
+docker-compose ps db
+
+# Check database logs
+docker-compose logs db
+
+# Restart database
+docker-compose restart db
+```
+
+**Issue: Migration failed**
+```bash
+# Check current migration version
+docker-compose exec app alembic current
+
+# Rollback and retry
+docker-compose exec app alembic downgrade -1
+docker-compose exec app alembic upgrade head
+```
+
+---
 
 See [DOCKER_GUIDE.md](DOCKER_GUIDE.md) for complete Docker documentation.
 
