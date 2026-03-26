@@ -21,7 +21,6 @@ services:
       # Application
       - APP_NAME=${APP_NAME:-ReviewBot v2.0}
       - DEBUG=${DEBUG:-true}
-      - ENVIRONMENT=${ENVIRONMENT:-development}
 
       # Database (PostgreSQL)
       - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://review_user:review_password_change_me@db:5432/reviews_db}
@@ -30,7 +29,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
       
-      # Alternative LLM Providers (Set ACTIVE_LLM_PROVIDER to choose which one to use)
+      # Alternative LLM Providers
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
@@ -40,11 +39,21 @@ services:
       # Active LLM Provider (Choose one: openai, anthropic, google, groq, qwen, azure)
       - ACTIVE_LLM_PROVIDER=${ACTIVE_LLM_PROVIDER:-openai}
 
-      # Security Configuration
-      # These are required for JWT authentication to protect API endpoints
-      - SECRET_KEY=${SECRET_KEY}  # Used to sign JWT tokens (keep secret!)
-      - ALGORITHM=${ALGORITHM:-HS256}  # JWT signing algorithm (HS256 is standard)
-      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}  # Token validity (30 min default)
+      # Security Configuration (Required for JWT authentication)
+      - SECRET_KEY=${SECRET_KEY}
+      - ALGORITHM=${ALGORITHM:-HS256}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+
+      # Storage
+      - DATA_DIR=/app/data
+      - UPLOAD_DIR=/app/uploads
+      - REPORTS_DIR=/app/reports
+      - CHROMA_PERSIST_DIR=/app/chroma_db
+
+      # Agent Settings
+      - VOICE_ENABLED=${VOICE_ENABLED:-true}
+      - REQUIRE_HUMAN_APPROVAL=${REQUIRE_HUMAN_APPROVAL:-true}
+      - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-en}
 
       # Storage
       - DATA_DIR=/app/data
