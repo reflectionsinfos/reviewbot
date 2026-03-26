@@ -92,19 +92,19 @@ services:
     image: postgres:15-alpine
     container_name: ai-review-db
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-review_user}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-review_password_change_me}
-      - POSTGRES_DB=${POSTGRES_DB:-reviews_db}
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_admin_password
+      - POSTGRES_DB=postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./scripts/init-db-simple.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     ports:
       - "${DB_PORT:-5432}:5432"
     networks:
       - ai-review-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-review_user}"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
