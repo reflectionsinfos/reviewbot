@@ -62,6 +62,8 @@ services:
       - app_chroma:/app/chroma_db
       # For development, mount source code
       - .:/app:cached
+      # Mount host projects folder for autonomous review source scanning
+      - C:\projects:/host-projects:ro
     depends_on:
       db:
         condition: service_healthy
