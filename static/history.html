@@ -559,11 +559,15 @@
   }
 
   // ── Details ────────────────────────────────────────────────────────────────
-  async function viewDetails(reportId, jobId) {
+  async function viewDetails(reportId, jobId, pushState = true) {
     currentReportId = reportId;
     currentJobId = jobId;
     document.getElementById('history-section').style.display = 'none';
     document.getElementById('details-section').style.display = 'block';
+
+    if (pushState) {
+      history.pushState({ reportId, jobId }, '', `/history/${reportId}`);
+    }
 
     document.getElementById('det-title').textContent = 'Loading…';
     document.getElementById('det-stats').innerHTML = '<span class="spinner"></span>';
@@ -860,12 +864,24 @@
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
-  function showHistory() {
+  function showHistory(pushState = true) {
     document.getElementById('details-section').style.display = 'none';
     document.getElementById('history-section').style.display = 'block';
     currentReportId = null;
     currentJobId = null;
+    if (pushState) {
+      history.pushState(null, '', '/history');
+    }
   }
+
+  // Browser back/forward button support
+  window.addEventListener('popstate', (e) => {
+    if (e.state?.reportId) {
+      viewDetails(e.state.reportId, e.state.jobId, false);
+    } else {
+      showHistory(false);
+    }
+  });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function esc(str) {
@@ -880,7 +896,13 @@
   // ── Init ───────────────────────────────────────────────────────────────────
   if (TOKEN) {
     document.getElementById('auth-overlay').style.display = 'none';
-    loadHistory();
+    // Check if URL has a report ID (e.g. /history/42) — load it directly
+    const urlMatch = window.location.pathname.match(/\/history\/(\d+)/);
+    if (urlMatch) {
+      loadHistory().then(() => viewDetails(parseInt(urlMatch[1]), parseInt(urlMatch[1]), false));
+    } else {
+      loadHistory();
+    }
   }
 </script>
 </body>

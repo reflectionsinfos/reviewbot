@@ -84,8 +84,9 @@ async def serve_ui():
 
 
 @app.get("/history", include_in_schema=False)
-async def serve_history():
-    """Serve the Report History UI"""
+@app.get("/history/{job_id}", include_in_schema=False)
+async def serve_history(job_id: int = None):
+    """Serve the Report History UI (job_id handled client-side via JS)"""
     return FileResponse(os.path.join(_static_dir, "history.html"))
 
 
