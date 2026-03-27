@@ -150,6 +150,10 @@
     .override-comment { color: #94a3b8; width: 100%; }
     .override-reason { font-size: 11px; color: #475569; font-family: monospace; }
 
+    /* Human-required routing rule button */
+    .btn-routing-active { background: #1e3a5f44; border: 1px solid #1d4ed8; color: #60a5fa; }
+    .btn-routing-active:hover { border-color: #ef4444; color: #f87171; }
+
     /* Override form */
     .override-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid #334155; }
     .override-form select, .override-form textarea, .override-form input { margin-bottom: 8px; padding: 7px 10px; font-size: 12px; }
@@ -606,9 +610,16 @@
       ${filesHtml}
       ${overridesHtml}
       ${currentJobId ? `
-        <div style="margin-top:10px;">
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" data-result-id="${item.item_id}" data-question="${esc(item.question || '')}" data-evidence="${esc(item.evidence || '')}" onclick="openOverrideModal(this.dataset.resultId, this.dataset.question, this.dataset.evidence)">
             ✏️ Override
+          </button>
+          <button class="btn btn-sm ${item.has_routing_rule ? 'btn-routing-active' : 'btn-ghost'}"
+                  data-ci-id="${item.checklist_item_id}"
+                  data-has-rule="${item.has_routing_rule ? '1' : '0'}"
+                  onclick="toggleHumanRequired(this)"
+                  title="${item.has_routing_rule ? 'Remove human-required flag — item will be auto-routed on next review' : 'Mark as Human Required on all future reviews'}">
+            ${item.has_routing_rule ? '🚫 Human Required (click to remove)' : '👤 Mark as Human Required'}
           </button>
         </div>` : ''}
     </div>`;
@@ -652,6 +663,47 @@
       toast('Override saved', 'success');
       closeOverrideModal();
       viewDetails(currentReportId, currentJobId); // refresh
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // ── Routing rules ───────────────────────────────────────────────────────────
+  async function toggleHumanRequired(btn) {
+    const ciId = btn.dataset.ciId;
+    const hasRule = btn.dataset.hasRule === '1';
+
+    if (!ciId || ciId === 'undefined') {
+      toast('Cannot set rule: checklist item ID missing', 'error');
+      return;
+    }
+
+    try {
+      if (hasRule) {
+        // Remove the rule
+        const res = await fetch(`/api/routing-rules/items/${ciId}`, {
+          method: 'DELETE', headers: authHeader(),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to remove rule');
+        }
+        toast('Routing rule removed — item will be auto-routed on next review', 'success');
+      } else {
+        // Set human_required rule
+        const res = await fetch(`/api/routing-rules/items/${ciId}`, {
+          method: 'POST',
+          headers: authHeader(),
+          body: JSON.stringify({ strategy: 'human_required' }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to set rule');
+        }
+        toast('Marked as Human Required — will be skipped on all future reviews', 'success');
+      }
+      // Refresh the details view to show updated button states
+      viewDetails(currentReportId, currentJobId);
     } catch (e) {
       toast(e.message, 'error');
     }

@@ -647,6 +647,16 @@ async def get_report_details(
     results_result = await db.execute(results_query)
     results = results_result.scalars().all()
 
+    # Load active routing rules so the UI can show the toggle state
+    from app.models import ChecklistRoutingRule
+    ci_ids = [r.checklist_item_id for r in results if r.checklist_item_id]
+    rr_result = await db.execute(
+        select(ChecklistRoutingRule)
+        .where(ChecklistRoutingRule.checklist_item_id.in_(ci_ids))
+        .where(ChecklistRoutingRule.is_active == True)
+    )
+    routing_rule_map = {rr.checklist_item_id: True for rr in rr_result.scalars().all()}
+
     items = []
     override_count = 0
 
@@ -657,6 +667,7 @@ async def get_report_details(
             override_count += 1
         items.append({
             "item_id": r.id,
+            "checklist_item_id": r.checklist_item_id,
             "item_code": ci.item_code if ci else "",
             "area": ci.area if ci else "",
             "question": ci.question if ci else r.evidence,
@@ -664,6 +675,7 @@ async def get_report_details(
             "evidence": r.evidence,
             "confidence": r.confidence,
             "strategy": r.strategy,
+            "has_routing_rule": routing_rule_map.get(r.checklist_item_id, False),
             "is_overridden": is_overridden,
             "overrides": [
                 {

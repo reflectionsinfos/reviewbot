@@ -11,10 +11,10 @@ from sqlalchemy.orm import selectinload
 from app.db.session import AsyncSessionLocal
 from app.models import (
     AutonomousReviewJob, AutonomousReviewResult,
-    ChecklistItem, Checklist,
+    ChecklistItem, Checklist, ChecklistRoutingRule,
 )
 from .connectors.local_folder import LocalFolderConnector
-from .strategy_router import StrategyRouter
+from .strategy_router import StrategyRouter, build_strategy_config_from_db
 from .analyzers.file_presence import FilePresenceAnalyzer
 from .analyzers.pattern_scan import PatternScanAnalyzer
 from .analyzers.llm_analyzer import LLMAnalyzer
@@ -69,6 +69,29 @@ async def run_autonomous_review(job_id: int) -> None:
             })
 
 
+def _resolve_source_path(path: str) -> str:
+    """
+    Normalise source paths entered by users so common mistakes work:
+      C:\\projects\\foo     → /host-projects/foo
+      C:/projects/foo      → /host-projects/foo
+      /projects/foo        → /host-projects/foo  (missing the 'host-' prefix)
+    All other paths are returned as-is.
+    """
+    import re
+    p = path.replace("\\", "/")
+    # Windows drive letter: C:/projects/... or C:/anything/...
+    m = re.match(r"^[A-Za-z]:/(.*)", p)
+    if m:
+        rest = m.group(1)
+        # Map the top-level "projects" folder to the Docker mount point
+        rest = re.sub(r"^projects/", "host-projects/", rest)
+        return "/" + rest
+    # /projects/... → /host-projects/...
+    if p.startswith("/projects/"):
+        return "/host-" + p[1:]
+    return path
+
+
 async def _execute_review(job_id: int, db) -> None:
     # ── Load job ──────────────────────────────────────────────────────────────
     result = await db.execute(
@@ -88,12 +111,14 @@ async def _execute_review(job_id: int, db) -> None:
     await db.commit()
 
     # ── Scan source folder ────────────────────────────────────────────────────
+    source_path = _resolve_source_path(job.source_path)
+
     await progress_manager.broadcast(job_id, {
         "type": "scanning",
-        "message": f"Scanning project folder: {job.source_path}",
+        "message": f"Scanning project folder: {source_path}",
     })
 
-    connector = LocalFolderConnector(job.source_path)
+    connector = LocalFolderConnector(source_path)
     file_index = connector.scan()
     fs = file_index.summary()
 
@@ -117,7 +142,19 @@ async def _execute_review(job_id: int, db) -> None:
         "checklist": job.checklist.name,
     })
 
-    router = StrategyRouter()
+    # ── Load DB routing rules for this checklist ──────────────────────────────
+    item_ids = [item.id for item in items]
+    db_rules_result = await db.execute(
+        select(ChecklistRoutingRule)
+        .where(ChecklistRoutingRule.checklist_item_id.in_(item_ids))
+        .where(ChecklistRoutingRule.is_active == True)
+    )
+    db_rules = {
+        rule.checklist_item_id: build_strategy_config_from_db(rule)
+        for rule in db_rules_result.scalars().all()
+    }
+
+    router = StrategyRouter(db_rules=db_rules)
     counters = {"green": 0, "amber": 0, "red": 0, "skipped": 0, "na": 0}
 
     # ── Process each item ─────────────────────────────────────────────────────

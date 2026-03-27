@@ -448,13 +448,25 @@ def _extract_keywords(area: str, question: str) -> list[str]:
 # ── Main Router ───────────────────────────────────────────────────────────────
 
 class StrategyRouter:
-    """Routes a ChecklistItem to the best StrategyConfig."""
+    """Routes a ChecklistItem to the best StrategyConfig.
+
+    Accepts an optional dict of DB-defined rules keyed by checklist_item_id.
+    DB rules are checked first, before any hard-coded logic.
+    """
+
+    def __init__(self, db_rules: dict[int, "StrategyConfig"] | None = None):
+        # db_rules: {checklist_item_id: StrategyConfig}
+        self._db_rules = db_rules or {}
 
     def route(self, item) -> StrategyConfig:
+        # 0. DB rule — highest priority (admin/PM override)
+        if item.id in self._db_rules:
+            return self._db_rules[item.id]
+
         area = (item.area or "").strip()
         question = (item.question or "").strip()
 
-        # 1. Human-required check (highest priority)
+        # 1. Hard-coded human-required check
         human = _is_human_required(area, question)
         if human:
             return human
@@ -483,3 +495,12 @@ class StrategyRouter:
             context_keywords=keywords,
             focus_prompt=question,
         )
+
+
+def build_strategy_config_from_db(rule) -> StrategyConfig:
+    """Convert a ChecklistRoutingRule DB row to a StrategyConfig."""
+    return StrategyConfig(
+        strategy=rule.strategy,
+        skip_reason=rule.skip_reason or "Marked as human-required by reviewer",
+        evidence_hint=rule.evidence_hint or "",
+    )

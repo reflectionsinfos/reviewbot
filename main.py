@@ -13,6 +13,8 @@ from fastapi.responses import FileResponse
 from app.core.config import settings
 from app.api.routes import projects, reviews, reports, checklists, auth
 from app.api.routes.autonomous_reviews import router as autonomous_reviews_router
+from app.api.routes.agent import router as agent_router
+from app.api.routes.routing_rules import router as routing_rules_router
 from app.db.session import init_db
 from app.services.autonomous_review.progress import progress_manager
 
@@ -49,6 +51,8 @@ app.include_router(checklists.router,           prefix="/api/checklists",       
 app.include_router(reviews.router,              prefix="/api/reviews",            tags=["Reviews"])
 app.include_router(reports.router,              prefix="/api/reports",            tags=["Reports"])
 app.include_router(autonomous_reviews_router,   prefix="/api/autonomous-reviews", tags=["Autonomous Review"])
+app.include_router(agent_router,               prefix="/api/v1/agent/scan",      tags=["Agent Bridge"])
+app.include_router(routing_rules_router,       prefix="/api/routing-rules",      tags=["Routing Rules"])
 
 # ── WebSocket — Autonomous Review live progress ───────────────────────────────
 @app.websocket("/ws/autonomous-reviews/{job_id}")
@@ -77,6 +81,12 @@ if os.path.isdir(_static_dir):
 async def serve_ui():
     """Serve the Autonomous Review frontend UI"""
     return FileResponse(os.path.join(_static_dir, "index.html"))
+
+
+@app.get("/history", include_in_schema=False)
+async def serve_history():
+    """Serve the Report History UI"""
+    return FileResponse(os.path.join(_static_dir, "history.html"))
 
 
 # ── Health / root ─────────────────────────────────────────────────────────────
