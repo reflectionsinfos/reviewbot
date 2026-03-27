@@ -559,10 +559,7 @@
 
     document.getElementById('det-title').textContent = 'Loading…';
     document.getElementById('det-stats').innerHTML = '<span class="spinner"></span>';
-    document.getElementById('det-red').innerHTML = '';
-    document.getElementById('det-amber').innerHTML = '';
-    document.getElementById('det-green').innerHTML = '';
-    document.getElementById('det-skipped').innerHTML = '';
+    document.getElementById('det-items').innerHTML = '';
 
     try {
       const res = await fetch(`/api/reports/${reportId}/details`, { headers: authHeader() });
