@@ -54,14 +54,27 @@ services:
       - VOICE_ENABLED=${VOICE_ENABLED:-true}
       - REQUIRE_HUMAN_APPROVAL=${REQUIRE_HUMAN_APPROVAL:-true}
       - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-en}
+      
+      # Source Path Validation (disable for Docker volume mounts)
+      - REVIEWBOT_VALIDATE_SOURCE_PATH=false
     volumes:
       # Persist data
       - app_data:/app/data
       - app_uploads:/app/uploads
       - app_reports:/app/reports
       - app_chroma:/app/chroma_db
+      
       # For development, mount source code
       - .:/app:cached
+      
+      # MOUNT YOUR PROJECTS FOLDER (Required for autonomous review)
+      # Windows Example:
+      # - C:/projects:/host-projects:ro
+      # 
+      # Then use path: /host-projects/your-project in the UI
+      #
+      # Linux/Mac Example:
+      # - /home/user/projects:/host-projects:ro
       # Mount host projects folder for autonomous review source scanning
       - C:\projects:/host-projects:ro
     depends_on:
