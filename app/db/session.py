@@ -35,24 +35,27 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
-    """Initialize database — run Alembic migrations then create any missing tables."""
-    import subprocess, sys, logging
+    """Initialize database tables and apply any pending column additions."""
+    from app.models import Base
+    import logging
     log = logging.getLogger(__name__)
 
-    # Run migrations synchronously before the async app starts serving requests
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
-            capture_output=True, text=True,
-        )
-        if result.returncode != 0:
-            log.warning("Alembic migration warning:\n%s", result.stderr)
-        else:
-            log.info("Alembic migrations applied:\n%s", result.stdout or "(none pending)")
-    except Exception as exc:
-        log.warning("Could not run Alembic migrations: %s", exc)
-
-    # create_all as safety net for any model not covered by migrations
-    from app.models import Base
     async with engine.begin() as conn:
+        # Create all tables that don't exist yet
         await conn.run_sync(Base.metadata.create_all)
+
+        # ── Incremental column additions (safe: IF NOT EXISTS) ────────────────
+        # These cover cases where the table already existed before the column
+        # was added to the model, since create_all never alters existing tables.
+        migrations = [
+            # 005 — checklist_routing_rules (whole table, handled by create_all)
+            # 006 — needs_human_sign_off on autonomous_review_results
+            """ALTER TABLE autonomous_review_results
+               ADD COLUMN IF NOT EXISTS needs_human_sign_off BOOLEAN NOT NULL DEFAULT FALSE""",
+        ]
+        for sql in migrations:
+            try:
+                await conn.execute(__import__('sqlalchemy').text(sql))
+                log.info("Migration applied: %s", sql[:60])
+            except Exception as exc:
+                log.warning("Migration skipped (%s): %s", type(exc).__name__, sql[:60])
