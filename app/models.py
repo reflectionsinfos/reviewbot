@@ -290,8 +290,33 @@ class AutonomousReviewResult(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Relationships
     job = relationship("AutonomousReviewJob", back_populates="results")
     checklist_item = relationship("ChecklistItem")
+    overrides = relationship("AutonomousReviewOverride", back_populates="result", cascade="all, delete-orphan")
+
+
+class AutonomousReviewOverride(Base):
+    """Human override for autonomous review results"""
+    __tablename__ = "autonomous_review_overrides"
+
+    id = Column(Integer, primary_key=True, index=True)
+    result_id = Column(Integer, ForeignKey("autonomous_review_results.id"), nullable=False)
+    
+    # Relationship
+    result = relationship("AutonomousReviewResult", back_populates="overrides")
+    
+    # Override details
+    new_rag_status = Column(String, nullable=False)  # green | amber | red | na
+    comments = Column(Text, nullable=False)
+    reason = Column(String, nullable=True)  # project_specific | not_applicable | alternative_approach | other
+    
+    # Audit trail
+    overridden_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    overridden_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # User relationship
+    user = relationship("User")
 
 
 class ChecklistRecommendation(Base):

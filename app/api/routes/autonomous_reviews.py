@@ -5,11 +5,12 @@ GET    /api/autonomous-reviews/          – list all jobs (with optional projec
 GET    /api/autonomous-reviews/{job_id}  – job status + results
 GET    /api/autonomous-reviews/{job_id}/report – full report
 DELETE /api/autonomous-reviews/{job_id}  – cancel / delete job
+POST   /api/autonomous-reviews/{job_id}/results/{result_id}/override – override RAG status
 WS     /ws/autonomous-reviews/{job_id}   – real-time progress stream
 """
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -20,8 +21,8 @@ from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
 from app.models import (
-    AutonomousReviewJob, AutonomousReviewResult,
-    Project, Checklist, ChecklistItem,
+    AutonomousReviewJob, AutonomousReviewResult, AutonomousReviewOverride,
+    Project, Checklist, ChecklistItem, User,
 )
 from app.services.autonomous_review.orchestrator import run_autonomous_review
 from app.services.autonomous_review.progress import progress_manager
@@ -50,6 +51,21 @@ class JobStatusResponse(BaseModel):
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     created_at: datetime
+
+
+class OverrideRequest(BaseModel):
+    """Request to override a review result"""
+    new_rag_status: str  # green | amber | red | na
+    comments: str
+    reason: Optional[str] = None  # project_specific | not_applicable | alternative_approach | other
+
+
+class OverrideResponse(BaseModel):
+    """Response after override"""
+    status: str
+    message: str
+    override_id: int
+    new_rag_status: str
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -312,6 +328,119 @@ async def delete_job(job_id: int, db: AsyncSession = Depends(get_db)):
     else:
         await db.delete(job)
         await db.commit()
+
+
+# ── POST /{job_id}/results/{result_id}/override — Override RAG status ─────────
+
+@router.post(
+    "/{job_id}/results/{result_id}/override",
+    response_model=OverrideResponse,
+    status_code=200,
+)
+async def override_review_result(
+    job_id: int,
+    result_id: int,
+    override_data: OverrideRequest,
+    db: AsyncSession = Depends(get_db),
+    # TODO: Add authentication - for now accept any request
+    # current_user: User = Depends(get_current_user),
+):
+    """
+    Override the RAG status of a checklist item with human explanation.
+    
+    Use cases:
+    - Project uses alternative approach not detected by AI
+    - Checklist item not applicable to this project
+    - Evidence exists but in non-standard location
+    - Team has valid reason for deviation from standards
+    
+    The override creates an audit trail with:
+    - Who overridden (will be added with authentication)
+    - When overridden
+    - Why overridden (reason + comments)
+    - New RAG status
+    """
+    # Validate job exists
+    job = await db.get(AutonomousReviewJob, job_id)
+    if not job:
+        raise HTTPException(404, f"Job {job_id} not found")
+    
+    # Get the result
+    result = await db.get(AutonomousReviewResult, result_id)
+    if not result:
+        raise HTTPException(404, f"Result {result_id} not found")
+    
+    # Verify result belongs to this job
+    if result.job_id != job_id:
+        raise HTTPException(400, f"Result {result_id} does not belong to job {job_id}")
+    
+    # Validate RAG status
+    valid_statuses = ["green", "amber", "red", "na"]
+    if override_data.new_rag_status not in valid_statuses:
+        raise HTTPException(
+            400, 
+            f"Invalid RAG status. Must be one of: {', '.join(valid_statuses)}"
+        )
+    
+    # Create override record
+    override = AutonomousReviewOverride(
+        result_id=result_id,
+        new_rag_status=override_data.new_rag_status,
+        comments=override_data.comments,
+        reason=override_data.reason,
+        overridden_by=1,  # TODO: Replace with current_user.id when auth is added
+        overridden_at=datetime.utcnow(),
+    )
+    
+    db.add(override)
+    await db.commit()
+    await db.refresh(override)
+    
+    return OverrideResponse(
+        status="success",
+        message="Override recorded successfully",
+        override_id=override.id,
+        new_rag_status=override.new_rag_status,
+    )
+
+
+# ── GET /{job_id}/results/{result_id}/overrides — Get all overrides ──────────
+
+@router.get("/{job_id}/results/{result_id}/overrides")
+async def get_overrides(
+    job_id: int,
+    result_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all overrides for a specific result"""
+    # Verify job exists
+    job = await db.get(AutonomousReviewJob, job_id)
+    if not job:
+        raise HTTPException(404, f"Job {job_id} not found")
+    
+    # Get overrides with user info
+    query = (
+        select(AutonomousReviewOverride)
+        .where(AutonomousReviewOverride.result_id == result_id)
+        .options(selectinload(AutonomousReviewOverride.user))
+    )
+    result = await db.execute(query)
+    overrides = result.scalars().all()
+    
+    return {
+        "result_id": result_id,
+        "overrides": [
+            {
+                "override_id": o.id,
+                "new_rag_status": o.new_rag_status,
+                "comments": o.comments,
+                "reason": o.reason,
+                "overridden_by": o.user.full_name if o.user else "Unknown",
+                "overridden_at": o.overridden_at.isoformat(),
+            }
+            for o in overrides
+        ],
+    }
 
 
 # WebSocket endpoint is registered directly on the app in main.py

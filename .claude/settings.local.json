@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"^d|requirements|setup|package\\\\.json|\\\\.md$\")",
+      "Bash(ls \"C:\\\\Users\\\\mallikarjun.shankesi\\\\.claude\\\\projects\\\\c--projects-reviewbot\\\\memory\"\" 2>/dev/null && cat \"C:Usersmallikarjun.shankesi.claudeprojectsc--projects-reviewbotmemoryMEMORY.md\" 2>/dev/null || echo \"No MEMORY.md found \")",
+      "Bash(docker exec:*)",
+      "Bash(docker ps:*)",
+      "Bash(DATABASE_URL=\"postgresql+asyncpg://review_user:review_password_change_me@localhost:5432/reviews_db\" python scripts/create_templates.py)",
+      "Bash(pip install:*)",
+      "Bash(DATABASE_URL=\"postgresql+asyncpg://review_user:review_password_change_me@localhost:5432/reviews_db\" PYTHONUTF8=1 python scripts/create_templates.py)",
+      "Bash(grep -v \"^$\")",
+      "Bash(docker-compose logs:*)",
+      "Bash(docker-compose build:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(docker-compose exec:*)",
+      "Bash(pip show:*)",
+      "Bash(python scripts/db_test.py)",
+      "Bash(python -c \"import hashlib; print\\(''md5'' + hashlib.md5\\(b''review_password_change_mereview_user''\\).hexdigest\\(\\)\\)\")",
+      "Bash(netstat -ano)",
+      "Bash(python -c \":*)",
+      "Bash(python scripts/migrate_xlsx_to_db.py)",
+      "Bash(PYTHONUTF8=1 python scripts/migrate_xlsx_to_db.py)",
+      "Bash(git check-ignore:*)",
+      "Bash(python -:*)",
+      "Bash(python scripts/generate_seed.py)",
+      "Bash(docker cp:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}

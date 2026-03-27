@@ -4,7 +4,7 @@
 
 **Version:** 2.0
 **Last Updated:** March 27, 2026
-**Status:** Phase 1 In Progress
+**Status:** Phase 1 — Autonomous Review Complete; GitHub/SonarQube pending
 **Owner:** Engineering Team
 
 ---
@@ -94,7 +94,7 @@
 - [x] **1.3.4** Add authentication middleware (JWT)
   - Owner: Backend Team
   - Estimate: 8h
-  - Status: ✅ Done (app/core/security.py — JWT with HS256, bcrypt password hashing)
+  - Status: ✅ Done (app/api/routes/auth.py — fixed register to save to DB, fixed login to query by email, pinned bcrypt==4.0.1 for passlib compatibility)
 - [ ] **1.3.5** Add role-based authorization
   - Owner: Backend Team
   - Estimate: 8h
@@ -181,44 +181,65 @@
   - Status: ⏳ Not Started
 
 #### Task 1.8: Basic Autonomous Review
-- [ ] **1.8.1** Implement autonomous review initiation endpoint
+- [x] **1.8.1** Implement autonomous review initiation endpoint
   - Owner: Backend Team
   - Estimate: 8h
-  - Status: ⏳ Not Started
-- [ ] **1.8.2** Implement checklist-to-data-source mapping
+  - Status: ✅ Done (POST /api/autonomous-reviews/ — validates project, checklist, source path; creates job; fires BackgroundTask)
+- [x] **1.8.2** Implement checklist-to-data-source mapping
   - Owner: Backend Team
   - Estimate: 8h
-  - Status: ⏳ Not Started
-- [ ] **1.8.3** Implement basic verification logic (15-20 items)
+  - Status: ✅ Done (app/services/autonomous_review/strategy_router.py — routes all 152 checklist items across 5 strategies based on area + question keywords)
+- [x] **1.8.3** Implement basic verification logic (all 152 items — exceeded target of 15-20)
   - Owner: Backend Team
   - Estimate: 16h
-  - Status: ⏳ Not Started
-- [ ] **1.8.4** Generate autonomous review findings
+  - Status: ✅ Done — 5 analyzers implemented:
+    - file_presence (13% of items) — checks for architecture docs, CI/CD, README, HLD/LLD, Dockerfile
+    - pattern_scan (7%) — regex scans for secrets, HTTPS, test count, error handling, retry patterns
+    - llm_analysis (34%) — top-3 relevant files sent to LLM (gpt-4o-mini), returns RAG + evidence + confidence
+    - metadata_check (3%) — Dependabot/Snyk config, coverage thresholds
+    - human_required (43%) — financial, governance, people items flagged with evidence hints
+- [x] **1.8.4** Generate autonomous review findings
   - Owner: Backend Team
   - Estimate: 8h
-  - Status: ⏳ Not Started
-- [ ] **1.8.5** Store autonomous review results in database
+  - Status: ✅ Done (GET /api/autonomous-reviews/{job_id}/report — structured report with red/amber/green/skipped sections, compliance score, recommendations)
+- [x] **1.8.5** Store autonomous review results in database
   - Owner: Backend Team
   - Estimate: 4h
-  - Status: ⏳ Not Started
+  - Status: ✅ Done (AutonomousReviewJob + AutonomousReviewResult models in app/models.py)
+
+#### Task 1.8 (Additional — not in original plan)
+- [x] **1.8.6** Real-time WebSocket progress streaming
+  - Status: ✅ Done (WS /ws/autonomous-reviews/{job_id} — broadcasts scanning → scan_complete → item_start → item_complete → completed)
+- [x] **1.8.7** Frontend UI for autonomous reviews
+  - Status: ✅ Done (static/index.html served at /ui — login, project/checklist selector, live results table, report view)
+- [x] **1.8.8** Host path scanning via Docker volume mount
+  - Status: ✅ Done (C:\projects mounted as /host-projects:ro in docker-compose.yml — enables scanning local microservices)
+- [x] **1.8.9** Microservices support assessment + roadmap
+  - Status: ✅ Done (docs/MICROSERVICES_REVIEW_PLAN.md — 5-phase plan; current support: one service at a time via /host-projects/ path)
 
 ### Phase 1 Deliverables
 
-- [x] ✅ Database schema (core tables: users, projects, checklists, checklist_items, reviews, review_responses, reports)
-- [x] ✅ Base API endpoints (Users, Projects, Checklists, Reviews, Reports)
+- [x] ✅ Database schema (core tables + AutonomousReviewJob + AutonomousReviewResult)
+- [x] ✅ Base API endpoints (Auth, Projects, Checklists, Reviews, Reports, Autonomous Reviews)
+- [x] ✅ Full autonomous review — all 152 checklist items across 5 strategies
+- [x] ✅ Real-time WebSocket progress stream
+- [x] ✅ Frontend UI at /ui (login, project selector, live results, report view)
+- [x] ✅ Development environment (Docker — PostgreSQL 15 on port 5435)
+- [x] ✅ Seed scripts (seed_data.sql, seed_hatchpay.sql, migrate_xlsx_to_db.py)
+- [x] ✅ Postman collection (25 requests, auto-token)
+- [x] ✅ Host path scanning via Docker volume mount (/host-projects)
 - [ ] ⏳ GitHub integration (OAuth, repository access)
 - [ ] ⏳ SonarQube integration (quality metrics)
-- [ ] ⏳ Basic autonomous review (15-20 checklist items)
 - [ ] ⏳ CI/CD pipeline
-- [x] ✅ Development environment (Docker — PostgreSQL 5435 + Redis)
 
 ### Phase 1 Success Criteria
 
-- [x] All database migrations run successfully (core schema verified via db_test.py)
-- [x] Core API endpoints implemented (Users, Projects, Checklists, Reviews, Reports)
+- [x] All database migrations run successfully
+- [x] Core API endpoints implemented (Auth, Projects, Checklists, Reviews, Reports)
+- [x] Autonomous review completes successfully (all 152 items, < 5 min for single service)
+- [x] Real-time progress visible in UI during scan
 - [ ] GitHub OAuth working end-to-end
 - [ ] SonarQube quality metrics retrieved successfully
-- [ ] Autonomous review completes in < 5 minutes
 - [ ] Code coverage > 80%
 - [ ] All Phase 1 tests passing
 
@@ -429,18 +450,48 @@ Week 7-8:  ████████████████████ 100% (So
 
 ---
 
-## 📝 Phase 1 Progress Notes (March 27, 2026)
+## 📝 Phase 1 Progress Notes
 
-### Completed ahead of schedule
+### Session 1 — March 27, 2026 (Infrastructure + APIs)
 
-- **Infrastructure**: Docker environment fully configured (PostgreSQL 15 on port 5435, Redis 7). Port 5435 used to avoid conflict with local PostgreSQL on 5432.
-- **Database**: Core schema tables created and tested. Real project data migrated from Excel files (AAA PDH + NeUMoney — 312 checklist items, 312 review responses, 4 checklists, 5 reviews, 5 reports).
+- **Infrastructure**: Docker environment fully configured (PostgreSQL 15 on port 5435). Port 5435 used to avoid conflict with local PostgreSQL on 5432.
+- **Database**: Core schema tables created and tested. Real project data migrated from Excel files (AAA PDH + NeUMoney — 456 checklist items, 304 review responses, 6 checklists, 4 reviews, 4 reports).
 - **API**: All core CRUD endpoints implemented and fixed for async SQLAlchemy (selectinload pattern required for all relationship access).
-- **Bug fixes**: Fixed critical bugs in agent.py (wrong parameter name), report_generator.py (missing import), models.py (deprecated import), config.py (extra env vars rejected), reviews/reports/checklists routes (MissingGreenlet async issue).
+- **Bug fixes (Session 1)**: Fixed critical bugs in agent.py (wrong parameter name), report_generator.py (missing import), models.py (deprecated import), config.py (extra env vars rejected), reviews/reports/checklists routes (MissingGreenlet async issue).
 - **Scripts created**: `scripts/db_test.py` (schema + sample data), `scripts/migrate_xlsx_to_db.py` (full Excel migration).
 
-### Blockers / Notes
+### Session 2 — March 27, 2026 (Autonomous Review — Full Implementation)
 
-- **1.1.2**: Full 21-table schema from DATABASE_SCHEMA_V2.md not yet applied via Alembic — currently using simplified core schema. Alembic migrations to be set up properly.
-- **1.3.4 / 1.3.5**: Auth middleware works for JWT decode; user registration endpoint needs testing end-to-end.
-- **1.5.x–1.8.x**: GitHub, SonarQube, and autonomous review are next priorities.
+**Completed all of Task 1.8 and beyond:**
+
+- **Autonomous review engine** — full pipeline: LocalFolderConnector (file indexer) → StrategyRouter (152 items across 5 strategies) → 5 analyzers (file_presence, pattern_scan, llm_analysis, metadata_check, human_required) → AutonomousReviewResult storage
+- **WebSocket progress** — real-time per-item broadcasts (scanning → scan_complete → started → item_start → item_complete → completed/error) via ProgressManager singleton
+- **REST API** — POST/GET/DELETE /api/autonomous-reviews/ + GET /report endpoint with structured findings
+- **Frontend UI** — single-page app at /ui (dark theme, login overlay, project/checklist selector, live results table with RAG colour coding, report panel)
+- **Postman collection** — 25 requests, auto-saves token/project_id/review_id/job_id
+
+**Bug fixes (Session 2)**:
+- Auth: `/register` was not saving to DB; `/login` used hardcoded `db.get(User, 1)` instead of email lookup — both fixed
+- bcrypt==4.0.1 pinned to fix passlib scram-sha-256 incompatibility
+- PostgreSQL init SQL: removed `SET password_encryption = 'md5'` (PG15 needs scram-sha-256)
+- DATABASE_URL port fixed: `db:5435` → `db:5432` (internal Docker port)
+- Projects checklists endpoint: added `selectinload(Checklist.items)` to fix MissingGreenlet crash
+- UI: fixed `(projects || []).forEach is not a function` — API returns `{projects: [...]}` not a plain array
+
+**Seed data**:
+- `scripts/seed_data.sql` — pre-generated full seed (users + AAA PDH + NeUMoney + global checklists)
+- `scripts/seed_hatchpay.sql` — Hatch Pay project (copies NeUMoney delivery + technical data)
+- `scripts/generate_seed.py` — regenerates seed_data.sql from xlsx source files
+
+**Microservices**:
+- Mounted `C:\projects` as `/host-projects:ro` in Docker — enables scanning local project folders
+- Assessed microservices support: one service at a time works; full fleet scanning needs Phase 2+ work
+- Created `docs/MICROSERVICES_REVIEW_PLAN.md` — 5-phase roadmap (~8–9 days to full fleet support)
+
+### Current Blockers / Next Priorities
+
+- **1.2.2**: CI/CD pipeline (GitHub Actions) — not started
+- **1.2.4**: Celery for async tasks — BackgroundTasks used for now (adequate for MVP)
+- **1.5.x**: GitHub OAuth + repository access — next major feature
+- **1.7.x**: SonarQube integration — next major feature
+- **Microservices Phase 2**: Per-service job mode — needs schema change (service_name column on results)
