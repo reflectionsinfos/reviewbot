@@ -35,8 +35,24 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
-    """Initialize database tables"""
+    """Initialize database — run Alembic migrations then create any missing tables."""
+    import subprocess, sys, logging
+    log = logging.getLogger(__name__)
+
+    # Run migrations synchronously before the async app starts serving requests
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            log.warning("Alembic migration warning:\n%s", result.stderr)
+        else:
+            log.info("Alembic migrations applied:\n%s", result.stdout or "(none pending)")
+    except Exception as exc:
+        log.warning("Could not run Alembic migrations: %s", exc)
+
+    # create_all as safety net for any model not covered by migrations
     from app.models import Base
-    
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
