@@ -767,9 +767,9 @@
             <select class="review-mode-select ${item.routing_rule === 'human_required' ? 'mode-human' : item.routing_rule === 'ai_and_human' ? 'mode-both' : ''}"
                     data-ci-id="${item.checklist_item_id}"
                     onchange="setReviewMode(this)">
-              <option value="auto"           ${!item.routing_rule ? 'selected' : ''}>🤖 Auto</option>
-              <option value="human_required" ${item.routing_rule === 'human_required' ? 'selected' : ''}>👤 Human Only</option>
+              <option value="auto"           ${!item.routing_rule ? 'selected' : ''}>🤖 AI</option>
               <option value="ai_and_human"   ${item.routing_rule === 'ai_and_human'   ? 'selected' : ''}>🤖👤 AI + Human</option>
+              <option value="human_required" ${item.routing_rule === 'human_required' ? 'selected' : ''}>👤 Human Only</option>
             </select>
           </div>
           ${item.needs_human_sign_off ? '<span class="sign-off-badge">⏳ Awaiting human sign-off</span>' : ''}
@@ -841,7 +841,7 @@
           // 404 = no rule existed, that's fine
           if (res.status !== 404) throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed');
         }
-        toast('Routing rule removed — AI will auto-select strategy on next review', 'success');
+        toast('Reset to AI — strategy will be auto-selected on next review', 'success');
       } else {
         const labels = { human_required: 'Human Only', ai_and_human: 'AI + Human' };
         const res = await fetch(`/api/routing-rules/items/${ciId}`, {
