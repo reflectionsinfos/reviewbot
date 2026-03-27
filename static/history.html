@@ -673,8 +673,8 @@
     const ciId = btn.dataset.ciId;
     const hasRule = btn.dataset.hasRule === '1';
 
-    if (!ciId || ciId === 'undefined') {
-      toast('Cannot set rule: checklist item ID missing', 'error');
+    if (!ciId || ciId === 'undefined' || ciId === 'null') {
+      toast('Cannot set rule: checklist item ID missing — try refreshing the page', 'error');
       return;
     }
 
