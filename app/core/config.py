@@ -19,7 +19,15 @@ class Settings(BaseSettings):
     # API Keys
     OPENAI_API_KEY: Optional[str] = None
     ELEVENLABS_API_KEY: Optional[str] = None
-    
+
+    # LLM Provider Configuration
+    ACTIVE_LLM_PROVIDER: str = "openai"
+    ANTHROPIC_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
+    QWEN_API_KEY: Optional[str] = None
+    AZURE_OPENAI_API_KEY: Optional[str] = None
+
     # Security
     SECRET_KEY: str = "change-this-secret-key-in-production"
     ALGORITHM: str = "HS256"
@@ -45,6 +53,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 # Global settings instance

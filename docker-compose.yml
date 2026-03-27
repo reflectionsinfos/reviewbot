@@ -40,20 +40,9 @@ services:
       - ACTIVE_LLM_PROVIDER=${ACTIVE_LLM_PROVIDER:-openai}
 
       # Security Configuration (Required for JWT authentication)
-      - SECRET_KEY=${SECRET_KEY}
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
       - ALGORITHM=${ALGORITHM:-HS256}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
-
-      # Storage
-      - DATA_DIR=/app/data
-      - UPLOAD_DIR=/app/uploads
-      - REPORTS_DIR=/app/reports
-      - CHROMA_PERSIST_DIR=/app/chroma_db
-
-      # Agent Settings
-      - VOICE_ENABLED=${VOICE_ENABLED:-true}
-      - REQUIRE_HUMAN_APPROVAL=${REQUIRE_HUMAN_APPROVAL:-true}
-      - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-en}
 
       # Storage
       - DATA_DIR=/app/data
@@ -74,7 +63,8 @@ services:
       # For development, mount source code
       - .:/app:cached
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - ai-review-network
     restart: unless-stopped
@@ -99,7 +89,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db-simple.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-5435}:5432"
     networks:
       - ai-review-network
     restart: unless-stopped

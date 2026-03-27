@@ -1,7 +1,8 @@
 """
 Reports API Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, FileResponse
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
@@ -11,6 +12,7 @@ from pathlib import Path
 from app.db.session import get_db
 from app.models import Report, ReportApproval, Review, User
 from app.core.config import settings
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -22,15 +24,17 @@ async def list_reports(
     db: AsyncSession = Depends(get_db)
 ):
     """List all reports"""
-    query = select(Report).join(Review)
-    
+    query = select(Report).join(Review).options(
+        selectinload(Report.review).selectinload(Review.project)
+    )
+
     if project_id:
         query = query.where(Review.project_id == project_id)
     if approval_status:
         query = query.where(Report.approval_status == approval_status)
-    
+
     query = query.order_by(Report.created_at.desc())
-    
+
     result = await db.execute(query)
     reports = result.scalars().all()
     
@@ -188,13 +192,15 @@ async def reject_report(
     """Reject a report with comments for revision"""
     # Verify report exists
     result = await db.execute(
-        select(Report).where(Report.id == report_id)
+        select(Report)
+        .options(selectinload(Report.review))
+        .where(Report.id == report_id)
     )
     report = result.scalar_one_or_none()
-    
+
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    
+
     # Create rejection
     approval = ReportApproval(
         report_id=report_id,
@@ -232,6 +238,7 @@ async def get_report_approvals(
     """Get approval history for a report"""
     result = await db.execute(
         select(ReportApproval)
+        .options(selectinload(ReportApproval.approver))
         .where(ReportApproval.report_id == report_id)
         .order_by(ReportApproval.created_at.desc())
     )
@@ -259,7 +266,9 @@ async def get_pending_approvals(
 ):
     """Get all reports pending approval"""
     result = await db.execute(
-        select(Report).where(Report.approval_status == "pending")
+        select(Report)
+        .options(selectinload(Report.review).selectinload(Review.project))
+        .where(Report.approval_status == "pending")
     )
     reports = result.scalars().all()
     

@@ -35,12 +35,16 @@ async def create_global_templates():
     )
     
     # Excel files to load as templates
+    data_dir = Path(__file__).parent.parent / "data" / "templates"
     excel_files = [
         {
-            "path": "Project Review Check List V 1.0 -Delivery Updated -NeuMoney.xlsx",
-            "name": "Standard Delivery & Technical Template"
+            "path": str(data_dir / "standard-delivery.xlsx"),
+            "name": "Standard Delivery Template"
         },
-        # Add more files here
+        {
+            "path": str(data_dir / "standard-technical.xlsx"),
+            "name": "Standard Technical Template"
+        },
     ]
     
     async with AsyncSessionLocal() as session:

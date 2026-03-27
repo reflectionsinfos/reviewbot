@@ -10,6 +10,7 @@ from datetime import datetime
 from app.db.session import get_db
 from app.models import Checklist, ChecklistItem, ChecklistRecommendation
 from app.services.checklist_optimizer import get_checklist_optimizer
+from sqlalchemy.orm import selectinload
 
 router = APIRouter()
 
@@ -22,7 +23,9 @@ async def get_checklist(
 ):
     """Get checklist details"""
     result = await db.execute(
-        select(Checklist).where(Checklist.id == checklist_id)
+        select(Checklist)
+        .options(selectinload(Checklist.items))
+        .where(Checklist.id == checklist_id)
     )
     checklist = result.scalar_one_or_none()
     
@@ -106,7 +109,12 @@ async def optimize_checklist(
 ):
     """Generate AI recommendations for checklist optimization"""
     result = await db.execute(
-        select(Checklist).where(Checklist.id == checklist_id)
+        select(Checklist)
+        .options(
+            selectinload(Checklist.items),
+            selectinload(Checklist.project)
+        )
+        .where(Checklist.id == checklist_id)
     )
     checklist = result.scalar_one_or_none()
     
@@ -173,7 +181,7 @@ async def get_global_checklist_templates(
     db: AsyncSession = Depends(get_db)
 ):
     """Get global checklist templates"""
-    query = select(Checklist).where(Checklist.is_global == True)
+    query = select(Checklist).options(selectinload(Checklist.items)).where(Checklist.is_global == True)
     
     if type:
         query = query.where(Checklist.type == type)
@@ -204,7 +212,9 @@ async def use_global_template(
     """Copy a global template to a project"""
     # Get template
     result = await db.execute(
-        select(Checklist).where(Checklist.id == template_id)
+        select(Checklist)
+        .options(selectinload(Checklist.items))
+        .where(Checklist.id == template_id)
     )
     template = result.scalar_one_or_none()
     

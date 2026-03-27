@@ -208,7 +208,7 @@ docker-compose exec app alembic upgrade head
 ```bash
 # Check what's using the port
 netstat -ano | findstr :8000
-netstat -ano | findstr :5432
+netstat -ano | findstr :5435
 
 # Stop conflicting service or change port in .env
 APP_PORT=8001

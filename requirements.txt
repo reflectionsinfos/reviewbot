@@ -9,6 +9,7 @@ pydantic-settings==2.1.0
 sqlalchemy==2.0.25
 alembic==1.13.1
 aiosqlite==0.19.0
+asyncpg==0.29.0
 
 # Excel Processing
 openpyxl==3.1.2

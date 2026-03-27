@@ -99,7 +99,7 @@ curl http://localhost:8000/health
 │  │  ┌──────────┐     ┌──────────┐     ┌──────────┐   │   │
 │  │  │   App    │────▶│PostgreSQL│     │  Redis   │   │   │
 │  │  │ FastAPI  │     │    DB    │     │  Cache   │   │   │
-│  │  │  :8000   │     │  :5432   │     │  :6379   │   │   │
+│  │  │  :8000   │     │  :5435   │     │  :6379   │   │   │
 │  │  └──────────┘     └──────────┘     └──────────┘   │   │
 │  │       │                  │                         │   │
 │  │       ▼                  ▼                         │   │
@@ -150,7 +150,7 @@ app:
 db:
   image: postgres:15-alpine
   ports:
-    - "5432:5432"
+    - "5435:5432"
   environment:
     - POSTGRES_USER=review_user
     - POSTGRES_PASSWORD=review_password_change_me
@@ -163,7 +163,7 @@ db:
 **Features:**
 - ✅ PostgreSQL 15 Alpine (lightweight)
 - ✅ Persistent data volume
-- ✅ Port 5432 exposed (local access)
+- ✅ Port 5435 exposed (local access — avoids conflict with local PostgreSQL)
 - ✅ Auto-run init script
 
 ---
@@ -362,7 +362,7 @@ docker-compose exec db psql -U review_user -d reviews_db -c "\dt"
 ```bash
 # Check what's using the port
 netstat -ano | findstr :8000
-netstat -ano | findstr :5432
+netstat -ano | findstr :5435
 
 # Stop conflicting service or change port in .env
 APP_PORT=8001

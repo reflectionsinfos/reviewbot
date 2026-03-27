@@ -234,7 +234,7 @@ class ReviewAgent:
             return "continue"
         return "generate"
     
-    def generate_report(self, ReviewState) -> ReviewState:
+    def generate_report(self, state: ReviewState) -> ReviewState:
         """Generate comprehensive review report"""
         state["session_status"] = "completed"
         state["metadata"]["completed_at"] = datetime.utcnow().isoformat()

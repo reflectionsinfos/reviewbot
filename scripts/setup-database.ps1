@@ -11,7 +11,7 @@ Write-Host ""
 # Check if Docker is running
 Write-Host "[1/4] Checking Docker..." -ForegroundColor Yellow
 try {
-    $dockerStatus = docker ps
+    docker ps | Out-Null
     Write-Host "✓ Docker is running" -ForegroundColor Green
 } catch {
     Write-Host "✗ Docker is not running. Please start Docker Desktop first." -ForegroundColor Red
@@ -51,7 +51,7 @@ while ($attempt -lt $maxAttempts -and -not $ready) {
     $attempt++
     Start-Sleep -Seconds 2
     try {
-        $result = docker-compose exec -T db pg_isready -U review_user 2>&1
+        $result = docker-compose exec -T db pg_isready -U postgres -d postgres 2>&1
         if ($result -like "*accepting connections*") {
             $ready = $true
             Write-Host "✓ PostgreSQL is ready (attempt $attempt/$maxAttempts)" -ForegroundColor Green
@@ -77,7 +77,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Connection Info:" -ForegroundColor Yellow
 Write-Host "  Host: localhost" -ForegroundColor White
-Write-Host "  Port: 5432" -ForegroundColor White
+Write-Host "  Port: 5435" -ForegroundColor White
 Write-Host "  Database: reviews_db" -ForegroundColor White
 Write-Host "  User: review_user" -ForegroundColor White
 Write-Host "  Password: review_password_change_me" -ForegroundColor White

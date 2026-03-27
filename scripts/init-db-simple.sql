@@ -3,6 +3,9 @@
 -- ============================================
 -- This script runs on first PostgreSQL startup
 
+-- Use md5 for broader client compatibility (DBeaver, etc.)
+SET password_encryption = 'md5';
+
 -- Create user (will be skipped if exists)
 DO $$
 BEGIN

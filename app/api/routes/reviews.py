@@ -11,6 +11,7 @@ import os
 from app.db.session import get_db
 from app.models import Review, ReviewResponse, Checklist, ChecklistItem, Project
 from app.agents.review_agent import get_review_agent
+from sqlalchemy.orm import selectinload
 from app.services.voice_interface import get_voice_interface
 
 router = APIRouter()
@@ -23,13 +24,13 @@ async def list_reviews(
     db: AsyncSession = Depends(get_db)
 ):
     """List all reviews"""
-    query = select(Review)
-    
+    query = select(Review).options(selectinload(Review.project))
+
     if project_id:
         query = query.where(Review.project_id == project_id)
     if status:
         query = query.where(Review.status == status)
-    
+
     result = await db.execute(query)
     reviews = result.scalars().all()
     
@@ -57,7 +58,11 @@ async def get_review(
 ):
     """Get review details"""
     result = await db.execute(
-        select(Review).where(Review.id == review_id)
+        select(Review)
+        .options(
+            selectinload(Review.responses).selectinload(ReviewResponse.checklist_item)
+        )
+        .where(Review.id == review_id)
     )
     review = result.scalar_one_or_none()
     
@@ -153,13 +158,18 @@ async def start_review(
 ):
     """Start a review session with AI agent"""
     result = await db.execute(
-        select(Review).where(Review.id == review_id)
+        select(Review)
+        .options(
+            selectinload(Review.project),
+            selectinload(Review.checklist).selectinload(Checklist.items)
+        )
+        .where(Review.id == review_id)
     )
     review = result.scalar_one_or_none()
-    
+
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
-    
+
     # Load checklist items
     checklist_result = await db.execute(
         select(Checklist).where(Checklist.id == review.checklist_id)

@@ -432,8 +432,6 @@ async def use_template_for_project(
     Apply a global template to a project.
     Creates a copy of the template checklists for the specified project.
     """
-    import re
-    
     # Verify project exists
     project_result = await db.execute(
         select(Project).where(Project.id == project_id)
