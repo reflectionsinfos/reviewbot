@@ -192,32 +192,36 @@ class ReviewResponse(Base):
 class Report(Base):
     """Generated review report"""
     __tablename__ = "reports"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     review_id = Column(Integer, ForeignKey("reviews.id"), nullable=False, unique=True)
     review = relationship("Review", back_populates="report")
     
+    # Link to autonomous review job (for autonomous reviews)
+    autonomous_review_job_id = Column(Integer, ForeignKey("autonomous_review_jobs.id"), nullable=True)
+    autonomous_review_job = relationship("AutonomousReviewJob", back_populates="report")
+
     # Report content
     summary = Column(Text)
     overall_rag_status = Column(String)
     compliance_score = Column(Float)  # 0-100
-    
+
     # Sections
     areas_followed = Column(JSON)  # List of compliant areas
     gaps_identified = Column(JSON)  # List of gaps with details
     recommendations = Column(JSON)  # List of recommendations
     action_items = Column(JSON)  # List of action items
-    
+
     # Files
     pdf_path = Column(String, nullable=True)
     markdown_path = Column(String, nullable=True)
-    
+
     # Approval workflow
     approval_status = Column(String, default=ApprovalStatus.PENDING.value)
     requires_approval = Column(Boolean, default=True)
-    
+
     approvals = relationship("ReportApproval", back_populates="report", cascade="all, delete-orphan")
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
     approved_at = Column(DateTime, nullable=True)
 
@@ -267,9 +271,11 @@ class AutonomousReviewJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
+    # Relationships
     project = relationship("Project")
     checklist = relationship("Checklist")
     results = relationship("AutonomousReviewResult", back_populates="job", cascade="all, delete-orphan")
+    report = relationship("Report", back_populates="autonomous_review_job", uselist=False)
 
 
 class AutonomousReviewResult(Base):
