@@ -110,8 +110,10 @@
     .details-header { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
     .details-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
     .details-meta { font-size: 13px; color: #64748b; margin-bottom: 16px; }
-    .details-stats { display: flex; gap: 16px; flex-wrap: wrap; }
-    .stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 20px; text-align: center; min-width: 90px; }
+    .details-stats { display: flex; gap: 12px; flex-wrap: wrap; }
+    .stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 20px; text-align: center; min-width: 90px; cursor: pointer; transition: border-color 0.15s; }
+    .stat-box:hover { border-color: #475569; }
+    .stat-box.active-filter { border-color: #38bdf8 !important; }
     .stat-box .val { font-size: 26px; font-weight: 700; }
     .stat-box .lbl { font-size: 11px; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
     .stat-box.green .val { color: #4ade80; }
@@ -120,26 +122,57 @@
     .stat-box.blue  .val { color: #60a5fa; }
     .stat-box.gray  .val { color: #94a3b8; }
 
+    /* ── Details filter bar ────────────────────────────────────────────────── */
+    .details-filter-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+    .pill { padding: 5px 14px; border-radius: 99px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #334155; background: transparent; color: #94a3b8; transition: all 0.15s; white-space: nowrap; }
+    .pill:hover { border-color: #475569; color: #e2e8f0; }
+    .pill.active { color: #fff; }
+    .pill.pill-all.active   { background: #334155; border-color: #475569; }
+    .pill.pill-red.active   { background: #7f1d1d55; border-color: #ef4444; color: #f87171; }
+    .pill.pill-amber.active { background: #78350f55; border-color: #f97316; color: #fb923c; }
+    .pill.pill-green.active { background: #14532d55; border-color: #22c55e; color: #4ade80; }
+    .pill.pill-skipped.active { background: #1e293b; border-color: #475569; color: #94a3b8; }
+    .pill.pill-overridden.active { background: #1e3a5f55; border-color: #1d4ed8; color: #60a5fa; }
+    .search-items { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 13px; width: 220px; }
+    .search-items:focus { outline: none; border-color: #38bdf8; }
+    .area-filter { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 12px; }
+    .sort-btn { background: transparent; border: 1px solid #334155; color: #94a3b8; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .sort-btn:hover { border-color: #475569; color: #e2e8f0; }
+    .results-summary { font-size: 12px; color: #475569; white-space: nowrap; align-self: center; }
+
     /* ── Item cards ───────────────────────────────────────────────────────── */
     .section-header { display: flex; align-items: center; gap: 10px; margin: 24px 0 12px; }
     .section-header h3 { font-size: 15px; font-weight: 600; }
     .section-header .count-badge { font-size: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 99px; padding: 2px 10px; color: #94a3b8; }
 
-    .item-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-bottom: 10px; }
-    .item-card.red-card    { border-left: 3px solid #ef4444; }
-    .item-card.amber-card  { border-left: 3px solid #f97316; }
-    .item-card.green-card  { border-left: 3px solid #22c55e; }
-    .item-card.skipped-card { border-left: 3px solid #475569; }
-    .item-card.overridden  { border-color: #1d4ed8; }
+    .items-container { display: flex; flex-direction: column; gap: 8px; }
+    .item-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 16px; border-left: 3px solid #334155; transition: border-color 0.1s; }
+    .item-card:hover { border-color: #475569; }
+    .item-card.red-card    { border-left-color: #ef4444; }
+    .item-card.amber-card  { border-left-color: #f97316; }
+    .item-card.green-card  { border-left-color: #22c55e; }
+    .item-card.skipped-card { border-left-color: #475569; }
+    .item-card.overridden  { border-right: 2px solid #1d4ed8; }
 
     .item-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
-    .item-code { font-size: 11px; font-family: monospace; color: #64748b; white-space: nowrap; margin-top: 2px; }
-    .item-question { font-size: 13px; font-weight: 500; flex: 1; line-height: 1.4; }
-    .item-strategy { font-size: 11px; color: #475569; font-family: monospace; margin-left: auto; white-space: nowrap; }
-    .item-evidence { font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.5; }
-    .item-hint { font-size: 12px; color: #60a5fa; margin-top: 4px; }
+    .item-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .item-code { font-size: 11px; font-family: monospace; color: #64748b; white-space: nowrap; background: #0f172a; padding: 1px 6px; border-radius: 4px; border: 1px solid #334155; }
+    .item-area { font-size: 11px; color: #475569; }
+    .item-strategy-tag { font-size: 10px; color: #475569; font-family: monospace; background: #0f172a; padding: 1px 6px; border-radius: 4px; border: 1px solid #1e293b; margin-left: auto; }
+    .item-question { font-size: 13px; font-weight: 500; line-height: 1.45; color: #e2e8f0; }
+
+    /* Collapsible evidence */
+    .item-body { margin-top: 8px; }
+    .item-evidence { font-size: 12px; color: #94a3b8; line-height: 1.55; }
+    .item-hint { font-size: 12px; color: #60a5fa; margin-top: 6px; padding: 6px 10px; background: #1e3a5f33; border-radius: 6px; border-left: 2px solid #1d4ed8; }
     .item-files { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     .file-chip { font-size: 11px; font-family: monospace; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 2px 7px; color: #64748b; }
+    .toggle-evidence { background: transparent; border: none; font-size: 11px; color: #475569; cursor: pointer; padding: 2px 0; margin-top: 4px; }
+    .toggle-evidence:hover { color: #94a3b8; }
+    .evidence-collapsed .item-body { display: none; }
+
+    .no-results { text-align: center; padding: 48px 20px; color: #475569; font-size: 14px; }
 
     /* Override display */
     .overrides-block { margin-top: 10px; padding: 10px; background: #0f172a44; border-radius: 6px; border: 1px solid #1d4ed8; }
@@ -227,16 +260,31 @@
   <div id="details-section">
     <button class="back-btn" onclick="showHistory()">← Back to History</button>
 
-    <div class="details-header" id="details-header">
+    <div class="details-header">
       <h2 id="det-title">Report Details</h2>
       <div class="details-meta" id="det-meta"></div>
       <div class="details-stats" id="det-stats"></div>
     </div>
 
-    <div id="det-red"></div>
-    <div id="det-amber"></div>
-    <div id="det-green"></div>
-    <div id="det-skipped"></div>
+    <!-- Filter bar -->
+    <div class="details-filter-bar">
+      <div class="filter-pills">
+        <button class="pill pill-all active"     onclick="setStatusFilter('all', this)">All</button>
+        <button class="pill pill-red"            onclick="setStatusFilter('red', this)">🔴 Critical</button>
+        <button class="pill pill-amber"          onclick="setStatusFilter('amber', this)">🟠 Amber</button>
+        <button class="pill pill-green"          onclick="setStatusFilter('green', this)">🟢 Compliant</button>
+        <button class="pill pill-skipped"        onclick="setStatusFilter('skipped', this)">⚪ Human Required</button>
+        <button class="pill pill-overridden"     onclick="setStatusFilter('overridden', this)">✏️ Overridden</button>
+      </div>
+      <select class="area-filter" id="area-filter" onchange="applyDetailFilter()">
+        <option value="">All Areas</option>
+      </select>
+      <input class="search-items" id="item-search" type="text" placeholder="Search items…" oninput="applyDetailFilter()" />
+      <button class="sort-btn" onclick="toggleSort()" id="sort-btn">↓ Code</button>
+      <span class="results-summary" id="results-summary"></span>
+    </div>
+
+    <div class="items-container" id="det-items"></div>
   </div>
 </main>
 
@@ -307,7 +355,10 @@
   let allReports = [];
   let currentJobId = null;
   let currentReportId = null;
-  let overrideTarget = null; // {jobId, resultId, itemQuestion}
+  let overrideTarget = null;
+  let allDetailItems = [];       // full flat item list for the current report
+  let activeStatusFilter = 'all';
+  let sortAsc = true;            // sort by item_code ascending
 
   // ── Auth ───────────────────────────────────────────────────────────────────
   async function login() {
@@ -525,37 +576,46 @@
 
   function renderDetails(data) {
     const r = data.report || {};
-    const items = data.items || [];
+    allDetailItems = data.items || [];
 
     document.getElementById('det-title').textContent =
       `${r.project_name || '—'} · ${r.checklist_name || '—'}`;
     document.getElementById('det-meta').textContent =
       `Generated: ${r.generated_at ? new Date(r.generated_at).toLocaleString() : '—'}  ·  Source: ${r.source_path || '—'}`;
 
-    const s = data.summary || r.summary || {};
+    const s = data.summary || {};
     document.getElementById('det-stats').innerHTML = [
-      statBox(r.compliance_score?.toFixed(1) + '%', 'Score', scoreClass(r.compliance_score)),
-      statBox(s.green ?? 0, 'Green', 'green'),
-      statBox(s.amber ?? 0, 'Amber', 'amber'),
-      statBox(s.red   ?? 0, 'Red',   'red'),
-      statBox(s.skipped ?? 0, 'Skipped', 'gray'),
-      statBox(r.override_count ?? 0, 'Overrides', 'blue'),
+      statBox((r.compliance_score ?? 0).toFixed(1) + '%', 'Score',    scoreClass(r.compliance_score), 'all'),
+      statBox(s.red     ?? 0, 'Critical',       'red',     'red'),
+      statBox(s.amber   ?? 0, 'Amber',          'amber',   'amber'),
+      statBox(s.green   ?? 0, 'Compliant',      'green',   'green'),
+      statBox((s.human_required ?? 0) + (s.na ?? 0), 'Human Required', 'gray', 'skipped'),
+      statBox(r.override_count ?? 0, 'Overrides', 'blue',  'overridden'),
     ].join('');
 
-    const grouped = { red: [], amber: [], green: [], skipped: [] };
-    for (const item of items) {
-      const k = grouped[item.rag_status] ? item.rag_status : 'skipped';
-      grouped[k].push(item);
-    }
+    // Populate area dropdown
+    const areas = [...new Set(allDetailItems.map(i => i.area).filter(Boolean))].sort();
+    const areaSelect = document.getElementById('area-filter');
+    areaSelect.innerHTML = '<option value="">All Areas</option>' +
+      areas.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
 
-    renderItemGroup('det-red',     grouped.red,     '🔴 Critical Issues', 'red');
-    renderItemGroup('det-amber',   grouped.amber,   '🟠 Amber Items',     'amber');
-    renderItemGroup('det-green',   grouped.green,   '🟢 Compliant',       'green');
-    renderItemGroup('det-skipped', grouped.skipped, '⚪ Skipped / Human Required', 'skipped');
+    // Reset filters when loading new report
+    activeStatusFilter = 'all';
+    sortAsc = true;
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    document.querySelector('.pill-all').classList.add('active');
+    document.getElementById('item-search').value = '';
+    document.getElementById('sort-btn').textContent = '↓ Code';
+
+    applyDetailFilter();
   }
 
-  function statBox(val, lbl, cls) {
-    return `<div class="stat-box ${cls}"><div class="val">${val}</div><div class="lbl">${lbl}</div></div>`;
+  function statBox(val, lbl, cls, filterKey) {
+    return `<div class="stat-box ${cls} ${activeStatusFilter === filterKey ? 'active-filter' : ''}"
+               onclick="setStatusFilter('${filterKey}', null)"
+               title="Click to filter by ${lbl}">
+      <div class="val">${val}</div><div class="lbl">${lbl}</div>
+    </div>`;
   }
 
   function scoreClass(score) {
@@ -563,19 +623,82 @@
     return score >= 75 ? 'green' : score >= 50 ? 'amber' : 'red';
   }
 
-  function renderItemGroup(containerId, items, title, color) {
-    if (!items.length) return;
-    const el = document.getElementById(containerId);
-    el.innerHTML = `<div class="section-header">
-      <h3>${title}</h3>
-      <span class="count-badge">${items.length}</span>
-    </div>` + items.map(item => renderItemCard(item, color)).join('');
+  function setStatusFilter(status, pillEl) {
+    activeStatusFilter = status;
+    // Update pill active states
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    if (pillEl) {
+      pillEl.classList.add('active');
+    } else {
+      // Called from stat box click — find matching pill
+      const pill = document.querySelector(`.pill-${status}`);
+      if (pill) pill.classList.add('active');
+      else document.querySelector('.pill-all').classList.add('active');
+    }
+    applyDetailFilter();
   }
 
-  function renderItemCard(item, color) {
-    const effectiveRag = item.is_overridden && item.overrides?.length
+  function toggleSort() {
+    sortAsc = !sortAsc;
+    document.getElementById('sort-btn').textContent = sortAsc ? '↓ Code' : '↑ Code';
+    applyDetailFilter();
+  }
+
+  function effectiveStatus(item) {
+    if (item.is_overridden && item.overrides?.length) return 'overridden';
+    if (item.rag_status === 'na' || item.rag_status === 'skipped') return 'skipped';
+    return item.rag_status;
+  }
+
+  function applyDetailFilter() {
+    const search = (document.getElementById('item-search')?.value || '').toLowerCase();
+    const area   = document.getElementById('area-filter')?.value || '';
+
+    let filtered = allDetailItems.filter(item => {
+      // Status filter
+      const status = effectiveStatus(item);
+      if (activeStatusFilter !== 'all' && status !== activeStatusFilter) return false;
+      // Area filter
+      if (area && item.area !== area) return false;
+      // Search
+      if (search) {
+        const haystack = `${item.item_code} ${item.question} ${item.area} ${item.evidence}`.toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+
+    // Sort by item_code
+    filtered.sort((a, b) => {
+      const parse = code => {
+        const parts = (code || '').split('.').map(Number);
+        return parts[0] * 1000 + (parts[1] || 0);
+      };
+      return sortAsc ? parse(a.item_code) - parse(b.item_code)
+                     : parse(b.item_code) - parse(a.item_code);
+    });
+
+    const container = document.getElementById('det-items');
+    if (!filtered.length) {
+      container.innerHTML = `<div class="no-results">No items match the current filters.</div>`;
+    } else {
+      container.innerHTML = filtered.map(item => renderItemCard(item)).join('');
+    }
+
+    const total = allDetailItems.length;
+    document.getElementById('results-summary').textContent =
+      filtered.length === total ? `${total} items` : `${filtered.length} of ${total} items`;
+  }
+
+  function renderItemCard(item) {
+    const effRag = item.is_overridden && item.overrides?.length
       ? item.overrides[item.overrides.length - 1].new_rag_status
       : item.rag_status;
+
+    const colorClass = effRag === 'green' ? 'green-card'
+                     : effRag === 'amber' ? 'amber-card'
+                     : effRag === 'red'   ? 'red-card'
+                     : 'skipped-card';
 
     const overridesHtml = item.is_overridden && item.overrides?.length
       ? `<div class="overrides-block">
@@ -590,36 +713,50 @@
         </div>` : '';
 
     const filesHtml = item.files_checked?.length
-      ? `<div class="item-files">${item.files_checked.slice(0,6).map(f =>
+      ? `<div class="item-files">${item.files_checked.slice(0, 6).map(f =>
           `<span class="file-chip">${esc(f)}</span>`).join('')}</div>` : '';
 
     const hintHtml = item.evidence_hint
       ? `<div class="item-hint">💡 ${esc(item.evidence_hint)}</div>` : '';
 
-    return `<div class="item-card ${color}-card ${item.is_overridden ? 'overridden' : ''}">
-      <div class="item-top">
-        <span class="badge badge-${effectiveRag}" style="flex-shrink:0;">${effectiveRag.toUpperCase()}</span>
-        <div>
-          <div class="item-code">${esc(item.item_code || '')}</div>
-          <div class="item-question">${esc(item.question || '')}</div>
-        </div>
-        <span class="item-strategy">${esc(item.strategy || '')}</span>
+    const strategyLabel = {
+      file_presence:  '📁 file scan',
+      pattern_scan:   '🔍 pattern scan',
+      llm_analysis:   '🤖 LLM',
+      metadata_check: '📦 metadata',
+      human_required: '👤 human',
+    }[item.strategy] || item.strategy || '';
+
+    return `<div class="item-card ${colorClass} ${item.is_overridden ? 'overridden' : ''}">
+      <div class="item-meta-row">
+        <span class="item-code">${esc(item.item_code || '')}</span>
+        <span class="item-area">${esc(item.area || '')}</span>
+        <span class="badge badge-${effRag}" style="font-size:10px;padding:2px 8px;">${effRag.toUpperCase()}</span>
+        ${item.is_overridden ? '<span class="badge badge-blue" style="font-size:10px;padding:2px 8px;">OVERRIDDEN</span>' : ''}
+        <span class="item-strategy-tag">${strategyLabel}</span>
       </div>
-      <div class="item-evidence">${esc(item.evidence || '')}</div>
-      ${hintHtml}
-      ${filesHtml}
-      ${overridesHtml}
+      <div class="item-question">${esc(item.question || '')}</div>
+      <div class="item-body">
+        ${item.evidence ? `<div class="item-evidence">${esc(item.evidence)}</div>` : ''}
+        ${hintHtml}
+        ${filesHtml}
+        ${overridesHtml}
+      </div>
       ${currentJobId ? `
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-ghost btn-sm" data-result-id="${item.item_id}" data-question="${esc(item.question || '')}" data-evidence="${esc(item.evidence || '')}" onclick="openOverrideModal(this.dataset.resultId, this.dataset.question, this.dataset.evidence)">
-            ✏️ Override
+          <button class="btn btn-ghost btn-sm"
+                  data-result-id="${item.item_id}"
+                  data-question="${esc(item.question || '')}"
+                  data-evidence="${esc(item.evidence || '')}"
+                  onclick="openOverrideModal(this.dataset.resultId, this.dataset.question, this.dataset.evidence)">
+            ✏️ Override RAG
           </button>
           <button class="btn btn-sm ${item.has_routing_rule ? 'btn-routing-active' : 'btn-ghost'}"
                   data-ci-id="${item.checklist_item_id}"
                   data-has-rule="${item.has_routing_rule ? '1' : '0'}"
                   onclick="toggleHumanRequired(this)"
-                  title="${item.has_routing_rule ? 'Remove human-required flag — item will be auto-routed on next review' : 'Mark as Human Required on all future reviews'}">
-            ${item.has_routing_rule ? '🚫 Human Required (click to remove)' : '👤 Mark as Human Required'}
+                  title="${item.has_routing_rule ? 'Remove — item will be auto-routed on next review' : 'Always skip this item on future reviews'}">
+            ${item.has_routing_rule ? '🚫 Human Required (remove)' : '👤 Mark as Human Required'}
           </button>
         </div>` : ''}
     </div>`;
