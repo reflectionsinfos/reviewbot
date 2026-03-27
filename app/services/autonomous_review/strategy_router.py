@@ -40,9 +40,21 @@ class StrategyConfig:
 _HUMAN_AREAS = {
     "financial health",
     "customer success & growth",
+    "ai adoption",
+    "ai usage",
+    "ai practices",
 }
 
 _HUMAN_QUESTION_PATTERNS = [
+    # Interview / survey phrasing — these can never be answered by scanning files
+    r"how are you (currently )?using",
+    r"what steps do you take",
+    r"how has (ai|automation|tooling).*impacted",
+    r"are you aware of and following",
+    r"do you use ai to support",
+    r"how do you (currently )?use ai",
+    r"what (ai|llm|copilot|genai|generative) tools",
+    r"guidelines or restrictions for using",
     r"morale",
     r"csat",
     r"\bnps\b",
@@ -74,10 +86,11 @@ _HUMAN_COMPILED = [re.compile(p, re.IGNORECASE) for p in _HUMAN_QUESTION_PATTERN
 
 def _is_human_required(area: str, question: str) -> Optional[StrategyConfig]:
     if area.lower() in _HUMAN_AREAS:
+        hint = _build_evidence_hint(area, question)
         return StrategyConfig(
             strategy="human_required",
-            skip_reason=f"Area '{area}' requires human/organisational data",
-            evidence_hint="Provide financial reports, CRM data, or stakeholder feedback",
+            skip_reason=f"Area '{area}' requires human/organisational data — interview or survey team members",
+            evidence_hint=hint,
         )
     combined = f"{area} {question}"
     for pattern in _HUMAN_COMPILED:
@@ -92,6 +105,8 @@ def _is_human_required(area: str, question: str) -> Optional[StrategyConfig]:
 
 def _build_evidence_hint(area: str, question: str) -> str:
     q = question.lower()
+    if "ai" in area.lower() or any(w in q for w in ("ai tool", "copilot", "llm", "generative", "chatgpt")):
+        return "Provide: team survey results, AI tool usage policy, or interview notes from developers"
     if "budget" in q or "billing" in q or "margins" in q:
         return "Provide: actuals vs budget report, billing records, or finance dashboard"
     if "csat" in q or "nps" in q or "feedback" in q:

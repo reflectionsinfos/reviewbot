@@ -19,6 +19,8 @@ from app.core.config import settings
 from sqlalchemy.orm import selectinload, joinedload
 from pydantic import BaseModel
 
+router = APIRouter()
+
 
 @router.get("/")
 async def list_reports(
@@ -55,6 +57,66 @@ async def list_reports(
             for r in reports
         ]
     }
+
+
+@router.get("/history")
+async def get_report_history(
+    project_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """List autonomous review job history for the Report History page"""
+    query = (
+        select(AutonomousReviewJob)
+        .options(
+            selectinload(AutonomousReviewJob.project),
+            selectinload(AutonomousReviewJob.checklist),
+            selectinload(AutonomousReviewJob.results).selectinload(
+                AutonomousReviewResult.overrides
+            ),
+        )
+        .order_by(AutonomousReviewJob.created_at.desc())
+    )
+    if project_id:
+        query = query.where(AutonomousReviewJob.project_id == project_id)
+
+    result = await db.execute(query)
+    jobs = result.scalars().all()
+
+    def eff(r) -> str:
+        if r.overrides:
+            return sorted(r.overrides, key=lambda o: o.overridden_at)[-1].new_rag_status
+        return r.rag_status
+
+    reports = []
+    for job in jobs:
+        green  = sum(1 for r in job.results if eff(r) == "green")
+        amber  = sum(1 for r in job.results if eff(r) == "amber")
+        red    = sum(1 for r in job.results if eff(r) == "red")
+        skipped = sum(1 for r in job.results if eff(r) in ("skipped", "na"))
+        overrides = sum(len(r.overrides) for r in job.results)
+        auto = green + amber + red
+        score = round(green / auto * 100, 1) if auto else 0.0
+
+        reports.append({
+            "id": job.id,
+            "job_id": job.id,
+            "project_name": job.project.name if job.project else "—",
+            "checklist_name": job.checklist.name if job.checklist else "—",
+            "source_path": job.source_path,
+            "status": job.status,
+            "compliance_score": score,
+            "green_count": green,
+            "amber_count": amber,
+            "red_count": red,
+            "skipped_count": skipped,
+            "override_count": overrides,
+            "total_items": job.total_items,
+            "generated_at": job.completed_at.isoformat() if job.completed_at else (
+                job.created_at.isoformat() if job.created_at else None
+            ),
+        })
+
+    return {"reports": reports}
 
 
 @router.get("/{report_id}")
@@ -555,62 +617,53 @@ async def get_report_details(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Get full report details including all items and their overrides
-    
-    Returns:
-    - Report summary
-    - RAG counts
-    - All checklist items with their status
-    - Overrides for each item
+    Get full details for an autonomous review job (report_id == job_id).
+    Returns all checklist items with RAG status and override history.
     """
-    # Get report with job
-    result = await db.execute(
-        select(Report)
-        .options(joinedload(Report.autonomous_review_job))
-        .where(Report.id == report_id)
-    )
-    report = result.scalar_one_or_none()
-    
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-    
-    if not report.autonomous_review_job:
-        raise HTTPException(
-            status_code=400, 
-            detail="Report is not linked to an autonomous review job"
+    # report_id from the history page is the AutonomousReviewJob.id
+    job_result = await db.execute(
+        select(AutonomousReviewJob)
+        .options(
+            selectinload(AutonomousReviewJob.project),
+            selectinload(AutonomousReviewJob.checklist),
         )
-    
-    job = report.autonomous_review_job
-    
-    # Get all results with overrides
-    results_query = (
-        select(AutonomousReviewResult, ChecklistItem)
-        .options(joinedload(AutonomousReviewResult.overrides).joinedload(AutonomousReviewOverride.user))
-        .join(ChecklistItem, AutonomousReviewResult.checklist_item_id == ChecklistItem.id)
-        .where(AutonomousReviewResult.job_id == job.id)
-        .order_by(ChecklistItem.item_code)
+        .where(AutonomousReviewJob.id == report_id)
     )
-    
+    job = job_result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Review job not found")
+
+    # Load all results with their overrides and the linked checklist item
+    results_query = (
+        select(AutonomousReviewResult)
+        .options(
+            selectinload(AutonomousReviewResult.overrides).selectinload(AutonomousReviewOverride.user),
+            selectinload(AutonomousReviewResult.checklist_item),
+        )
+        .where(AutonomousReviewResult.job_id == job.id)
+        .order_by(AutonomousReviewResult.id)
+    )
     results_result = await db.execute(results_query)
-    results = results_result.all()
-    
-    # Build items list
+    results = results_result.scalars().all()
+
     items = []
     override_count = 0
-    
-    for result, checklist_item in results:
-        is_overridden = len(result.overrides) > 0
+
+    for r in results:
+        ci = r.checklist_item
+        is_overridden = len(r.overrides) > 0
         if is_overridden:
             override_count += 1
-        
         items.append({
-            "item_id": result.id,
-            "item_code": checklist_item.item_code,
-            "area": checklist_item.area,
-            "question": checklist_item.question,
-            "rag_status": result.rag_status,
-            "evidence": result.evidence,
-            "confidence": result.confidence,
+            "item_id": r.id,
+            "item_code": ci.item_code if ci else "",
+            "area": ci.area if ci else "",
+            "question": ci.question if ci else r.evidence,
+            "rag_status": r.rag_status,
+            "evidence": r.evidence,
+            "confidence": r.confidence,
+            "strategy": r.strategy,
             "is_overridden": is_overridden,
             "overrides": [
                 {
@@ -619,40 +672,42 @@ async def get_report_details(
                     "comments": o.comments,
                     "reason": o.reason,
                     "overridden_by": o.user.full_name if o.user else "Unknown",
-                    "overridden_at": o.overridden_at.isoformat()
+                    "overridden_at": o.overridden_at.isoformat(),
                 }
-                for o in result.overrides
-            ]
+                for o in r.overrides
+            ],
         })
-    
-    # Count RAG statuses
-    green_count = sum(1 for r, _ in results if r.rag_status == 'green')
-    amber_count = sum(1 for r, _ in results if r.rag_status == 'amber')
-    red_count = sum(1 for r, _ in results if r.rag_status == 'red')
-    
-    # Calculate adjusted score
-    base_score = report.compliance_score or 0.0
-    adjusted_score = base_score + (override_count * 2.0)
-    adjusted_score = min(100.0, adjusted_score)
-    
+
+    def effective_status(r) -> str:
+        """Return the latest override status if overridden, else original."""
+        if r.overrides:
+            return sorted(r.overrides, key=lambda o: o.overridden_at)[-1].new_rag_status
+        return r.rag_status
+
+    green_count  = sum(1 for r in results if effective_status(r) == "green")
+    amber_count  = sum(1 for r in results if effective_status(r) == "amber")
+    red_count    = sum(1 for r in results if effective_status(r) == "red")
+    auto = green_count + amber_count + red_count
+    adjusted_score = round(green_count / auto * 100, 1) if auto else 0.0
+
     return {
         "report": {
-            "id": report.id,
-            "project_name": job.project.name,
-            "checklist_name": job.checklist.name,
+            "id": job.id,
+            "project_name": job.project.name if job.project else "—",
+            "checklist_name": job.checklist.name if job.checklist else "—",
             "source_path": job.source_path,
-            "generated_at": report.created_at.isoformat(),
-            "compliance_score": base_score,
+            "generated_at": (job.completed_at or job.created_at).isoformat(),
+            "compliance_score": adjusted_score,
             "override_count": override_count,
-            "adjusted_score": adjusted_score
+            "adjusted_score": adjusted_score,
         },
         "summary": {
             "total": len(results),
             "green": green_count,
             "amber": amber_count,
             "red": red_count,
-            "human_required": 0,
-            "na": len(results) - green_count - amber_count - red_count
+            "human_required": sum(1 for r in results if effective_status(r) == "skipped"),
+            "na": sum(1 for r in results if effective_status(r) == "na"),
         },
-        "items": items
+        "items": items,
     }

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReviewBot — Report History</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+    /* ── Header ───────────────────────────────────────────────────────────── */
+    header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; }
+    header .tagline { font-size: 13px; color: #94a3b8; }
+    header nav { margin-left: auto; display: flex; gap: 8px; }
+    header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; }
+    header nav a:hover, header nav a.active { border-color: #38bdf8; color: #38bdf8; }
+    header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    header .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+
+    main { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
+
+    /* ── Auth overlay ─────────────────────────────────────────────────────── */
+    #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .auth-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 36px; width: 380px; }
+    .auth-card h2 { color: #38bdf8; margin-bottom: 6px; }
+    .auth-card p { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    input, select { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; }
+    input:focus { outline: none; border-color: #38bdf8; }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #38bdf8; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-block { width: 100%; }
+    .btn-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+    .btn-ghost:hover { border-color: #38bdf8; color: #38bdf8; }
+    .btn-danger-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+    .btn-danger-ghost:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── Page sections ────────────────────────────────────────────────────── */
+    #history-section { display: block; }
+    #details-section { display: none; }
+
+    /* ── Toolbar ──────────────────────────────────────────────────────────── */
+    .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .toolbar h1 { font-size: 22px; font-weight: 700; color: #f1f5f9; flex: 1; }
+    .filter-group { display: flex; gap: 8px; align-items: center; }
+    .filter-group select { width: auto; padding: 7px 12px; font-size: 13px; }
+    .filter-group input { width: 220px; padding: 7px 12px; font-size: 13px; }
+
+    /* ── Table ────────────────────────────────────────────────────────────── */
+    .table-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { background: #0f172a; padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid #334155; white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid #1e293b; transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #0f172a44; }
+    tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
+
+    /* ── Badges ───────────────────────────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .badge-green  { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
+    .badge-amber  { background: #78350f44; color: #fb923c; border: 1px solid #92400e; }
+    .badge-red    { background: #7f1d1d44; color: #f87171; border: 1px solid #991b1b; }
+    .badge-blue   { background: #1e3a5f44; color: #60a5fa; border: 1px solid #1d4ed8; }
+    .badge-gray   { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+
+    .score-cell { display: flex; align-items: center; gap: 8px; }
+    .score-val { font-weight: 700; font-size: 15px; }
+    .score-adj { font-size: 11px; color: #64748b; }
+    .score-green { color: #4ade80; }
+    .score-amber { color: #fb923c; }
+    .score-red   { color: #f87171; }
+
+    .rag-bar { display: flex; gap: 4px; font-size: 11px; }
+    .rag-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .rag-dot.green { background: #4ade80; }
+    .rag-dot.amber { background: #fb923c; }
+    .rag-dot.red   { background: #f87171; }
+    .rag-count { color: #94a3b8; }
+
+    /* ── Editable path ────────────────────────────────────────────────────── */
+    .path-view { display: flex; align-items: center; gap: 6px; }
+    .path-text { font-family: monospace; font-size: 12px; color: #94a3b8; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .path-edit-btn { background: transparent; border: none; cursor: pointer; color: #475569; padding: 2px 4px; border-radius: 4px; font-size: 13px; }
+    .path-edit-btn:hover { color: #38bdf8; }
+    .path-edit-form { display: flex; gap: 6px; align-items: center; }
+    .path-edit-form input { width: 280px; padding: 5px 9px; font-size: 12px; font-family: monospace; }
+    .path-edit-form button { padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; border: none; }
+    .btn-save-path { background: #0ea5e9; color: #fff; }
+    .btn-cancel-path { background: transparent; border: 1px solid #334155 !important; color: #94a3b8; }
+
+    /* ── Empty / loading ──────────────────────────────────────────────────── */
+    .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 15px; }
+    .loading-row td { text-align: center; padding: 40px; color: #475569; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Details section ──────────────────────────────────────────────────── */
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; color: #94a3b8; cursor: pointer; font-size: 13px; margin-bottom: 20px; background: transparent; border: none; padding: 0; }
+    .back-btn:hover { color: #38bdf8; }
+
+    .details-header { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .details-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .details-meta { font-size: 13px; color: #64748b; margin-bottom: 16px; }
+    .details-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+    .stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 20px; text-align: center; min-width: 90px; }
+    .stat-box .val { font-size: 26px; font-weight: 700; }
+    .stat-box .lbl { font-size: 11px; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-box.green .val { color: #4ade80; }
+    .stat-box.amber .val { color: #fb923c; }
+    .stat-box.red   .val { color: #f87171; }
+    .stat-box.blue  .val { color: #60a5fa; }
+    .stat-box.gray  .val { color: #94a3b8; }
+
+    /* ── Item cards ───────────────────────────────────────────────────────── */
+    .section-header { display: flex; align-items: center; gap: 10px; margin: 24px 0 12px; }
+    .section-header h3 { font-size: 15px; font-weight: 600; }
+    .section-header .count-badge { font-size: 12px; background: #1e293b; border: 1px solid #334155; border-radius: 99px; padding: 2px 10px; color: #94a3b8; }
+
+    .item-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; margin-bottom: 10px; }
+    .item-card.red-card    { border-left: 3px solid #ef4444; }
+    .item-card.amber-card  { border-left: 3px solid #f97316; }
+    .item-card.green-card  { border-left: 3px solid #22c55e; }
+    .item-card.skipped-card { border-left: 3px solid #475569; }
+    .item-card.overridden  { border-color: #1d4ed8; }
+
+    .item-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+    .item-code { font-size: 11px; font-family: monospace; color: #64748b; white-space: nowrap; margin-top: 2px; }
+    .item-question { font-size: 13px; font-weight: 500; flex: 1; line-height: 1.4; }
+    .item-strategy { font-size: 11px; color: #475569; font-family: monospace; margin-left: auto; white-space: nowrap; }
+    .item-evidence { font-size: 12px; color: #94a3b8; margin-top: 6px; line-height: 1.5; }
+    .item-hint { font-size: 12px; color: #60a5fa; margin-top: 4px; }
+    .item-files { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .file-chip { font-size: 11px; font-family: monospace; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 2px 7px; color: #64748b; }
+
+    /* Override display */
+    .overrides-block { margin-top: 10px; padding: 10px; background: #0f172a44; border-radius: 6px; border: 1px solid #1d4ed8; }
+    .overrides-block h4 { font-size: 11px; color: #60a5fa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .override-entry { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-bottom: 6px; font-size: 12px; }
+    .override-to { font-weight: 700; }
+    .override-by { color: #64748b; }
+    .override-comment { color: #94a3b8; width: 100%; }
+    .override-reason { font-size: 11px; color: #475569; font-family: monospace; }
+
+    /* Override form */
+    .override-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid #334155; }
+    .override-form select, .override-form textarea, .override-form input { margin-bottom: 8px; padding: 7px 10px; font-size: 12px; }
+    .override-form textarea { resize: vertical; min-height: 60px; }
+    .override-row { display: flex; gap: 8px; }
+
+    /* ── Modal ────────────────────────────────────────────────────────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px; width: 480px; max-width: 95vw; }
+    .modal-box h3 { margin-bottom: 16px; font-size: 16px; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+    /* ── Toast ────────────────────────────────────────────────────────────── */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 320px; }
+    #toast.success { border-color: #22c55e; color: #4ade80; }
+    #toast.error   { border-color: #ef4444; color: #f87171; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/ui" class="logo">ReviewBot</a>
+  <span class="tagline">Report History</span>
+  <nav>
+    <a href="/ui">Autonomous Review</a>
+    <a href="/history" class="active">Report History</a>
+  </nav>
+  <span id="user-label" style="font-size:13px;color:#64748b;margin-left:12px;"></span>
+  <button class="btn-logout" onclick="logout()">Logout</button>
+</header>
+
+<main>
+  <!-- ── History list ─────────────────────────────────────────────────────── -->
+  <div id="history-section">
+    <div class="toolbar">
+      <h1>Report History</h1>
+      <div class="filter-group">
+        <input id="search-input" type="text" placeholder="Search project or checklist…" oninput="applyFilter()" />
+        <select id="rag-filter" onchange="applyFilter()">
+          <option value="">All scores</option>
+          <option value="green">≥ 75% (Green)</option>
+          <option value="amber">50–74% (Amber)</option>
+          <option value="red">&lt; 50% (Red)</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="loadHistory()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Checklist</th>
+            <th>Source Path</th>
+            <th>Generated</th>
+            <th>Score</th>
+            <th>RAG Breakdown</th>
+            <th>Overrides</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="history-body">
+          <tr class="loading-row"><td colspan="8"><span class="spinner"></span> Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Report details ───────────────────────────────────────────────────── -->
+  <div id="details-section">
+    <button class="back-btn" onclick="showHistory()">← Back to History</button>
+
+    <div class="details-header" id="details-header">
+      <h2 id="det-title">Report Details</h2>
+      <div class="details-meta" id="det-meta"></div>
+      <div class="details-stats" id="det-stats"></div>
+    </div>
+
+    <div id="det-red"></div>
+    <div id="det-amber"></div>
+    <div id="det-green"></div>
+    <div id="det-skipped"></div>
+  </div>
+</main>
+
+<!-- Auth overlay -->
+<div id="auth-overlay">
+  <div class="auth-card">
+    <h2>ReviewBot</h2>
+    <p>Sign in to view report history</p>
+    <div class="form-group">
+      <label>Email</label>
+      <input id="login-email" type="email" value="admin@reviewbot.ai" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input id="login-password" type="password" value="admin123" />
+    </div>
+    <div id="auth-error" style="color:#f87171;font-size:12px;margin-bottom:10px;display:none;"></div>
+    <button class="btn btn-primary btn-block" onclick="login()">Sign In</button>
+  </div>
+</div>
+
+<!-- Override modal -->
+<div class="modal-overlay" id="override-modal" style="display:none;">
+  <div class="modal-box">
+    <h3>Override RAG Status</h3>
+    <div class="form-group">
+      <label>Item</label>
+      <div id="override-item-question" style="font-size:13px;color:#94a3b8;"></div>
+    </div>
+    <div class="form-group">
+      <label>AI Response</label>
+      <div id="override-item-evidence" style="font-size:12px;color:#94a3b8;background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px 12px;max-height:120px;overflow-y:auto;line-height:1.5;"></div>
+    </div>
+    <div class="form-group">
+      <label>New RAG Status</label>
+      <select id="override-rag">
+        <option value="green">Green — Compliant</option>
+        <option value="amber">Amber — Partial</option>
+        <option value="red">Red — Not Compliant</option>
+        <option value="na">N/A — Not Applicable</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Reason</label>
+      <select id="override-reason">
+        <option value="alternative_approach">Alternative approach in place</option>
+        <option value="project_specific">Project-specific exception</option>
+        <option value="not_applicable">Not applicable to this project</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Comments</label>
+      <textarea id="override-comments" class="override-form" style="width:100%;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeOverrideModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="submitOverride()">Save Override</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let TOKEN = localStorage.getItem('rb_token') || '';
+  let allReports = [];
+  let currentJobId = null;
+  let currentReportId = null;
+  let overrideTarget = null; // {jobId, resultId, itemQuestion}
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  async function login() {
+    const email = document.getElementById('login-email').value;
+    const pw    = document.getElementById('login-password').value;
+    const fd = new FormData();
+    fd.append('username', email);
+    fd.append('password', pw);
+    try {
+      const res = await fetch('/api/auth/login', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error('Invalid credentials');
+      const data = await res.json();
+      TOKEN = data.access_token;
+      localStorage.setItem('rb_token', TOKEN);
+      document.getElementById('auth-overlay').style.display = 'none';
+      document.getElementById('user-label').textContent = email;
+      loadHistory();
+    } catch (e) {
+      const el = document.getElementById('auth-error');
+      el.textContent = e.message;
+      el.style.display = 'block';
+    }
+  }
+
+  function logout() {
+    TOKEN = '';
+    localStorage.removeItem('rb_token');
+    location.reload();
+  }
+
+  function authHeader() {
+    return { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' };
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  function toast(msg, type='') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = type;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3500);
+  }
+
+  // ── History list ───────────────────────────────────────────────────────────
+  async function loadHistory() {
+    if (!TOKEN) return;
+    document.getElementById('history-body').innerHTML =
+      '<tr class="loading-row"><td colspan="8"><span class="spinner"></span> Loading…</td></tr>';
+
+    try {
+      const res = await fetch('/api/reports/history', { headers: authHeader() });
+      if (res.status === 401) { TOKEN=''; location.reload(); return; }
+      const data = await res.json();
+      allReports = data.reports || data || [];
+      renderHistory(allReports);
+    } catch (e) {
+      document.getElementById('history-body').innerHTML =
+        `<tr class="loading-row"><td colspan="8" style="color:#f87171;">Failed to load: ${e.message}</td></tr>`;
+    }
+  }
+
+  function applyFilter() {
+    const search = document.getElementById('search-input').value.toLowerCase();
+    const rag    = document.getElementById('rag-filter').value;
+    let filtered = allReports.filter(r => {
+      if (search && !(
+        (r.project_name || '').toLowerCase().includes(search) ||
+        (r.checklist_name || '').toLowerCase().includes(search)
+      )) return false;
+      if (rag === 'green' && r.compliance_score < 75) return false;
+      if (rag === 'amber' && (r.compliance_score < 50 || r.compliance_score >= 75)) return false;
+      if (rag === 'red'   && r.compliance_score >= 50) return false;
+      return true;
+    });
+    renderHistory(filtered);
+  }
+
+  function renderHistory(reports) {
+    const tbody = document.getElementById('history-body');
+    if (!reports.length) {
+      tbody.innerHTML = `<tr class="loading-row"><td colspan="8">
+        <div class="empty-state"><div class="icon">📋</div><p>No reports found</p></div>
+      </td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = reports.map(r => {
+      const score = r.compliance_score ?? 0;
+      const adj   = r.adjusted_score;
+      const scoreClass = score >= 75 ? 'score-green' : score >= 50 ? 'score-amber' : 'score-red';
+      const dt = r.generated_at ? new Date(r.generated_at).toLocaleString() : '—';
+
+      const scoreHtml = `<div class="score-cell">
+        <span class="score-val ${scoreClass}">${score.toFixed(1)}%</span>
+        ${adj != null && Math.abs(adj - score) > 0.05
+          ? `<span class="score-adj">(${adj.toFixed(1)}% adj)</span>` : ''}
+      </div>`;
+
+      const ragHtml = `<div class="rag-bar">
+        <span class="rag-dot green"></span><span class="rag-count">${r.green_count ?? 0}</span>
+        <span class="rag-dot amber" style="margin-left:6px;"></span><span class="rag-count">${r.amber_count ?? 0}</span>
+        <span class="rag-dot red" style="margin-left:6px;"></span><span class="rag-count">${r.red_count ?? 0}</span>
+      </div>`;
+
+      const overrideHtml = r.override_count
+        ? `<span class="badge badge-blue">${r.override_count} override${r.override_count > 1 ? 's' : ''}</span>`
+        : '<span style="color:#334155;font-size:12px;">—</span>';
+
+      return `<tr data-report-id="${r.id}" data-job-id="${r.job_id || ''}">
+        <td><strong>${esc(r.project_name || '—')}</strong></td>
+        <td style="color:#94a3b8;">${esc(r.checklist_name || '—')}</td>
+        <td>${renderPathCell(r)}</td>
+        <td style="color:#64748b;font-size:12px;white-space:nowrap;">${dt}</td>
+        <td>${scoreHtml}</td>
+        <td>${ragHtml}</td>
+        <td>${overrideHtml}</td>
+        <td>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" onclick="viewDetails(${r.id}, ${r.job_id || 'null'})">Details</button>
+            ${r.job_id ? `<button class="btn btn-ghost btn-sm" onclick="regenerate(${r.id})">↻</button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function renderPathCell(r) {
+    const path = r.source_path || '—';
+    return `<div class="path-view" id="path-view-${r.id}">
+      <span class="path-text" title="${esc(path)}">${esc(path)}</span>
+      ${r.job_id ? `<button class="path-edit-btn" title="Edit path" onclick="startEditPath(${r.id}, '${esc(path).replace(/'/g,"\\'")}')">✏️</button>` : ''}
+    </div>
+    <div class="path-edit-form" id="path-form-${r.id}" style="display:none;">
+      <input id="path-input-${r.id}" type="text" value="${esc(path)}" />
+      <button class="btn-save-path" onclick="savePath(${r.id})">💾</button>
+      <button class="btn-cancel-path" onclick="cancelEditPath(${r.id})">✕</button>
+    </div>`;
+  }
+
+  function startEditPath(reportId, currentPath) {
+    document.getElementById(`path-view-${reportId}`).style.display = 'none';
+    document.getElementById(`path-form-${reportId}`).style.display = 'flex';
+    document.getElementById(`path-input-${reportId}`).value = currentPath;
+    document.getElementById(`path-input-${reportId}`).focus();
+  }
+
+  function cancelEditPath(reportId) {
+    document.getElementById(`path-view-${reportId}`).style.display = 'flex';
+    document.getElementById(`path-form-${reportId}`).style.display = 'none';
+  }
+
+  async function savePath(reportId) {
+    const newPath = document.getElementById(`path-input-${reportId}`).value.trim();
+    if (!newPath) return;
+    try {
+      const res = await fetch(`/api/reports/${reportId}/source-path`, {
+        method: 'PUT',
+        headers: authHeader(),
+        body: JSON.stringify({ source_path: newPath }),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Save failed');
+      toast('Source path updated', 'success');
+      cancelEditPath(reportId);
+      // Update in-memory data
+      const r = allReports.find(x => x.id === reportId);
+      if (r) r.source_path = newPath;
+      // Update the displayed text
+      const view = document.getElementById(`path-view-${reportId}`);
+      if (view) view.querySelector('.path-text').textContent = newPath;
+      document.getElementById(`path-view-${reportId}`).style.display = 'flex';
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function regenerate(reportId) {
+    if (!confirm('Regenerate this report? This will re-run the analysis.')) return;
+    try {
+      const res = await fetch(`/api/reports/${reportId}/regenerate`, {
+        method: 'POST',
+        headers: authHeader(),
+        body: JSON.stringify({ use_updated_source_path: true, include_overrides: true }),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
+      const data = await res.json();
+      toast(`Regeneration started (job #${data.job_id})`, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // ── Details ────────────────────────────────────────────────────────────────
+  async function viewDetails(reportId, jobId) {
+    currentReportId = reportId;
+    currentJobId = jobId;
+    document.getElementById('history-section').style.display = 'none';
+    document.getElementById('details-section').style.display = 'block';
+
+    document.getElementById('det-title').textContent = 'Loading…';
+    document.getElementById('det-stats').innerHTML = '<span class="spinner"></span>';
+    document.getElementById('det-red').innerHTML = '';
+    document.getElementById('det-amber').innerHTML = '';
+    document.getElementById('det-green').innerHTML = '';
+    document.getElementById('det-skipped').innerHTML = '';
+
+    try {
+      const res = await fetch(`/api/reports/${reportId}/details`, { headers: authHeader() });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Load failed');
+      const data = await res.json();
+      renderDetails(data);
+    } catch (e) {
+      document.getElementById('det-title').textContent = 'Error: ' + e.message;
+    }
+  }
+
+  function renderDetails(data) {
+    const r = data.report || {};
+    const items = data.items || [];
+
+    document.getElementById('det-title').textContent =
+      `${r.project_name || '—'} · ${r.checklist_name || '—'}`;
+    document.getElementById('det-meta').textContent =
+      `Generated: ${r.generated_at ? new Date(r.generated_at).toLocaleString() : '—'}  ·  Source: ${r.source_path || '—'}`;
+
+    const s = data.summary || r.summary || {};
+    document.getElementById('det-stats').innerHTML = [
+      statBox(r.compliance_score?.toFixed(1) + '%', 'Score', scoreClass(r.compliance_score)),
+      statBox(s.green ?? 0, 'Green', 'green'),
+      statBox(s.amber ?? 0, 'Amber', 'amber'),
+      statBox(s.red   ?? 0, 'Red',   'red'),
+      statBox(s.skipped ?? 0, 'Skipped', 'gray'),
+      statBox(r.override_count ?? 0, 'Overrides', 'blue'),
+    ].join('');
+
+    const grouped = { red: [], amber: [], green: [], skipped: [] };
+    for (const item of items) {
+      const k = grouped[item.rag_status] ? item.rag_status : 'skipped';
+      grouped[k].push(item);
+    }
+
+    renderItemGroup('det-red',     grouped.red,     '🔴 Critical Issues', 'red');
+    renderItemGroup('det-amber',   grouped.amber,   '🟠 Amber Items',     'amber');
+    renderItemGroup('det-green',   grouped.green,   '🟢 Compliant',       'green');
+    renderItemGroup('det-skipped', grouped.skipped, '⚪ Skipped / Human Required', 'skipped');
+  }
+
+  function statBox(val, lbl, cls) {
+    return `<div class="stat-box ${cls}"><div class="val">${val}</div><div class="lbl">${lbl}</div></div>`;
+  }
+
+  function scoreClass(score) {
+    if (score == null) return 'gray';
+    return score >= 75 ? 'green' : score >= 50 ? 'amber' : 'red';
+  }
+
+  function renderItemGroup(containerId, items, title, color) {
+    if (!items.length) return;
+    const el = document.getElementById(containerId);
+    el.innerHTML = `<div class="section-header">
+      <h3>${title}</h3>
+      <span class="count-badge">${items.length}</span>
+    </div>` + items.map(item => renderItemCard(item, color)).join('');
+  }
+
+  function renderItemCard(item, color) {
+    const effectiveRag = item.is_overridden && item.overrides?.length
+      ? item.overrides[item.overrides.length - 1].new_rag_status
+      : item.rag_status;
+
+    const overridesHtml = item.is_overridden && item.overrides?.length
+      ? `<div class="overrides-block">
+          <h4>Overrides (${item.overrides.length})</h4>
+          ${item.overrides.map(o => `
+            <div class="override-entry">
+              <span class="override-to badge badge-${o.new_rag_status}">${o.new_rag_status.toUpperCase()}</span>
+              <span class="override-by">by ${esc(o.overridden_by || '—')}</span>
+              <span class="override-reason">[${esc(o.reason || 'other')}]</span>
+              <span class="override-comment">${esc(o.comments || '')}</span>
+            </div>`).join('')}
+        </div>` : '';
+
+    const filesHtml = item.files_checked?.length
+      ? `<div class="item-files">${item.files_checked.slice(0,6).map(f =>
+          `<span class="file-chip">${esc(f)}</span>`).join('')}</div>` : '';
+
+    const hintHtml = item.evidence_hint
+      ? `<div class="item-hint">💡 ${esc(item.evidence_hint)}</div>` : '';
+
+    return `<div class="item-card ${color}-card ${item.is_overridden ? 'overridden' : ''}">
+      <div class="item-top">
+        <span class="badge badge-${effectiveRag}" style="flex-shrink:0;">${effectiveRag.toUpperCase()}</span>
+        <div>
+          <div class="item-code">${esc(item.item_code || '')}</div>
+          <div class="item-question">${esc(item.question || '')}</div>
+        </div>
+        <span class="item-strategy">${esc(item.strategy || '')}</span>
+      </div>
+      <div class="item-evidence">${esc(item.evidence || '')}</div>
+      ${hintHtml}
+      ${filesHtml}
+      ${overridesHtml}
+      ${currentJobId ? `
+        <div style="margin-top:10px;">
+          <button class="btn btn-ghost btn-sm" data-result-id="${item.item_id}" data-question="${esc(item.question || '')}" data-evidence="${esc(item.evidence || '')}" onclick="openOverrideModal(this.dataset.resultId, this.dataset.question, this.dataset.evidence)">
+            ✏️ Override
+          </button>
+        </div>` : ''}
+    </div>`;
+  }
+
+  // ── Override modal ─────────────────────────────────────────────────────────
+  function openOverrideModal(resultId, question, evidence) {
+    overrideTarget = { resultId, question };
+    document.getElementById('override-item-question').textContent = question;
+    document.getElementById('override-item-evidence').textContent = evidence || '(no AI response recorded)';
+    document.getElementById('override-rag').value = 'green';
+    document.getElementById('override-reason').value = 'alternative_approach';
+    document.getElementById('override-comments').value = '';
+    document.getElementById('override-modal').style.display = 'flex';
+  }
+
+  function closeOverrideModal() {
+    document.getElementById('override-modal').style.display = 'none';
+    overrideTarget = null;
+  }
+
+  async function submitOverride() {
+    if (!overrideTarget || !currentJobId) return;
+    const payload = {
+      new_rag_status: document.getElementById('override-rag').value,
+      reason: document.getElementById('override-reason').value,
+      comments: document.getElementById('override-comments').value.trim(),
+    };
+    if (!payload.comments) { toast('Please enter a comment', 'error'); return; }
+
+    try {
+      const res = await fetch(
+        `/api/autonomous-reviews/${currentJobId}/results/${overrideTarget.resultId}/override`,
+        { method: 'POST', headers: authHeader(), body: JSON.stringify(payload) }
+      );
+      if (!res.ok) {
+        const err = await res.json();
+        const detail = err.detail;
+        throw new Error(typeof detail === 'string' ? detail : (JSON.stringify(detail) || 'Override failed'));
+      }
+      toast('Override saved', 'success');
+      closeOverrideModal();
+      viewDetails(currentReportId, currentJobId); // refresh
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // ── Navigation ─────────────────────────────────────────────────────────────
+  function showHistory() {
+    document.getElementById('details-section').style.display = 'none';
+    document.getElementById('history-section').style.display = 'block';
+    currentReportId = null;
+    currentJobId = null;
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function esc(str) {
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;');
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  if (TOKEN) {
+    document.getElementById('auth-overlay').style.display = 'none';
+    loadHistory();
+  }
+</script>
+</body>
+</html>

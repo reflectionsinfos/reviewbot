@@ -45,6 +45,19 @@
     /* ── Config panel ─────────────────────────────────────────────────── */
     .config-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
     .config-panel h2 { font-size: 16px; font-weight: 600; color: #f1f5f9; margin-bottom: 20px; }
+
+    /* ── Source type selector ──────────────────────────────────────────── */
+    .source-type-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 8px; border: 1px solid #334155; cursor: pointer; font-size: 13px; color: #94a3b8; transition: all 0.15s; user-select: none; }
+    .source-type-btn:hover { border-color: #38bdf8; color: #38bdf8; }
+    .source-type-btn.active { border-color: #0ea5e9; background: #0ea5e933; color: #38bdf8; }
+    .info-tip { cursor: help; color: #475569; font-size: 12px; margin-left: 3px; }
+    .info-tip:hover { color: #38bdf8; }
+    .provider-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .provider-github  { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+    .provider-gitlab  { background: #fc6d2633; color: #fc6d26; border: 1px solid #fc6d26; }
+    .provider-bitbucket { background: #205081aa; color: #4c9aff; border: 1px solid #205081; }
+    .provider-azure   { background: #0078d433; color: #60a5fa; border: 1px solid #0078d4; }
+    .provider-unknown { background: #1e293b; color: #64748b; border: 1px solid #334155; }
     .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
     .start-row { display: flex; align-items: flex-end; gap: 16px; margin-top: 16px; }
     .start-row .form-group { flex: 1; margin-bottom: 0; }
@@ -141,8 +154,9 @@
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <header>
   <span class="logo">🤖 ReviewBot</span>
-  <span class="tagline">Autonomous Code Review</span>
+  <span class="tagline">AI Review Platform</span>
   <div class="user-info">
+    <a href="/history" style="color:#94a3b8;text-decoration:none;font-size:13px;padding:4px 12px;border:1px solid #334155;border-radius:6px;" onmouseover="this.style.borderColor='#38bdf8';this.style.color='#38bdf8'" onmouseout="this.style.borderColor='#334155';this.style.color='#94a3b8'">Report History</a>
     <span id="header-user"></span>
     <button class="btn-logout" onclick="logout()">Sign out</button>
   </div>
@@ -171,11 +185,104 @@
       </div>
     </div>
 
-    <div class="start-row">
-      <div class="form-group" style="flex:2">
-        <label>Project Source Path (local folder on server)</label>
-        <input id="source-path" type="text" placeholder="e.g.  C:\projects\myapp  or  /home/user/myapp" />
+    <!-- Source type selector -->
+    <div class="form-group" style="margin-top:8px">
+      <label>Source Type</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <label class="source-type-btn active" id="stype-repo">
+          <input type="radio" name="source-type" value="repo" checked onchange="onSourceTypeChange(this.value)" style="display:none">
+          🔗 Git Repository
+        </label>
+        <label class="source-type-btn" id="stype-local">
+          <input type="radio" name="source-type" value="local" onchange="onSourceTypeChange(this.value)" style="display:none">
+          📁 Local Path
+        </label>
+        <label class="source-type-btn" id="stype-docs">
+          <input type="radio" name="source-type" value="docs" onchange="onSourceTypeChange(this.value)" style="display:none">
+          📄 Documents
+        </label>
+        <label class="source-type-btn" id="stype-quiz">
+          <input type="radio" name="source-type" value="quiz" onchange="onSourceTypeChange(this.value)" style="display:none">
+          🧠 Knowledge QUIZ
+        </label>
       </div>
+    </div>
+
+    <!-- Repo URL inputs -->
+    <div id="source-repo-panel">
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;">
+        <div class="form-group" style="flex:3;margin:0">
+          <label>Repository URL
+            <span class="info-tip" title="Paste the full clone URL. Public repos need no token. For private repos add a Personal Access Token below.">ⓘ</span>
+          </label>
+          <input id="repo-url" type="text" placeholder="https://github.com/org/repo  or  https://gitlab.com/org/repo" oninput="onRepoUrlChange()" />
+        </div>
+        <div class="form-group" style="flex:1;min-width:120px;margin:0">
+          <label>Branch / Tag</label>
+          <input id="repo-branch" type="text" placeholder="main" />
+        </div>
+      </div>
+
+      <!-- Detected provider badge -->
+      <div id="provider-badge" style="display:none;margin-bottom:8px;"></div>
+
+      <!-- Private repo token -->
+      <div id="token-section">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+          <input type="checkbox" id="is-private" onchange="toggleToken()" style="width:auto;margin:0"/>
+          <label for="is-private" style="text-transform:none;font-size:13px;letter-spacing:0;cursor:pointer;">Private repository — use Personal Access Token (PAT)</label>
+        </div>
+        <div id="token-inputs" style="display:none;">
+          <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;">
+            <div class="form-group" style="flex:2;margin:0">
+              <label>Personal Access Token (PAT)</label>
+              <input id="repo-token" type="password" placeholder="ghp_xxxx  /  glpat-xxxx  /  ATBBxxxx" />
+            </div>
+            <div class="form-group" style="flex:1;min-width:160px;margin:0">
+              <label>Save token to project <span class="info-tip" title="Token is encrypted and stored per project. You won't need to re-enter it next time.">ⓘ</span></label>
+              <select id="token-save">
+                <option value="session">This session only</option>
+                <option value="project">Save to project (encrypted)</option>
+              </select>
+            </div>
+          </div>
+          <div id="pat-guide" style="margin-top:8px;font-size:12px;color:#64748b;line-height:1.6;display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Local path input -->
+    <div id="source-local-panel" style="display:none;">
+      <div class="form-group">
+        <label>Local Folder Path <span style="font-size:11px;color:#64748b;">(Docker volume-mounted path on server)</span></label>
+        <input id="source-path" type="text" placeholder="/host-projects/myapp" oninput="previewNormalizedPath(this)" />
+        <div style="font-size:11px;margin-top:4px;color:#f59e0b;">
+          ⚠ Docker mount: <code>C:\projects</code> → <code>/host-projects</code>.
+          Always use <code>/host-projects/your-folder</code> — <em>not</em> <code>/projects/</code>.
+        </div>
+        <div id="path-preview" style="font-size:11px;margin-top:3px;color:#34d399;display:none;">
+          ✔ Will use: <code id="path-preview-val"></code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Documents panel (coming soon) -->
+    <div id="source-docs-panel" style="display:none;">
+      <div style="background:#1e293b;border:1px dashed #334155;border-radius:8px;padding:20px;text-align:center;color:#475569;font-size:13px;">
+        📄 Document Review — <strong style="color:#38bdf8">Coming in Phase 2</strong><br/>
+        <span style="font-size:12px;margin-top:4px;display:block;">Upload architecture docs, HLD/LLD, process docs for AI-powered gap analysis.</span>
+      </div>
+    </div>
+
+    <!-- QUIZ panel (coming soon) -->
+    <div id="source-quiz-panel" style="display:none;">
+      <div style="background:#1e293b;border:1px dashed #334155;border-radius:8px;padding:20px;text-align:center;color:#475569;font-size:13px;">
+        🧠 Knowledge QUIZ — <strong style="color:#38bdf8">Coming in Phase 3</strong><br/>
+        <span style="font-size:12px;margin-top:4px;display:block;">Quiz team members on domain knowledge via text or voice. Identify knowledge gaps per role.</span>
+      </div>
+    </div>
+
+    <div class="start-row" style="margin-top:16px">
       <button id="start-btn" class="btn btn-primary" onclick="startReview()" style="white-space:nowrap; padding: 10px 28px;">
         ▶ Start Autonomous Review
       </button>
@@ -343,14 +450,137 @@ async function onProjectChange() {
   } catch(e) { showConfigError(e.message); }
 }
 
+// ── Source type UI ─────────────────────────────────────────────────────────────
+const PAT_GUIDES = {
+  github: `<strong>GitHub PAT:</strong> Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate. Scopes needed: <code>repo</code> (private) or <code>public_repo</code> (public). <a href="https://github.com/settings/tokens" target="_blank" style="color:#38bdf8;">Open GitHub →</a>`,
+  gitlab: `<strong>GitLab PAT:</strong> User settings → Access Tokens → Add token. Scopes needed: <code>read_repository</code>. <a href="https://gitlab.com/-/profile/personal_access_tokens" target="_blank" style="color:#38bdf8;">Open GitLab →</a>`,
+  bitbucket: `<strong>Bitbucket App Password:</strong> Personal settings → App passwords → Create. Permissions needed: <code>Repositories: Read</code>. Use your Bitbucket <em>username</em> as the username and the app password as the token.`,
+  azure: `<strong>Azure DevOps PAT:</strong> User settings (top-right avatar) → Personal access tokens → New Token. Scopes: <code>Code (Read)</code>.`,
+};
+
+const PROVIDER_PATTERNS = [
+  { key: 'github',    pattern: /github\.com/i,           label: 'GitHub',          css: 'provider-github' },
+  { key: 'gitlab',    pattern: /gitlab\.com/i,           label: 'GitLab',          css: 'provider-gitlab' },
+  { key: 'bitbucket', pattern: /bitbucket\.org/i,        label: 'Bitbucket',       css: 'provider-bitbucket' },
+  { key: 'azure',     pattern: /dev\.azure\.com|visualstudio\.com/i, label: 'Azure DevOps', css: 'provider-azure' },
+];
+
+function detectProvider(url) {
+  return PROVIDER_PATTERNS.find(p => p.pattern.test(url)) || null;
+}
+
+function onRepoUrlChange() {
+  const url = document.getElementById('repo-url').value.trim();
+  const badge = document.getElementById('provider-badge');
+  const guide = document.getElementById('pat-guide');
+  const provider = detectProvider(url);
+
+  if (url && provider) {
+    badge.style.display = 'block';
+    badge.innerHTML = `<span class="provider-badge ${provider.css}">${provider.label} detected</span>`;
+    if (document.getElementById('is-private').checked) {
+      guide.style.display = 'block';
+      guide.innerHTML = PAT_GUIDES[provider.key] || '';
+    }
+  } else if (url) {
+    badge.style.display = 'block';
+    badge.innerHTML = `<span class="provider-badge provider-unknown">Unknown provider — ensure URL is a valid git clone URL</span>`;
+    guide.style.display = 'none';
+  } else {
+    badge.style.display = 'none';
+    guide.style.display = 'none';
+  }
+}
+
+function toggleToken() {
+  const isPrivate = document.getElementById('is-private').checked;
+  document.getElementById('token-inputs').style.display = isPrivate ? 'block' : 'none';
+  if (isPrivate) onRepoUrlChange(); // refresh PAT guide
+  else document.getElementById('pat-guide').style.display = 'none';
+}
+
+function onSourceTypeChange(type) {
+  ['repo', 'local', 'docs', 'quiz'].forEach(t => {
+    document.getElementById(`source-${t}-panel`).style.display = t === type ? 'block' : 'none';
+    document.getElementById(`stype-${t}`).classList.toggle('active', t === type);
+  });
+  const btn = document.getElementById('start-btn');
+  if (type === 'docs' || type === 'quiz') {
+    btn.disabled = true;
+    btn.textContent = '▶ Coming Soon';
+  } else {
+    btn.disabled = false;
+    btn.textContent = '▶ Start Autonomous Review';
+  }
+}
+
+function normalizeLocalPath(raw) {
+  // Windows path: C:\projects\foo  →  /host-projects/foo
+  let p = raw.trim().replace(/\\/g, '/');
+  const winMatch = p.match(/^[A-Za-z]:\/(.*)/);
+  if (winMatch) {
+    const rest = winMatch[1];
+    // C:/projects/... → /host-projects/...
+    p = rest.replace(/^projects\//, '/host-projects/');
+    if (!p.startsWith('/')) p = '/' + p;
+    return p;
+  }
+  // /projects/... → /host-projects/...  (missing the "host-" prefix)
+  if (p.startsWith('/projects/')) {
+    p = '/host-' + p.slice(1);
+  }
+  return p;
+}
+
+function previewNormalizedPath(input) {
+  const norm = normalizeLocalPath(input.value);
+  const preview = document.getElementById('path-preview');
+  const val = document.getElementById('path-preview-val');
+  if (norm && norm !== input.value.trim()) {
+    val.textContent = norm;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
+function getSourcePath() {
+  const type = document.querySelector('input[name="source-type"]:checked')?.value || 'repo';
+  if (type === 'local') {
+    return normalizeLocalPath(document.getElementById('source-path').value);
+  }
+  if (type === 'repo') {
+    const url    = document.getElementById('repo-url').value.trim();
+    const branch = document.getElementById('repo-branch').value.trim() || 'main';
+    const token  = document.getElementById('is-private').checked
+      ? document.getElementById('repo-token').value.trim()
+      : '';
+    // Encode as a special path the server can parse: __repo__::url::branch::token
+    // (server-side repo connector reads this format)
+    return token
+      ? `__repo__::${url}::${branch}::${token}`
+      : `__repo__::${url}::${branch}`;
+  }
+  return '';
+}
+
 // ── Start review ───────────────────────────────────────────────────────────────
 async function startReview() {
   const projectId   = document.getElementById('project-select').value;
   const checklistId = document.getElementById('checklist-select').value;
-  const sourcePath  = document.getElementById('source-path').value.trim();
+  const sourcePath  = getSourcePath();
+  const sourceType  = document.querySelector('input[name="source-type"]:checked')?.value || 'repo';
 
-  if (!projectId || !checklistId || !sourcePath) {
-    showConfigError('Please select project, checklist, and enter a source path.');
+  if (!projectId || !checklistId) {
+    showConfigError('Please select a project and checklist.');
+    return;
+  }
+  if (sourceType === 'repo' && !document.getElementById('repo-url').value.trim()) {
+    showConfigError('Please enter a repository URL.');
+    return;
+  }
+  if (sourceType === 'local' && !sourcePath) {
+    showConfigError('Please enter the local folder path.');
     return;
   }
 
@@ -407,6 +637,7 @@ function handleMessage(msg) {
   switch(msg.type) {
     case 'scanning':
       setLog(`🔍 ${msg.message}`);
+      document.getElementById('start-btn').textContent = '🔍 Scanning…';
       break;
     case 'scan_complete':
       setLog(`📁 Scanned: ${msg.total_files} files (${msg.text_files} text files)`);
@@ -414,6 +645,7 @@ function handleMessage(msg) {
     case 'started':
       setLog(`🚀 Review started — ${msg.total_items} checklist items`);
       document.getElementById('s-total').textContent = msg.total_items;
+      document.getElementById('start-btn').textContent = '⏸ Reviewing…';
       break;
     case 'item_start':
       setLog(`⚙️  [${msg.index+1}/${msg.total}] ${msg.area}: ${truncate(msg.question, 60)} (${msg.strategy})`);
