@@ -286,13 +286,14 @@ class AutonomousReviewResult(Base):
     job_id = Column(Integer, ForeignKey("autonomous_review_jobs.id"), nullable=False)
     checklist_item_id = Column(Integer, ForeignKey("checklist_items.id"), nullable=False)
 
-    strategy = Column(String)           # file_presence | pattern_scan | llm_analysis | metadata_check | human_required
+    strategy = Column(String)           # file_presence | pattern_scan | llm_analysis | metadata_check | human_required | ai_and_human
     rag_status = Column(String, default="na")   # green | amber | red | na | skipped
     evidence = Column(Text)             # What was found / LLM reasoning
     confidence = Column(Float, default=1.0)
     files_checked = Column(JSON, default=list)  # List of file paths examined
     skip_reason = Column(Text, nullable=True)   # Why item was skipped (human_required)
     evidence_hint = Column(Text, nullable=True) # What a human reviewer should provide
+    needs_human_sign_off = Column(Boolean, default=False)  # AI ran but human must confirm
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

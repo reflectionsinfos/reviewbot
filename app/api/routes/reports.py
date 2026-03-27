@@ -655,7 +655,8 @@ async def get_report_details(
         .where(ChecklistRoutingRule.checklist_item_id.in_(ci_ids))
         .where(ChecklistRoutingRule.is_active == True)
     )
-    routing_rule_map = {rr.checklist_item_id: True for rr in rr_result.scalars().all()}
+    # {checklist_item_id: strategy_string}  e.g. "human_required" | "ai_and_human"
+    routing_rule_map = {rr.checklist_item_id: rr.strategy for rr in rr_result.scalars().all()}
 
     items = []
     override_count = 0
@@ -675,7 +676,8 @@ async def get_report_details(
             "evidence": r.evidence,
             "confidence": r.confidence,
             "strategy": r.strategy,
-            "has_routing_rule": routing_rule_map.get(r.checklist_item_id, False),
+            "routing_rule": routing_rule_map.get(r.checklist_item_id),  # None | "human_required" | "ai_and_human"
+            "needs_human_sign_off": getattr(r, 'needs_human_sign_off', False),
             "is_overridden": is_overridden,
             "overrides": [
                 {

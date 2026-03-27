@@ -176,7 +176,9 @@ async def _execute_review(job_id: int, db) -> None:
             if strategy_cfg.strategy == "human_required":
                 analysis = _skipped_result(strategy_cfg)
             else:
-                analyzer = _ANALYZERS[strategy_cfg.strategy]
+                analyzer = _ANALYZERS.get(strategy_cfg.strategy)
+                if analyzer is None:
+                    raise ValueError(f"No analyzer for strategy: {strategy_cfg.strategy}")
                 analysis = await analyzer.analyze(item, file_index, strategy_cfg)
         except Exception as exc:
             logger.warning("Analyzer failed for item %s: %s", item.item_code, exc)
@@ -197,6 +199,7 @@ async def _execute_review(job_id: int, db) -> None:
             files_checked=analysis.files_checked,
             skip_reason=analysis.skip_reason,
             evidence_hint=analysis.evidence_hint,
+            needs_human_sign_off=strategy_cfg.needs_human_sign_off,
         )
         db.add(review_result)
         job.completed_items = idx + 1

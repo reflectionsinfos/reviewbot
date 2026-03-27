@@ -183,9 +183,16 @@
     .override-comment { color: #94a3b8; width: 100%; }
     .override-reason { font-size: 11px; color: #475569; font-family: monospace; }
 
-    /* Human-required routing rule button */
-    .btn-routing-active { background: #1e3a5f44; border: 1px solid #1d4ed8; color: #60a5fa; }
-    .btn-routing-active:hover { border-color: #ef4444; color: #f87171; }
+    /* Review mode dropdown */
+    .review-mode-wrap { display: flex; align-items: center; gap: 6px; }
+    .review-mode-label { font-size: 11px; color: #475569; white-space: nowrap; }
+    .review-mode-select { background: #0f172a; border: 1px solid #334155; color: #e2e8f0;
+                          padding: 4px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+    .review-mode-select:focus { outline: none; border-color: #38bdf8; }
+    .review-mode-select.mode-human   { border-color: #6366f1; color: #a5b4fc; }
+    .review-mode-select.mode-both    { border-color: #0ea5e9; color: #7dd3fc; }
+    .sign-off-badge { font-size: 10px; padding: 2px 7px; background: #0ea5e933; border: 1px solid #0ea5e9; color: #7dd3fc; border-radius: 99px; }
+    .pill.pill-signoff.active { background: #0c4a6e55; border-color: #0ea5e9; color: #7dd3fc; }
 
     /* Override form */
     .override-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid #334155; }
@@ -275,6 +282,7 @@
         <button class="pill pill-green"          onclick="setStatusFilter('green', this)">🟢 Compliant</button>
         <button class="pill pill-skipped"        onclick="setStatusFilter('skipped', this)">⚪ Human Required</button>
         <button class="pill pill-overridden"     onclick="setStatusFilter('overridden', this)">✏️ Overridden</button>
+        <button class="pill pill-signoff"         onclick="setStatusFilter('signoff', this)">🔵 Awaiting Sign-off</button>
       </div>
       <select class="area-filter" id="area-filter" onchange="applyDetailFilter()">
         <option value="">All Areas</option>
@@ -587,7 +595,8 @@
       statBox(s.amber   ?? 0, 'Amber',          'amber',   'amber'),
       statBox(s.green   ?? 0, 'Compliant',      'green',   'green'),
       statBox((s.human_required ?? 0) + (s.na ?? 0), 'Human Required', 'gray', 'skipped'),
-      statBox(r.override_count ?? 0, 'Overrides', 'blue',  'overridden'),
+      statBox(r.override_count ?? 0, 'Overrides', 'blue', 'overridden'),
+      statBox(allDetailItems.filter(i => i.needs_human_sign_off).length, 'Sign-off', 'blue', 'signoff'),
     ].join('');
 
     // Populate area dropdown
@@ -642,6 +651,7 @@
   }
 
   function effectiveStatus(item) {
+    if (item.needs_human_sign_off) return 'signoff';
     if (item.is_overridden && item.overrides?.length) return 'overridden';
     if (item.rag_status === 'na' || item.rag_status === 'skipped') return 'skipped';
     return item.rag_status;
@@ -740,7 +750,7 @@
         ${overridesHtml}
       </div>
       ${currentJobId ? `
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <button class="btn btn-ghost btn-sm"
                   data-result-id="${item.item_id}"
                   data-question="${esc(item.question || '')}"
@@ -748,31 +758,17 @@
                   onclick="openOverrideModal(this.dataset.resultId, this.dataset.question, this.dataset.evidence)">
             ✏️ Override RAG
           </button>
-          ${(()=>{
-            const alreadySkipped = item.rag_status === 'skipped' || item.rag_status === 'na';
-            if (item.has_routing_rule) {
-              return `<button class="btn btn-sm btn-routing-active"
-                        data-ci-id="${item.checklist_item_id}" data-has-rule="1"
-                        onclick="toggleHumanRequired(this)"
-                        title="Pinned for all future reviews — click to remove pin">
-                        ✅ Pinned: Human Required — click to unpin
-                      </button>`;
-            } else if (alreadySkipped) {
-              return `<button class="btn btn-sm btn-ghost"
-                        data-ci-id="${item.checklist_item_id}" data-has-rule="0"
-                        onclick="toggleHumanRequired(this)"
-                        title="Pin this item so it is always skipped on future reviews, even if routing rules change">
-                        📌 Pin for future reviews
-                      </button>`;
-            } else {
-              return `<button class="btn btn-sm btn-ghost"
-                        data-ci-id="${item.checklist_item_id}" data-has-rule="0"
-                        onclick="toggleHumanRequired(this)"
-                        title="Mark this item as requiring human review on all future runs">
-                        👤 Mark as Human Required
-                      </button>`;
-            }
-          })()}
+          <div class="review-mode-wrap">
+            <span class="review-mode-label">Next review:</span>
+            <select class="review-mode-select ${item.routing_rule === 'human_required' ? 'mode-human' : item.routing_rule === 'ai_and_human' ? 'mode-both' : ''}"
+                    data-ci-id="${item.checklist_item_id}"
+                    onchange="setReviewMode(this)">
+              <option value="auto"           ${!item.routing_rule ? 'selected' : ''}>🤖 Auto</option>
+              <option value="human_required" ${item.routing_rule === 'human_required' ? 'selected' : ''}>👤 Human Only</option>
+              <option value="ai_and_human"   ${item.routing_rule === 'ai_and_human'   ? 'selected' : ''}>🤖👤 AI + Human</option>
+            </select>
+          </div>
+          ${item.needs_human_sign_off ? '<span class="sign-off-badge">⏳ Awaiting human sign-off</span>' : ''}
         </div>` : ''}
     </div>`;
   }
@@ -821,43 +817,45 @@
   }
 
   // ── Routing rules ───────────────────────────────────────────────────────────
-  async function toggleHumanRequired(btn) {
-    const ciId = btn.dataset.ciId;
-    const hasRule = btn.dataset.hasRule === '1';
+  async function setReviewMode(select) {
+    const ciId = select.dataset.ciId;
+    const mode = select.value;
 
     if (!ciId || ciId === 'undefined' || ciId === 'null') {
       toast('Cannot set rule: checklist item ID missing — try refreshing the page', 'error');
+      select.value = 'auto';
       return;
     }
 
     try {
-      if (hasRule) {
-        // Remove the rule
+      if (mode === 'auto') {
         const res = await fetch(`/api/routing-rules/items/${ciId}`, {
           method: 'DELETE', headers: authHeader(),
         });
         if (!res.ok) {
           const err = await res.json();
-          throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to remove rule');
+          // 404 = no rule existed, that's fine
+          if (res.status !== 404) throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed');
         }
-        toast('Routing rule removed — item will be auto-routed on next review', 'success');
+        toast('Routing rule removed — AI will auto-select strategy on next review', 'success');
       } else {
-        // Set human_required rule
+        const labels = { human_required: 'Human Only', ai_and_human: 'AI + Human' };
         const res = await fetch(`/api/routing-rules/items/${ciId}`, {
-          method: 'POST',
-          headers: authHeader(),
-          body: JSON.stringify({ strategy: 'human_required' }),
+          method: 'POST', headers: authHeader(),
+          body: JSON.stringify({ strategy: mode }),
         });
         if (!res.ok) {
           const err = await res.json();
-          throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed to set rule');
+          throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed');
         }
-        toast('Marked as Human Required — will be skipped on all future reviews', 'success');
+        toast(`Review mode set to "${labels[mode]}" for future reviews`, 'success');
       }
-      // Refresh the details view to show updated button states
-      viewDetails(currentReportId, currentJobId);
+      // Update dropdown styling without full reload
+      select.className = `review-mode-select ${mode === 'human_required' ? 'mode-human' : mode === 'ai_and_human' ? 'mode-both' : ''}`;
     } catch (e) {
       toast(e.message, 'error');
+      // Revert dropdown to previous state
+      viewDetails(currentReportId, currentJobId);
     }
   }
 

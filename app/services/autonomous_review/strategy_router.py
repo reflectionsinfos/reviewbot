@@ -11,7 +11,7 @@ from typing import Optional
 
 @dataclass
 class StrategyConfig:
-    strategy: str   # file_presence | pattern_scan | llm_analysis | metadata_check | human_required
+    strategy: str   # file_presence | pattern_scan | llm_analysis | metadata_check | human_required | ai_and_human
 
     # FILE_PRESENCE config
     file_patterns: list[str] = field(default_factory=list)
@@ -33,6 +33,9 @@ class StrategyConfig:
     # HUMAN_REQUIRED config
     skip_reason: str = ""
     evidence_hint: str = ""
+
+    # AI_AND_HUMAN config
+    needs_human_sign_off: bool = False  # Run AI analyzer but flag result for human confirmation
 
 
 # ── Human-required detection ─────────────────────────────────────────────────
@@ -461,8 +464,18 @@ class StrategyRouter:
     def route(self, item) -> StrategyConfig:
         # 0. DB rule — highest priority (admin/PM override)
         if item.id in self._db_rules:
-            return self._db_rules[item.id]
+            db_rule = self._db_rules[item.id]
+            if db_rule.strategy == "ai_and_human":
+                # Run normal auto-routing but flag result for human sign-off
+                config = self._auto_route(item)
+                config.needs_human_sign_off = True
+                return config
+            return db_rule
 
+        return self._auto_route(item)
+
+    def _auto_route(self, item) -> StrategyConfig:
+        """Hard-coded routing logic — no DB rules applied."""
         area = (item.area or "").strip()
         question = (item.question or "").strip()
 
