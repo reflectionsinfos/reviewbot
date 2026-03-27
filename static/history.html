@@ -748,13 +748,31 @@
                   onclick="openOverrideModal(this.dataset.resultId, this.dataset.question, this.dataset.evidence)">
             ✏️ Override RAG
           </button>
-          <button class="btn btn-sm ${item.has_routing_rule ? 'btn-routing-active' : 'btn-ghost'}"
-                  data-ci-id="${item.checklist_item_id}"
-                  data-has-rule="${item.has_routing_rule ? '1' : '0'}"
-                  onclick="toggleHumanRequired(this)"
-                  title="${item.has_routing_rule ? 'Remove — item will be auto-routed on next review' : 'Always skip this item on future reviews'}">
-            ${item.has_routing_rule ? '✅ Human Required — click to remove' : '👤 Mark as Human Required'}
-          </button>
+          ${(()=>{
+            const alreadySkipped = item.rag_status === 'skipped' || item.rag_status === 'na';
+            if (item.has_routing_rule) {
+              return `<button class="btn btn-sm btn-routing-active"
+                        data-ci-id="${item.checklist_item_id}" data-has-rule="1"
+                        onclick="toggleHumanRequired(this)"
+                        title="Pinned for all future reviews — click to remove pin">
+                        ✅ Pinned: Human Required — click to unpin
+                      </button>`;
+            } else if (alreadySkipped) {
+              return `<button class="btn btn-sm btn-ghost"
+                        data-ci-id="${item.checklist_item_id}" data-has-rule="0"
+                        onclick="toggleHumanRequired(this)"
+                        title="Pin this item so it is always skipped on future reviews, even if routing rules change">
+                        📌 Pin for future reviews
+                      </button>`;
+            } else {
+              return `<button class="btn btn-sm btn-ghost"
+                        data-ci-id="${item.checklist_item_id}" data-has-rule="0"
+                        onclick="toggleHumanRequired(this)"
+                        title="Mark this item as requiring human review on all future runs">
+                        👤 Mark as Human Required
+                      </button>`;
+            }
+          })()}
         </div>` : ''}
     </div>`;
   }
