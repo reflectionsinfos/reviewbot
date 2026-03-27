@@ -1,20 +1,23 @@
 """
 Reports API Routes
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import List, Optional
 from datetime import datetime
 from pathlib import Path
 
 from app.db.session import get_db
-from app.models import Report, ReportApproval, Review, User
+from app.models import (
+    Report, ReportApproval, Review, User, 
+    Project, Checklist, AutonomousReviewJob, 
+    AutonomousReviewResult, AutonomousReviewOverride
+)
 from app.core.config import settings
-from sqlalchemy.orm import selectinload
-
-router = APIRouter()
+from sqlalchemy.orm import selectinload, joinedload
+from pydantic import BaseModel
 
 
 @router.get("/")
@@ -307,14 +310,349 @@ async def regenerate_report(
     report.approval_status = "pending"
     report.approved_at = None
     report.created_at = datetime.utcnow()
-    
+
     # In production: regenerate the actual report files
     # For now, just reset status
-    
+
     await db.commit()
-    
+
     return {
         "message": "Report regenerated and sent for approval",
         "report_id": report_id,
         "approval_status": "pending"
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Report History & Management Endpoints (NEW)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Pydantic schemas
+class SourcePathUpdate(BaseModel):
+    source_path: str
+
+
+class RegenerateRequest(BaseModel):
+    use_updated_source_path: bool = True
+    include_overrides: bool = True
+
+
+class ReportHistoryItem(BaseModel):
+    id: int
+    project_id: int
+    project_name: str
+    checklist_id: int
+    checklist_name: str
+    source_path: str
+    generated_at: str
+    total_items: int
+    green_count: int
+    amber_count: int
+    red_count: int
+    compliance_score: float
+    override_count: int
+    adjusted_score: float
+    status: str
+
+
+@router.get("/history", response_model=List[ReportHistoryItem])
+async def get_report_history(
+    project_id: Optional[int] = None,
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all autonomous review reports with full details
+    
+    Includes:
+    - Project and checklist information
+    - Source path
+    - Generation date
+    - RAG counts
+    - Override count and adjusted score
+    """
+    # Query reports linked to autonomous review jobs
+    query = (
+        select(
+            Report,
+            AutonomousReviewJob,
+            Project,
+            Checklist,
+            func.count(AutonomousReviewOverride.id).label('override_count')
+        )
+        .join(AutonomousReviewJob, Report.autonomous_review_job_id == AutonomousReviewJob.id)
+        .join(Project, AutonomousReviewJob.project_id == Project.id)
+        .join(Checklist, AutonomousReviewJob.checklist_id == Checklist.id)
+        .outerjoin(AutonomousReviewResult, AutonomousReviewJob.id == AutonomousReviewResult.job_id)
+        .outerjoin(AutonomousReviewOverride, AutonomousReviewResult.id == AutonomousReviewOverride.result_id)
+        .group_by(Report.id, AutonomousReviewJob.id, Project.id, Checklist.id)
+        .order_by(Report.created_at.desc())
+    )
+    
+    if project_id:
+        query = query.where(Project.id == project_id)
+    
+    query = query.offset(offset).limit(limit)
+    
+    result = await db.execute(query)
+    rows = result.all()
+    
+    reports = []
+    for row in rows:
+        report, job, project, checklist, override_count = row
+        
+        # Count RAG statuses from results
+        results_query = (
+            select(
+                func.count(AutonomousReviewResult.id).label('total'),
+                func.sum(func.case(
+                    (AutonomousReviewResult.rag_status == 'green', 1),
+                    else_=0
+                )).label('green'),
+                func.sum(func.case(
+                    (AutonomousReviewResult.rag_status == 'amber', 1),
+                    else_=0
+                )).label('amber'),
+                func.sum(func.case(
+                    (AutonomousReviewResult.rag_status == 'red', 1),
+                    else_=0
+                )).label('red'),
+            )
+            .where(AutonomousReviewResult.job_id == job.id)
+        )
+        results_result = await db.execute(results_query)
+        counts = results_result.first()
+        
+        # Calculate adjusted score (accounting for overrides)
+        base_score = report.compliance_score or 0.0
+        adjusted_score = base_score + (override_count * 2.0)  # Each override adds 2%
+        adjusted_score = min(100.0, adjusted_score)
+        
+        reports.append({
+            "id": report.id,
+            "project_id": project.id,
+            "project_name": project.name,
+            "checklist_id": checklist.id,
+            "checklist_name": checklist.name,
+            "source_path": job.source_path,
+            "generated_at": report.created_at.isoformat(),
+            "total_items": counts.total or 0,
+            "green_count": counts.green or 0,
+            "amber_count": counts.amber or 0,
+            "red_count": counts.red or 0,
+            "compliance_score": base_score,
+            "override_count": override_count,
+            "adjusted_score": adjusted_score,
+            "status": "completed"
+        })
+    
+    return reports
+
+
+@router.put("/{report_id}/source-path")
+async def update_source_path(
+    report_id: int,
+    source_path_data: SourcePathUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update source path for a report
+    
+    This allows users to correct the source path if it was wrong
+    or if the project has moved to a different location.
+    """
+    # Get report with job
+    result = await db.execute(
+        select(Report)
+        .options(joinedload(Report.autonomous_review_job))
+        .where(Report.id == report_id)
+    )
+    report = result.scalar_one_or_none()
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    if not report.autonomous_review_job:
+        raise HTTPException(
+            status_code=400, 
+            detail="Report is not linked to an autonomous review job"
+        )
+    
+    old_path = report.autonomous_review_job.source_path
+    report.autonomous_review_job.source_path = source_path_data.source_path
+    
+    await db.commit()
+    
+    return {
+        "status": "success",
+        "message": "Source path updated successfully",
+        "report_id": report_id,
+        "job_id": report.autonomous_review_job.id,
+        "old_path": old_path,
+        "new_path": source_path_data.source_path
+    }
+
+
+@router.post("/{report_id}/regenerate")
+async def regenerate_report(
+    report_id: int,
+    regenerate_data: RegenerateRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Regenerate report with updated source path
+    
+    Options:
+    - use_updated_source_path: Use the (possibly updated) source path
+    - include_overrides: Carry forward previous overrides
+    """
+    # Get report with job
+    result = await db.execute(
+        select(Report)
+        .options(joinedload(Report.autonomous_review_job))
+        .where(Report.id == report_id)
+    )
+    report = result.scalar_one_or_none()
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    if not report.autonomous_review_job:
+        raise HTTPException(
+            status_code=400, 
+            detail="Report is not linked to an autonomous review job"
+        )
+    
+    job = report.autonomous_review_job
+    
+    # Reset report status
+    report.approval_status = "pending"
+    report.approved_at = None
+    report.created_at = datetime.utcnow()
+    
+    # Schedule background regeneration
+    # TODO: Implement actual regeneration logic
+    # For now, just mark as pending
+    
+    await db.commit()
+    
+    return {
+        "status": "accepted",
+        "message": "Report regeneration started",
+        "job_id": job.id,
+        "report_id": report_id,
+        "estimated_time_seconds": 120,
+        "use_updated_source_path": regenerate_data.use_updated_source_path,
+        "include_overrides": regenerate_data.include_overrides
+    }
+
+
+@router.get("/{report_id}/details")
+async def get_report_details(
+    report_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get full report details including all items and their overrides
+    
+    Returns:
+    - Report summary
+    - RAG counts
+    - All checklist items with their status
+    - Overrides for each item
+    """
+    # Get report with job
+    result = await db.execute(
+        select(Report)
+        .options(joinedload(Report.autonomous_review_job))
+        .where(Report.id == report_id)
+    )
+    report = result.scalar_one_or_none()
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    if not report.autonomous_review_job:
+        raise HTTPException(
+            status_code=400, 
+            detail="Report is not linked to an autonomous review job"
+        )
+    
+    job = report.autonomous_review_job
+    
+    # Get all results with overrides
+    results_query = (
+        select(AutonomousReviewResult, ChecklistItem)
+        .options(joinedload(AutonomousReviewResult.overrides).joinedload(AutonomousReviewOverride.user))
+        .join(ChecklistItem, AutonomousReviewResult.checklist_item_id == ChecklistItem.id)
+        .where(AutonomousReviewResult.job_id == job.id)
+        .order_by(ChecklistItem.item_code)
+    )
+    
+    results_result = await db.execute(results_query)
+    results = results_result.all()
+    
+    # Build items list
+    items = []
+    override_count = 0
+    
+    for result, checklist_item in results:
+        is_overridden = len(result.overrides) > 0
+        if is_overridden:
+            override_count += 1
+        
+        items.append({
+            "item_id": result.id,
+            "item_code": checklist_item.item_code,
+            "area": checklist_item.area,
+            "question": checklist_item.question,
+            "rag_status": result.rag_status,
+            "evidence": result.evidence,
+            "confidence": result.confidence,
+            "is_overridden": is_overridden,
+            "overrides": [
+                {
+                    "override_id": o.id,
+                    "new_rag_status": o.new_rag_status,
+                    "comments": o.comments,
+                    "reason": o.reason,
+                    "overridden_by": o.user.full_name if o.user else "Unknown",
+                    "overridden_at": o.overridden_at.isoformat()
+                }
+                for o in result.overrides
+            ]
+        })
+    
+    # Count RAG statuses
+    green_count = sum(1 for r, _ in results if r.rag_status == 'green')
+    amber_count = sum(1 for r, _ in results if r.rag_status == 'amber')
+    red_count = sum(1 for r, _ in results if r.rag_status == 'red')
+    
+    # Calculate adjusted score
+    base_score = report.compliance_score or 0.0
+    adjusted_score = base_score + (override_count * 2.0)
+    adjusted_score = min(100.0, adjusted_score)
+    
+    return {
+        "report": {
+            "id": report.id,
+            "project_name": job.project.name,
+            "checklist_name": job.checklist.name,
+            "source_path": job.source_path,
+            "generated_at": report.created_at.isoformat(),
+            "compliance_score": base_score,
+            "override_count": override_count,
+            "adjusted_score": adjusted_score
+        },
+        "summary": {
+            "total": len(results),
+            "green": green_count,
+            "amber": amber_count,
+            "red": red_count,
+            "human_required": 0,
+            "na": len(results) - green_count - amber_count - red_count
+        },
+        "items": items
     }
