@@ -44,7 +44,18 @@ class LLMAnalyzer:
         if self._client is None:
             from app.core.config import settings
             from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            provider = getattr(settings, "ACTIVE_LLM_PROVIDER", "openai").lower()
+            if provider == "groq":
+                self._client = AsyncOpenAI(
+                    api_key=settings.GROQ_API_KEY,
+                    base_url="https://api.groq.com/openai/v1",
+                )
+            elif provider == "anthropic":
+                # Use OpenAI-compatible shim isn't available for Anthropic;
+                # fall back to direct openai client with anthropic key placeholder
+                self._client = AsyncOpenAI(api_key=settings.ANTHROPIC_API_KEY or settings.OPENAI_API_KEY)
+            else:
+                self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         return self._client
 
     async def analyze(self, item, file_index: FileIndex,
@@ -138,6 +149,12 @@ class LLMAnalyzer:
 def _pick_model(settings) -> str:
     """Choose LLM model based on active provider."""
     provider = getattr(settings, "ACTIVE_LLM_PROVIDER", "openai").lower()
-    if provider == "openai":
-        return "gpt-4o-mini"   # cost-effective for bulk item analysis
-    return "gpt-4o-mini"
+    models = {
+        "openai": "gpt-4o-mini",
+        "groq": "llama-3.3-70b-versatile",
+        "anthropic": "claude-haiku-4-5-20251001",
+        "google": "gemini-1.5-flash",
+        "azure": "gpt-4o-mini",
+        "qwen": "qwen-turbo",
+    }
+    return models.get(provider, "gpt-4o-mini")

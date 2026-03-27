@@ -270,6 +270,7 @@ class AutonomousReviewJob(Base):
     completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    agent_metadata = Column(JSON, nullable=True)  # hostname, IP, OS, agent version, etc.
 
     # Relationships
     project = relationship("Project")

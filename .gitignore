@@ -93,7 +93,6 @@ data/archive/
 !docs/**/*.md
 !CLAUDE.md
 !README.md
-!DOCKER_GUIDE.md
 
 # Keep LLM context files
 llms.txt

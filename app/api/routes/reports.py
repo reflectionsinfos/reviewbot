@@ -714,6 +714,7 @@ async def get_report_details(
             "compliance_score": adjusted_score,
             "override_count": override_count,
             "adjusted_score": adjusted_score,
+            "agent_metadata": job.agent_metadata,
         },
         "summary": {
             "total": len(results),

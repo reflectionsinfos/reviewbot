@@ -3,22 +3,25 @@
 > Complete implementation plan with phases, tasks, and tracking
 
 **Version:** 2.0
-**Last Updated:** March 27, 2026
-**Status:** Phase 1 — Autonomous Review Complete; GitHub/SonarQube pending
+**Last Updated:** March 28, 2026
+**Status:** Phase 1 in progress; Document Review, QUIZ, Repo Integration added to scope
 **Owner:** Engineering Team
 
 ---
 
 ## 📊 Implementation Overview
 
-| Phase | Name | Duration | Status | Start Date | End Date |
-|-------|------|----------|--------|------------|----------|
-| **Phase 1** | Foundation | 8 weeks | 🔄 In Progress | Mar 27, 2026 | May 27, 2026 |
-| **Phase 2** | Self-Review Core | 8 weeks | 📋 Planned | May 28, 2026 | Jul 22, 2026 |
-| **Phase 3** | Accountability | 6 weeks | 📋 Planned | Jul 23, 2026 | Sep 2, 2026 |
-| **Phase 4** | Meeting Integration | 8 weeks | 📋 Planned | Sep 3, 2026 | Oct 28, 2026 |
-| **Phase 5** | Control Panel UI | 8 weeks | 📋 Planned | Oct 29, 2026 | Dec 23, 2026 |
-| **Phase 6** | Analytics | 6 weeks | 📋 Planned | Dec 24, 2026 | Feb 3, 2027 |
+| Phase | Name | Duration | Status | Start |
+|-------|------|----------|--------|-------|
+| **Phase 1** | Foundation + Autonomous Review | 8 weeks | 🔄 In Progress | Mar 27, 2026 |
+| **Phase 1b** | Repository Integration + Source Types | 2 weeks | 📋 Planned | Apr 28, 2026 |
+| **Phase 2** | Document Review Engine | 6 weeks | 📋 Planned | May 12, 2026 |
+| **Phase 3** | Knowledge QUIZ (text + voice) | 6 weeks | 📋 Planned | Jun 23, 2026 |
+| **Phase 4** | Self-Review Core | 8 weeks | 📋 Planned | Aug 4, 2026 |
+| **Phase 5** | Accountability & Scheduling | 6 weeks | 📋 Planned | Oct 1, 2026 |
+| **Phase 6** | Meeting Integration (Teams/Zoom) | 8 weeks | 📋 Planned | Nov 12, 2026 |
+| **Phase 7** | Control Panel UI | 8 weeks | 📋 Planned | Jan 7, 2027 |
+| **Phase 8** | Analytics & Trends | 6 weeks | 📋 Planned | Mar 4, 2027 |
 
 ---
 
@@ -27,7 +30,7 @@
 **Status:** 🔄 **IN PROGRESS**
 **Started:** March 27, 2026
 **Duration:** March 27 - May 27, 2026
-**Priority:** HIGH  
+**Priority:** HIGH
 **Dependencies:** None
 
 ### Week 1-2: Database & Infrastructure
@@ -36,7 +39,7 @@
 - [x] **1.1.1** Setup PostgreSQL development database
   - Owner: DevOps
   - Estimate: 2h
-  - Status: ✅ Done (PostgreSQL 15 in Docker on port 5435; fixed port conflict with local PostgreSQL)
+  - Status: ✅ Done (PostgreSQL 15 in Docker on port 5435; fixed port conflict with local PostgreSQL on 5432)
 - [x] **1.1.2** Create Migration 001 script (all 21 tables)
   - Owner: Database Team
   - Estimate: 8h
@@ -211,11 +214,31 @@
 - [x] **1.8.6** Real-time WebSocket progress streaming
   - Status: ✅ Done (WS /ws/autonomous-reviews/{job_id} — broadcasts scanning → scan_complete → item_start → item_complete → completed)
 - [x] **1.8.7** Frontend UI for autonomous reviews
-  - Status: ✅ Done (static/index.html served at /ui — login, project/checklist selector, live results table, report view)
+  - Status: ✅ Done (static/index.html served at /ui — login, project/checklist selector, live results table, report view; report history page added at /history)
 - [x] **1.8.8** Host path scanning via Docker volume mount
   - Status: ✅ Done (C:\projects mounted as /host-projects:ro in docker-compose.yml — enables scanning local microservices)
 - [x] **1.8.9** Microservices support assessment + roadmap
   - Status: ✅ Done (docs/MICROSERVICES_REVIEW_PLAN.md — 5-phase plan; current support: one service at a time via /host-projects/ path)
+- [x] **1.8.10** Report History UI at /history (view all reports, edit source path, override RAG)
+  - Status: ✅ Done
+- [x] **1.8.11** Agent bridge API (7 endpoints at /api/v1/agent/scan/) for reviewbot-agent CLI
+  - Status: ✅ Done (upload, start, status, results, override, file-content, file-requests)
+- [x] **1.8.12** V2 database schema (23 tables including 11 new v2 tables via models.py)
+  - Status: ✅ Done
+- [x] **1.8.13** Fixed reports.py missing router = APIRouter() bug
+  - Status: ✅ Done
+- [x] **1.8.14** Multi-provider LLM support in autonomous review (Groq, OpenAI, Anthropic, Google, Azure)
+  - Status: ✅ Done (llm_analyzer.py — provider-aware client + model selection via ACTIVE_LLM_PROVIDER)
+- [x] **1.8.15** reviewbot-agent CLI: 2-phase upload (metadata → file content → start)
+  - Status: ✅ Done — fixes race condition where LLM items were skipped before files arrived
+- [x] **1.8.16** Agent metadata capture + storage (hostname, IP, OS, username, agent version)
+  - Status: ✅ Done (agent_metadata JSONB column on autonomous_review_jobs; displayed in Details UI)
+- [x] **1.8.17** History UI — source path fix, table responsive resize, agent metadata chips in details
+  - Status: ✅ Done
+- [x] **1.8.18** JWT token expiry extended to 8 hours (was 30 min — too short for CLI sessions)
+  - Status: ✅ Done
+- [x] **1.8.19** DB-driven routing rules (ChecklistRoutingRule table; admin/PM/lead can mark items human_required)
+  - Status: ✅ Done (POST/GET/DELETE /api/routing-rules/items/{item_id})
 
 ### Phase 1 Deliverables
 
@@ -245,10 +268,103 @@
 
 ---
 
-## 📋 Phase 2: Self-Review Core (8 weeks)
+## 📋 Phase 1b: Repository Integration + Source Types (2 weeks)
 
-**Status:** 📋 Planned  
-**Duration:** May 28 - July 22, 2026
+**Status:** 📋 Planned
+**Start:** April 28, 2026
+**Duration:** 2 weeks
+
+### Key Features
+- GitHub/GitLab/Bitbucket public and private repo support
+- Personal Access Token (PAT) secure storage per project
+- UI redesign: source type selector (Repo URL / Local Path / Upload Agent)
+- Branch/tag/commit selection
+- Auto-detect provider from URL
+- PAT generation guide per provider
+- VS Code Extension (replaces reviewbot-agent CLI for developer use)
+- reviewbot-agent CLI: fix login to use JWT (email/password) instead of API key
+
+### Tasks
+- [ ] 1b.1 Repo connector service (clone/fetch via URL + token)
+- [ ] 1b.2 Encrypted PAT storage per project
+- [ ] 1b.3 UI: source type selector + repo URL + token field + branch selector
+- [ ] 1b.4 Provider auto-detection (github.com / gitlab.com / bitbucket.org / Azure DevOps)
+- [ ] 1b.5 PAT guidance tooltips per provider in UI
+- [ ] 1b.6 VS Code extension scaffold (sidebar panel, auth, review trigger)
+
+VS Code Extension capabilities:
+- Sidebar panel: project selector, checklist selector, start review
+- Direct file system access (workspace folder) - no metadata-only limitation
+- Auth: email/password login stored in VS Code secrets
+- Real-time progress in output panel
+- Inline code annotations for red/amber items
+- No install beyond VS Code marketplace
+
+- [ ] 1b.7 Fix reviewbot-agent login: use email/password → JWT (no API key)
+
+---
+
+## 📋 Phase 2: Document Review Engine (6 weeks)
+
+**Status:** 📋 Planned
+**Start:** May 12, 2026
+**Duration:** 6 weeks
+
+### Key Features
+- Upload and parse: PDF, Word (.docx), Markdown, Confluence pages
+- Document types: HLD, LLD, Architecture Doc, Process Doc, Runbook, Compliance Doc
+- AI-powered gap analysis against checklist requirements
+- Document completeness scoring
+- Cross-reference documents with code findings
+- Extract key decisions, assumptions, risks from documents
+- Document review report generation
+
+### Tasks
+- [ ] 2.1 Document upload API (PDF, DOCX, MD support)
+- [ ] 2.2 Document parser (extract structured text + sections)
+- [ ] 2.3 Document-to-checklist mapper (AI-powered)
+- [ ] 2.4 Gap analysis engine (what's missing vs checklist)
+- [ ] 2.5 Document completeness scorer
+- [ ] 2.6 Key decision/assumption extractor (LLM)
+- [ ] 2.7 Combined report: code + document findings
+- [ ] 2.8 Confluence integration (pull pages by URL)
+
+---
+
+## 📋 Phase 3: Knowledge QUIZ / QUIZE (text + voice) (6 weeks)
+
+**Status:** 📋 Planned
+**Start:** June 23, 2026
+**Duration:** 6 weeks
+
+### Key Features
+- Domain-specific knowledge quizzes per role/persona (PM, Tech Lead, DevOps, QA, Security)
+- Text mode: conversational Q&A in the browser
+- Voice mode: AI speaks questions (TTS), listens to answers (STT), responds verbally
+- Adaptive questioning: follow up on weak/vague answers
+- Per-domain scoring: architecture, security, DevOps, domain knowledge
+- Team knowledge gap report (anonymised)
+- Track knowledge improvement over time
+- Custom QUIZ templates per project domain
+- Multi-participant QUIZ sessions
+
+### Tasks
+- [ ] 3.1 QUIZ template system (per domain, per role)
+- [ ] 3.2 Text-mode QUIZ session API + UI
+- [ ] 3.3 Voice-mode QUIZ (STT input → LLM assessment → TTS response)
+- [ ] 3.4 Adaptive follow-up question engine
+- [ ] 3.5 Per-domain knowledge scoring
+- [ ] 3.6 Team gap report generation (anonymised)
+- [ ] 3.7 Individual knowledge trend tracking
+- [ ] 3.8 QUIZ results integrated into self-review report
+
+---
+
+## 📋 Phase 4: Self-Review Core (8 weeks)
+
+**Status:** 📋 Planned
+**Start:** August 4, 2026
+**Duration:** 8 weeks
 
 ### Key Features
 - [ ] Self-review session management
@@ -259,19 +375,20 @@
 - [ ] Recurring review scheduling
 
 ### Tasks (High-Level)
-- [ ] **2.1** Self-review session CRUD
-- [ ] **2.2** Persona-based session handling
-- [ ] **2.3** Individual report generation
-- [ ] **2.4** Consolidated report generation
-- [ ] **2.5** Recurring review scheduler (Celery Beat)
-- [ ] **2.6** Milestone-triggered reviews
+- [ ] **4.1** Self-review session CRUD
+- [ ] **4.2** Persona-based session handling
+- [ ] **4.3** Individual report generation
+- [ ] **4.4** Consolidated report generation
+- [ ] **4.5** Recurring review scheduler (Celery Beat)
+- [ ] **4.6** Milestone-triggered reviews
 
 ---
 
-## 📋 Phase 3: Accountability (6 weeks)
+## 📋 Phase 5: Accountability & Scheduling (6 weeks)
 
-**Status:** 📋 Planned  
-**Duration:** July 23 - September 2, 2026
+**Status:** 📋 Planned
+**Start:** October 1, 2026
+**Duration:** 6 weeks
 
 ### Key Features
 - [ ] Automated reminder system
@@ -281,19 +398,20 @@
 - [ ] Stakeholder notification system
 
 ### Tasks (High-Level)
-- [ ] **3.1** Reminder scheduling system
-- [ ] **3.2** Email templates
-- [ ] **3.3** Escalation workflow
-- [ ] **3.4** Meeting blocking
-- [ ] **3.5** Exception approval
-- [ ] **3.6** Stakeholder notifications
+- [ ] **5.1** Reminder scheduling system
+- [ ] **5.2** Email templates
+- [ ] **5.3** Escalation workflow
+- [ ] **5.4** Meeting blocking
+- [ ] **5.5** Exception approval
+- [ ] **5.6** Stakeholder notifications
 
 ---
 
-## 📋 Phase 4: Meeting Integration (8 weeks)
+## 📋 Phase 6: Meeting Integration (Teams/Zoom) (8 weeks)
 
-**Status:** 📋 Planned  
-**Duration:** September 3 - October 28, 2026
+**Status:** 📋 Planned
+**Start:** November 12, 2026
+**Duration:** 8 weeks
 
 ### Key Features
 - [ ] Teams bot adapter
@@ -304,19 +422,20 @@
 - [ ] Speaker identification
 
 ### Tasks (High-Level)
-- [ ] **4.1** Microsoft Teams bot integration
-- [ ] **4.2** Zoom bot integration
-- [ ] **4.3** Real-time STT (Whisper Streaming)
-- [ ] **4.4** TTS integration
-- [ ] **4.5** Turn-taking detection
-- [ ] **4.6** Speaker identification
+- [ ] **6.1** Microsoft Teams bot integration
+- [ ] **6.2** Zoom bot integration
+- [ ] **6.3** Real-time STT (Whisper Streaming)
+- [ ] **6.4** TTS integration
+- [ ] **6.5** Turn-taking detection
+- [ ] **6.6** Speaker identification
 
 ---
 
-## 📋 Phase 5: Control Panel UI (8 weeks)
+## 📋 Phase 7: Control Panel UI (8 weeks)
 
-**Status:** 📋 Planned  
-**Duration:** October 29 - December 23, 2026
+**Status:** 📋 Planned
+**Start:** January 7, 2027
+**Duration:** 8 weeks
 
 ### Key Features
 - [ ] Control panel web application
@@ -327,19 +446,20 @@
 - [ ] Meeting plugin (Teams/Zoom)
 
 ### Tasks (High-Level)
-- [ ] **5.1** UI mockups (Figma)
-- [ ] **5.2** Component library
-- [ ] **5.3** Control panel frontend (React)
-- [ ] **5.4** Mute/Speak toggle implementation
-- [ ] **5.5** Question approval queue UI
-- [ ] **5.6** Meeting plugin UI
+- [ ] **7.1** UI mockups (Figma)
+- [ ] **7.2** Component library
+- [ ] **7.3** Control panel frontend (React)
+- [ ] **7.4** Mute/Speak toggle implementation
+- [ ] **7.5** Question approval queue UI
+- [ ] **7.6** Meeting plugin UI
 
 ---
 
-## 📋 Phase 6: Analytics (6 weeks)
+## 📋 Phase 8: Analytics & Trends (6 weeks)
 
-**Status:** 📋 Planned  
-**Duration:** December 24, 2026 - February 3, 2027
+**Status:** 📋 Planned
+**Start:** March 4, 2027
+**Duration:** 6 weeks
 
 ### Key Features
 - [ ] Review history dashboard
@@ -350,28 +470,28 @@
 - [ ] Export functionality
 
 ### Tasks (High-Level)
-- [ ] **6.1** Analytics database tables
-- [ ] **6.2** Trend analysis engine
-- [ ] **6.3** Dashboard API endpoints
-- [ ] **6.4** Frontend dashboard (React)
-- [ ] **6.5** Export functionality (PDF, CSV)
-- [ ] **6.6** Gap closure tracking
+- [ ] **8.1** Analytics database tables
+- [ ] **8.2** Trend analysis engine
+- [ ] **8.3** Dashboard API endpoints
+- [ ] **8.4** Frontend dashboard (React)
+- [ ] **8.5** Export functionality (PDF, CSV)
+- [ ] **8.6** Gap closure tracking
 
 ---
 
 ## 🚀 Future Phases (Q1 2027+)
 
-### Phase 7: Extended Capabilities
+### Phase 9: Extended Capabilities
 - [ ] AWS infrastructure verification (FR-12)
 - [ ] Database connectivity & verification (FR-13)
 - [ ] Deployment auditing (FR-14)
 
-### Phase 8: Multi-Agent Collaboration
+### Phase 10: Multi-Agent Collaboration
 - [ ] A2A protocol implementation (FR-15)
 - [ ] MCP integration (FR-15)
 - [ ] OpenClaw integration (FR-15)
 
-### Phase 9: Skills Marketplace
+### Phase 11: Skills Marketplace
 - [ ] Skills marketplace UI (FR-16)
 - [ ] Skill SDK/API (FR-16)
 - [ ] Community skills (FR-16)
@@ -445,7 +565,7 @@ Week 7-8:  ████████████████████ 100% (So
 ---
 
 *Document Owner: Engineering Team*
-*Last Updated: March 27, 2026*
+*Last Updated: March 28, 2026*
 *Next Update: After Phase 1 Week 2 (GitHub integration)*
 
 ---
@@ -488,10 +608,20 @@ Week 7-8:  ████████████████████ 100% (So
 - Assessed microservices support: one service at a time works; full fleet scanning needs Phase 2+ work
 - Created `docs/MICROSERVICES_REVIEW_PLAN.md` — 5-phase roadmap (~8–9 days to full fleet support)
 
+### Session 3 — March 28, 2026 (reviewbot-agent CLI + LLM Fix + Security)
+
+- **reviewbot-agent CLI integration**: Full end-to-end working. 2-phase upload (metadata scan → file content → start trigger) eliminates race condition. 192 files uploaded in ~3 s; 26 LLM items now properly analyzed.
+- **Multi-provider LLM**: llm_analyzer.py now routes to correct API client + model per provider (Groq → llama-3.3-70b-versatile, OpenAI → gpt-4o-mini, etc.). Fixed "Connection error" caused by always using AsyncOpenAI with empty OPENAI_API_KEY.
+- **Agent metadata**: Hostname, IP, OS, username, agent version captured at scan time and stored in DB (JSONB column). Displayed as chips in the Details panel.
+- **Security hardening**: JWT expiry increased 30 min → 8 hours. Agent info logged per job for auditability.
+- **Docs reorganisation**: Root .md files moved to docs/ops/ and docs/archive/; docs folder now the single source of truth.
+- **History UI**: Table horizontal scroll fix (overflow-x: auto + min-width: 860px). Source path now sent from CLI. Agent metadata banner in details view.
+
 ### Current Blockers / Next Priorities
 
+- **Checklist item editor**: Admin/PM/DM UI to add/edit/delete checklist items (discussed, not yet built)
+- **Git Repository connector**: UI sends `__repo__::url::branch::token` format but server still uses LocalFolderConnector; Phase 1b work
 - **1.2.2**: CI/CD pipeline (GitHub Actions) — not started
 - **1.2.4**: Celery for async tasks — BackgroundTasks used for now (adequate for MVP)
-- **1.5.x**: GitHub OAuth + repository access — next major feature
+- **1.5.x**: GitHub OAuth + repository access — Phase 1b
 - **1.7.x**: SonarQube integration — next major feature
-- **Microservices Phase 2**: Per-service job mode — needs schema change (service_name column on results)

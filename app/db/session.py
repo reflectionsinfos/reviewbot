@@ -52,6 +52,9 @@ async def init_db():
             # 006 — needs_human_sign_off on autonomous_review_results
             """ALTER TABLE autonomous_review_results
                ADD COLUMN IF NOT EXISTS needs_human_sign_off BOOLEAN NOT NULL DEFAULT FALSE""",
+            # 007 — agent_metadata on autonomous_review_jobs
+            """ALTER TABLE autonomous_review_jobs
+               ADD COLUMN IF NOT EXISTS agent_metadata JSONB""",
         ]
         for sql in migrations:
             try:

@@ -54,8 +54,8 @@
     .filter-group input { width: 220px; padding: 7px 12px; font-size: 13px; }
 
     /* ── Table ────────────────────────────────────────────────────────────── */
-    .table-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
-    table { width: 100%; border-collapse: collapse; }
+    .table-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow-x: auto; }
+    table { width: 100%; min-width: 860px; border-collapse: collapse; }
     thead th { background: #0f172a; padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid #334155; white-space: nowrap; }
     tbody tr { border-bottom: 1px solid #1e293b; transition: background 0.1s; }
     tbody tr:last-child { border-bottom: none; }
@@ -109,7 +109,9 @@
 
     .details-header { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
     .details-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-    .details-meta { font-size: 13px; color: #64748b; margin-bottom: 16px; }
+    .details-meta { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+    .agent-meta-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .agent-chip { background: #0f172a; border: 1px solid #334155; color: #94a3b8; font-size: 11px; padding: 3px 10px; border-radius: 20px; white-space: nowrap; }
     .details-stats { display: flex; gap: 12px; flex-wrap: wrap; }
     .stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 20px; text-align: center; min-width: 90px; cursor: pointer; transition: border-color 0.15s; }
     .stat-box:hover { border-color: #475569; }
@@ -270,6 +272,7 @@
     <div class="details-header">
       <h2 id="det-title">Report Details</h2>
       <div class="details-meta" id="det-meta"></div>
+      <div class="agent-meta-bar" id="det-agent-meta" style="display:none;"></div>
       <div class="details-stats" id="det-stats"></div>
     </div>
 
@@ -591,6 +594,23 @@
       `${r.project_name || '—'} · ${r.checklist_name || '—'}`;
     document.getElementById('det-meta').textContent =
       `Generated: ${r.generated_at ? new Date(r.generated_at).toLocaleString() : '—'}  ·  Source: ${r.source_path || '—'}`;
+
+    // Agent metadata banner
+    const am = r.agent_metadata;
+    const agentBanner = document.getElementById('det-agent-meta');
+    if (am && agentBanner) {
+      const parts = [
+        am.hostname   ? `🖥️ ${am.hostname}` : null,
+        am.ip_address ? `🌐 ${am.ip_address}` : null,
+        am.username   ? `👤 ${am.username}` : null,
+        am.os_platform ? `💻 ${am.os_platform} ${am.os_version || ''}`.trim() : null,
+        am.agent_version ? `v${am.agent_version}` : null,
+      ].filter(Boolean);
+      agentBanner.innerHTML = parts.map(p => `<span class="agent-chip">${esc(p)}</span>`).join('');
+      agentBanner.style.display = 'flex';
+    } else if (agentBanner) {
+      agentBanner.style.display = 'none';
+    }
 
     const s = data.summary || {};
     document.getElementById('det-stats').innerHTML = [
