@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReviewBot — Autonomous Code Review</title>
+  <style>
+    /* ── Reset & base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+    /* ── Layout ───────────────────────────────────────────────────────── */
+    header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; }
+    header .tagline { font-size: 13px; color: #94a3b8; }
+    header .user-info { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; color: #94a3b8; }
+    header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    header .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+
+    main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; }
+
+    /* ── Auth overlay ─────────────────────────────────────────────────── */
+    #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .auth-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 36px; width: 380px; }
+    .auth-card h2 { color: #38bdf8; margin-bottom: 6px; }
+    .auth-card p { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+
+    /* ── Form elements ────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    input, select, textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
+    input:focus, select:focus { outline: none; border-color: #38bdf8; }
+    select option { background: #1e293b; }
+
+    /* ── Buttons ──────────────────────────────────────────────────────── */
+    .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #38bdf8; }
+    .btn-primary:disabled { background: #1e40af; color: #93c5fd; cursor: not-allowed; opacity: 0.6; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-danger:hover { background: #f87171; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-block { width: 100%; }
+
+    /* ── Config panel ─────────────────────────────────────────────────── */
+    .config-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .config-panel h2 { font-size: 16px; font-weight: 600; color: #f1f5f9; margin-bottom: 20px; }
+    .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .start-row { display: flex; align-items: flex-end; gap: 16px; margin-top: 16px; }
+    .start-row .form-group { flex: 1; margin-bottom: 0; }
+
+    /* ── Progress section ─────────────────────────────────────────────── */
+    #progress-section { display: none; }
+    .progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .progress-title { font-size: 16px; font-weight: 600; color: #f1f5f9; }
+
+    .stats-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .stat-chip { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 16px; display: flex; flex-direction: column; align-items: center; min-width: 90px; }
+    .stat-chip .val { font-size: 24px; font-weight: 700; }
+    .stat-chip .lbl { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .stat-green .val { color: #4ade80; }
+    .stat-amber .val { color: #fbbf24; }
+    .stat-red .val { color: #f87171; }
+    .stat-skip .val { color: #94a3b8; }
+    .stat-total .val { color: #38bdf8; }
+    .stat-score .val { font-size: 20px; }
+
+    /* ── Progress bar ─────────────────────────────────────────────────── */
+    .progress-bar-wrap { background: #0f172a; border-radius: 999px; height: 8px; margin-bottom: 20px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #0ea5e9, #38bdf8); border-radius: 999px; transition: width 0.4s ease; width: 0%; }
+
+    /* ── Status log ───────────────────────────────────────────────────── */
+    .status-log { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #64748b; font-family: monospace; height: 40px; line-height: 20px; overflow: hidden; }
+
+    /* ── Results table ────────────────────────────────────────────────── */
+    .results-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+    .results-toolbar { padding: 14px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #334155; flex-wrap: wrap; }
+    .results-toolbar .filter-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 4px 12px; border-radius: 999px; font-size: 12px; cursor: pointer; }
+    .results-toolbar .filter-btn.active { border-color: #38bdf8; color: #38bdf8; background: #0c4a6e; }
+
+    .results-table-wrap { overflow-x: auto; max-height: 500px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th { background: #0f172a; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 16px; text-align: left; position: sticky; top: 0; }
+    tbody tr { border-bottom: 1px solid #1e293b; transition: background 0.1s; }
+    tbody tr:hover { background: #1e3a5f22; }
+    tbody td { padding: 10px 16px; vertical-align: top; }
+
+    /* ── RAG badges ───────────────────────────────────────────────────── */
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
+    .badge-green  { background: #14532d; color: #4ade80; border: 1px solid #166534; }
+    .badge-amber  { background: #451a03; color: #fbbf24; border: 1px solid #78350f; }
+    .badge-red    { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
+    .badge-skipped{ background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+    .badge-na     { background: #1e293b; color: #64748b; border: 1px solid #1e293b; }
+    .badge-queued { background: #1c1917; color: #a8a29e; border: 1px solid #292524; }
+
+    .strategy-tag { font-size: 10px; color: #475569; background: #0f172a; padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
+
+    /* ── Report panel ─────────────────────────────────────────────────── */
+    #report-section { display: none; }
+    .report-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+    .report-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .report-item { padding: 12px 0; border-bottom: 1px solid #1e293b; }
+    .report-item:last-child { border-bottom: none; }
+    .report-item .item-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
+    .report-item .item-code { font-size: 11px; color: #94a3b8; min-width: 40px; }
+    .report-item .item-q { font-size: 13px; color: #e2e8f0; flex: 1; }
+    .report-item .item-evidence { font-size: 12px; color: #94a3b8; margin-top: 4px; padding-left: 48px; }
+    .report-item .item-hint { font-size: 11px; color: #fbbf24; margin-top: 4px; padding-left: 48px; }
+
+    /* ── Misc ─────────────────────────────────────────────────────────── */
+    .alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+    .alert-error { background: #450a0a; border: 1px solid #7f1d1d; color: #f87171; }
+    .alert-info  { background: #0c4a6e; border: 1px solid #0369a1; color: #7dd3fc; }
+    .alert-success { background: #14532d; border: 1px solid #166534; color: #4ade80; }
+    .hidden { display: none !important; }
+    .spin { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ── Auth Overlay ───────────────────────────────────────────────────────── -->
+<div id="auth-overlay">
+  <div class="auth-card">
+    <h2>🤖 ReviewBot</h2>
+    <p>Autonomous Code Review Platform — sign in to continue</p>
+    <div id="auth-error" class="alert alert-error hidden"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input id="login-email" type="email" value="admin@reviewbot.com" placeholder="you@example.com" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input id="login-password" type="password" value="Admin@123" placeholder="••••••••" />
+    </div>
+    <button class="btn btn-primary btn-block" onclick="login()">Sign In</button>
+  </div>
+</div>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header>
+  <span class="logo">🤖 ReviewBot</span>
+  <span class="tagline">Autonomous Code Review</span>
+  <div class="user-info">
+    <span id="header-user"></span>
+    <button class="btn-logout" onclick="logout()">Sign out</button>
+  </div>
+</header>
+
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
+<main>
+
+  <!-- Config Panel -->
+  <div class="config-panel">
+    <h2>⚙️  Configure Review</h2>
+    <div id="config-error" class="alert alert-error hidden"></div>
+
+    <div class="config-grid">
+      <div class="form-group">
+        <label>Project</label>
+        <select id="project-select" onchange="onProjectChange()">
+          <option value="">— select project —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Checklist</label>
+        <select id="checklist-select">
+          <option value="">— select checklist —</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="start-row">
+      <div class="form-group" style="flex:2">
+        <label>Project Source Path (local folder on server)</label>
+        <input id="source-path" type="text" placeholder="e.g.  C:\projects\myapp  or  /home/user/myapp" />
+      </div>
+      <button id="start-btn" class="btn btn-primary" onclick="startReview()" style="white-space:nowrap; padding: 10px 28px;">
+        ▶ Start Autonomous Review
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress Section -->
+  <div id="progress-section">
+    <div class="progress-header">
+      <span class="progress-title" id="progress-title">Reviewing…</span>
+      <span id="progress-label" style="font-size:13px;color:#94a3b8"></span>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat-chip stat-total"><span class="val" id="s-total">0</span><span class="lbl">Total</span></div>
+      <div class="stat-chip stat-green"><span class="val" id="s-green">0</span><span class="lbl">✅ Green</span></div>
+      <div class="stat-chip stat-amber"><span class="val" id="s-amber">0</span><span class="lbl">⚠️ Amber</span></div>
+      <div class="stat-chip stat-red"><span class="val" id="s-red">0</span><span class="lbl">❌ Red</span></div>
+      <div class="stat-chip stat-skip"><span class="val" id="s-skip">0</span><span class="lbl">👤 Human</span></div>
+      <div class="stat-chip stat-score"><span class="val" id="s-score">—</span><span class="lbl">📊 Score</span></div>
+    </div>
+
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progress-bar"></div></div>
+    <div class="status-log" id="status-log">Waiting for review to start…</div>
+
+    <!-- Filter toolbar -->
+    <div class="results-panel" style="margin-top:16px">
+      <div class="results-toolbar">
+        <span style="font-size:12px;color:#94a3b8;margin-right:4px">Filter:</span>
+        <button class="filter-btn active" data-filter="all" onclick="applyFilter('all',this)">All</button>
+        <button class="filter-btn" data-filter="red" onclick="applyFilter('red',this)">❌ Red</button>
+        <button class="filter-btn" data-filter="amber" onclick="applyFilter('amber',this)">⚠️ Amber</button>
+        <button class="filter-btn" data-filter="green" onclick="applyFilter('green',this)">✅ Green</button>
+        <button class="filter-btn" data-filter="skipped" onclick="applyFilter('skipped',this)">👤 Human</button>
+        <button class="filter-btn" data-filter="na" onclick="applyFilter('na',this)">N/A</button>
+        <button class="btn btn-sm" id="report-btn" onclick="showReport()" style="margin-left:auto;display:none">📄 Full Report</button>
+      </div>
+      <div class="results-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60px">#</th>
+              <th style="width:200px">Area</th>
+              <th>Question</th>
+              <th style="width:100px">Status</th>
+              <th>Evidence (summary)</th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Report Section -->
+  <div id="report-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="font-size:16px;font-weight:600">📄 Final Report</h2>
+      <button class="btn btn-sm" onclick="document.getElementById('report-section').style.display='none';document.getElementById('progress-section').style.display='block'">← Back to Results</button>
+    </div>
+    <div id="report-content"></div>
+  </div>
+
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let token = localStorage.getItem('rb_token') || '';
+let currentJobId = null;
+let ws = null;
+let allRows = [];
+let activeFilter = 'all';
+
+// ── Auth ───────────────────────────────────────────────────────────────────────
+async function login() {
+  const email = document.getElementById('login-email').value;
+  const pass  = document.getElementById('login-password').value;
+  const errEl = document.getElementById('auth-error');
+  errEl.classList.add('hidden');
+
+  try {
+    const fd = new FormData();
+    fd.append('username', email);
+    fd.append('password', pass);
+    const res = await fetch('/api/auth/login', { method: 'POST', body: fd });
+    if (!res.ok) { const d = await res.json(); throw new Error(d.detail || 'Login failed'); }
+    const data = await res.json();
+    token = data.access_token;
+    localStorage.setItem('rb_token', token);
+    document.getElementById('auth-overlay').style.display = 'none';
+    document.getElementById('header-user').textContent = email;
+    loadProjects();
+  } catch (e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+function logout() {
+  token = '';
+  localStorage.removeItem('rb_token');
+  location.reload();
+}
+
+// Auto-login if token exists
+if (token) {
+  document.getElementById('auth-overlay').style.display = 'none';
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    document.getElementById('header-user').textContent = payload.sub || 'User';
+  } catch {}
+  loadProjects();
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) }
+  });
+  if (res.status === 401) { logout(); return null; }
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.detail || res.statusText); }
+  return res.json();
+}
+
+// ── Load projects ──────────────────────────────────────────────────────────────
+async function loadProjects() {
+  try {
+    const data = await api('/api/projects/');
+    const projects = Array.isArray(data) ? data : (data.projects || []);
+    const sel = document.getElementById('project-select');
+    sel.innerHTML = '<option value="">— select project —</option>';
+    projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      sel.appendChild(opt);
+    });
+  } catch(e) { showConfigError(e.message); }
+}
+
+async function onProjectChange() {
+  const pid = document.getElementById('project-select').value;
+  const sel = document.getElementById('checklist-select');
+  sel.innerHTML = '<option value="">— select checklist —</option>';
+  if (!pid) return;
+
+  try {
+    const data = await api(`/api/projects/${pid}/checklists`);
+    const lists = Array.isArray(data) ? data : (data.checklists || []);
+    lists.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = `${c.name} (${c.type})`;
+      sel.appendChild(opt);
+    });
+    // Also load global checklists
+    const globals = await api('/api/checklists/?is_global=true').catch(() => []);
+    (globals || []).forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = `${c.name} [global]`;
+      sel.appendChild(opt);
+    });
+  } catch(e) { showConfigError(e.message); }
+}
+
+// ── Start review ───────────────────────────────────────────────────────────────
+async function startReview() {
+  const projectId   = document.getElementById('project-select').value;
+  const checklistId = document.getElementById('checklist-select').value;
+  const sourcePath  = document.getElementById('source-path').value.trim();
+
+  if (!projectId || !checklistId || !sourcePath) {
+    showConfigError('Please select project, checklist, and enter a source path.');
+    return;
+  }
+
+  hideConfigError();
+  const btn = document.getElementById('start-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Starting…';
+
+  try {
+    const job = await api('/api/autonomous-reviews/', {
+      method: 'POST',
+      body: JSON.stringify({ project_id: +projectId, checklist_id: +checklistId, source_path: sourcePath })
+    });
+
+    currentJobId = job.job_id;
+    allRows = [];
+    document.getElementById('results-tbody').innerHTML = '';
+    resetStats();
+    document.getElementById('progress-section').style.display = 'block';
+    document.getElementById('report-section').style.display = 'none';
+    document.getElementById('progress-title').textContent = `Reviewing: ${job.project} — ${job.checklist}`;
+    document.getElementById('s-total').textContent = job.total_checklist_items || '…';
+    connectWebSocket(job.job_id);
+
+  } catch(e) {
+    showConfigError(e.message);
+    btn.disabled = false;
+    btn.textContent = '▶ Start Autonomous Review';
+  }
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────────────
+function connectWebSocket(jobId) {
+  if (ws) ws.close();
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/autonomous-reviews/${jobId}`);
+
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    handleMessage(msg);
+  };
+
+  ws.onerror = () => setLog('⚠ WebSocket error — falling back to polling');
+  ws.onclose = () => {
+    // If review still running, poll
+    if (currentJobId) pollJobStatus(currentJobId);
+  };
+
+  // Keep-alive ping every 25s
+  setInterval(() => { if (ws && ws.readyState === 1) ws.send('ping'); }, 25000);
+}
+
+function handleMessage(msg) {
+  switch(msg.type) {
+    case 'scanning':
+      setLog(`🔍 ${msg.message}`);
+      break;
+    case 'scan_complete':
+      setLog(`📁 Scanned: ${msg.total_files} files (${msg.text_files} text files)`);
+      break;
+    case 'started':
+      setLog(`🚀 Review started — ${msg.total_items} checklist items`);
+      document.getElementById('s-total').textContent = msg.total_items;
+      break;
+    case 'item_start':
+      setLog(`⚙️  [${msg.index+1}/${msg.total}] ${msg.area}: ${truncate(msg.question, 60)} (${msg.strategy})`);
+      break;
+    case 'item_complete':
+      addResultRow(msg);
+      updateStats(msg.counters, msg.index, msg.total);
+      setLog(`${ragIcon(msg.rag_status)} [${msg.index}/${msg.total}] ${truncate(msg.question, 60)}`);
+      break;
+    case 'completed':
+      onReviewComplete(msg);
+      break;
+    case 'error':
+      setLog(`❌ Error: ${msg.message}`);
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('start-btn').textContent = '▶ Start Autonomous Review';
+      break;
+  }
+}
+
+// ── Row rendering ──────────────────────────────────────────────────────────────
+function addResultRow(msg) {
+  const row = {
+    item_code: msg.item_code,
+    area: msg.area,
+    question: msg.question,
+    rag_status: msg.rag_status,
+    evidence: msg.evidence,
+    strategy: msg.strategy,
+    evidence_hint: msg.evidence_hint,
+  };
+  allRows.push(row);
+  if (activeFilter === 'all' || activeFilter === msg.rag_status) {
+    renderRow(row);
+  }
+}
+
+function renderRow(row) {
+  const tbody = document.getElementById('results-tbody');
+  const tr = document.createElement('tr');
+  tr.dataset.rag = row.rag_status;
+  tr.innerHTML = `
+    <td><span style="color:#94a3b8;font-size:11px">${esc(row.item_code||'')}</span></td>
+    <td style="color:#94a3b8;font-size:12px">${esc(row.area||'')}</td>
+    <td style="color:#e2e8f0">${esc(row.question||'')}
+      <span class="strategy-tag">${esc(row.strategy||'')}</span></td>
+    <td>${ragBadge(row.rag_status)}</td>
+    <td style="color:#94a3b8;font-size:12px">
+      ${esc(truncate(row.evidence||'',150))}
+      ${row.evidence_hint ? `<div style="color:#fbbf24;margin-top:3px;font-size:11px">📋 ${esc(row.evidence_hint)}</div>` : ''}
+    </td>`;
+  tbody.appendChild(tr);
+  tr.scrollIntoView({ block: 'nearest' });
+}
+
+function applyFilter(filter, btn) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const tbody = document.getElementById('results-tbody');
+  tbody.innerHTML = '';
+  const filtered = filter === 'all' ? allRows : allRows.filter(r => r.rag_status === filter);
+  filtered.forEach(renderRow);
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────────
+function updateStats(counters, done, total) {
+  if (!counters) return;
+  document.getElementById('s-green').textContent = counters.green || 0;
+  document.getElementById('s-amber').textContent = counters.amber || 0;
+  document.getElementById('s-red').textContent   = counters.red   || 0;
+  document.getElementById('s-skip').textContent  = counters.skipped || 0;
+  const auto = (counters.green||0) + (counters.amber||0) + (counters.red||0);
+  const score = auto ? Math.round((counters.green||0) / auto * 100) : 0;
+  document.getElementById('s-score').textContent = auto ? `${score}%` : '—';
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progress-bar').style.width = `${pct}%`;
+  document.getElementById('progress-label').textContent = `${done} / ${total} items (${pct}%)`;
+}
+
+function resetStats() {
+  ['s-green','s-amber','s-red','s-skip'].forEach(id => document.getElementById(id).textContent = '0');
+  document.getElementById('s-score').textContent = '—';
+  document.getElementById('progress-bar').style.width = '0%';
+}
+
+function onReviewComplete(msg) {
+  const btn = document.getElementById('start-btn');
+  btn.disabled = false;
+  btn.textContent = '▶ Start Autonomous Review';
+  document.getElementById('report-btn').style.display = 'inline-block';
+  setLog(`✅ Review complete — Compliance: ${msg.compliance_score}% | 🟢${msg.green} 🟡${msg.amber} 🔴${msg.red} 👤${msg.skipped}`);
+  document.getElementById('progress-bar').style.width = '100%';
+  updateStats({ green: msg.green, amber: msg.amber, red: msg.red, skipped: msg.skipped }, msg.total_items, msg.total_items);
+}
+
+// ── Full report ────────────────────────────────────────────────────────────────
+async function showReport() {
+  if (!currentJobId) return;
+  try {
+    const report = await api(`/api/autonomous-reviews/${currentJobId}/report`);
+    document.getElementById('progress-section').style.display = 'none';
+    document.getElementById('report-section').style.display = 'block';
+    renderReport(report);
+  } catch(e) { alert('Could not load report: ' + e.message); }
+}
+
+function renderReport(r) {
+  const s = r.summary;
+  const el = document.getElementById('report-content');
+  el.innerHTML = `
+    <div class="report-card">
+      <h3>📊 Summary — ${esc(r.project)}</h3>
+      <p style="color:#94a3b8;font-size:13px;margin-bottom:12px">${esc(r.checklist)} | Source: <code>${esc(r.source_path)}</code></p>
+      <div class="stats-bar">
+        <div class="stat-chip stat-total"><span class="val">${s.total_items}</span><span class="lbl">Total</span></div>
+        <div class="stat-chip stat-green"><span class="val">${s.green}</span><span class="lbl">✅ Green</span></div>
+        <div class="stat-chip stat-amber"><span class="val">${s.amber}</span><span class="lbl">⚠️ Amber</span></div>
+        <div class="stat-chip stat-red"><span class="val">${s.red}</span><span class="lbl">❌ Red</span></div>
+        <div class="stat-chip stat-skip"><span class="val">${s.human_required}</span><span class="lbl">👤 Human</span></div>
+        <div class="stat-chip stat-score"><span class="val">${s.compliance_score}%</span><span class="lbl">${s.overall_rag.toUpperCase()}</span></div>
+      </div>
+    </div>
+    ${renderReportSection('❌ Critical Issues (RED)', r.red_items, 'red')}
+    ${renderReportSection('⚠️ Needs Attention (AMBER)', r.amber_items, 'amber')}
+    ${renderReportSection('✅ Passing (GREEN)', r.green_items, 'green')}
+    ${renderReportSection('👤 Human Evidence Required', r.human_required_items, 'skipped')}
+    ${renderRecommendations(r.recommendations)}
+  `;
+}
+
+function renderReportSection(title, items, rag) {
+  if (!items || !items.length) return '';
+  const rows = items.map(i => `
+    <div class="report-item">
+      <div class="item-header">
+        ${ragBadge(rag)}
+        <span class="item-code">${esc(i.item_code)}</span>
+        <span class="item-q">${esc(i.question)}</span>
+      </div>
+      <div class="item-evidence">${esc(i.evidence || '')}</div>
+      ${i.evidence_hint ? `<div class="item-hint">📋 Evidence needed: ${esc(i.evidence_hint)}</div>` : ''}
+    </div>`).join('');
+  return `<div class="report-card"><h3>${title}</h3>${rows}</div>`;
+}
+
+function renderRecommendations(recs) {
+  if (!recs || !recs.length) return '';
+  const rows = recs.map((r, i) => `
+    <div class="report-item">
+      <div class="item-header">
+        <span class="badge badge-${r.priority==='HIGH'?'red':r.priority==='MEDIUM'?'amber':'skipped'}">${r.priority}</span>
+        <span class="item-code">${r.item_code}</span>
+        <span class="item-q">${esc(r.recommendation)}</span>
+      </div>
+      <div class="item-evidence">${esc(r.evidence)}</div>
+    </div>`).join('');
+  return `<div class="report-card"><h3>💡 Recommendations</h3>${rows}</div>`;
+}
+
+// ── Polling fallback ───────────────────────────────────────────────────────────
+async function pollJobStatus(jobId) {
+  try {
+    const job = await api(`/api/autonomous-reviews/${jobId}`);
+    if (!job) return;
+    if (job.status === 'completed' || job.status === 'failed') {
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('start-btn').textContent = '▶ Start Autonomous Review';
+      if (job.status === 'completed') document.getElementById('report-btn').style.display = 'inline-block';
+      return;
+    }
+    setTimeout(() => pollJobStatus(jobId), 3000);
+  } catch {}
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function ragBadge(rag) {
+  const map = { green: '✅ GREEN', amber: '⚠️ AMBER', red: '❌ RED', skipped: '👤 HUMAN', na: 'N/A', queued: '⏳' };
+  return `<span class="badge badge-${rag}">${map[rag] || rag.toUpperCase()}</span>`;
+}
+function ragIcon(rag) {
+  return { green: '✅', amber: '⚠️', red: '❌', skipped: '👤', na: '·' }[rag] || '·';
+}
+function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + '…' : (s || ''); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function setLog(msg) { document.getElementById('status-log').textContent = msg; }
+function showConfigError(msg) {
+  const el = document.getElementById('config-error');
+  el.textContent = msg; el.classList.remove('hidden');
+}
+function hideConfigError() { document.getElementById('config-error').classList.add('hidden'); }
+</script>
+</body>
+</html>

@@ -108,7 +108,7 @@ def insert_sample_data(conn):
     cur = conn.cursor()
 
     # Users  (hashed_password = bcrypt hash of "Password123!")
-    HASHED_PW = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS1i2FG"
+    HASHED_PW = "$2b$12$1YEK5YKoxFGQcYTmG0.XiuWCC5B1an1sOocu8ivfnAohRPv9e9jyG"
     cur.execute("""
         INSERT INTO users (email, full_name, hashed_password, role) VALUES
             ('admin@reviewbot.com',    'Admin User',     %s, 'admin'),

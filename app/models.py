@@ -240,6 +240,60 @@ class ReportApproval(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class AutoReviewStatus(str, enum.Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class AutonomousReviewJob(Base):
+    """Tracks an autonomous code review background job"""
+    __tablename__ = "autonomous_review_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    checklist_id = Column(Integer, ForeignKey("checklists.id"), nullable=False)
+    source_path = Column(String, nullable=False)
+
+    status = Column(String, default=AutoReviewStatus.QUEUED.value)
+    total_items = Column(Integer, default=0)
+    completed_items = Column(Integer, default=0)
+
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    project = relationship("Project")
+    checklist = relationship("Checklist")
+    results = relationship("AutonomousReviewResult", back_populates="job", cascade="all, delete-orphan")
+
+
+class AutonomousReviewResult(Base):
+    """Per-item result from an autonomous review job"""
+    __tablename__ = "autonomous_review_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("autonomous_review_jobs.id"), nullable=False)
+    checklist_item_id = Column(Integer, ForeignKey("checklist_items.id"), nullable=False)
+
+    strategy = Column(String)           # file_presence | pattern_scan | llm_analysis | metadata_check | human_required
+    rag_status = Column(String, default="na")   # green | amber | red | na | skipped
+    evidence = Column(Text)             # What was found / LLM reasoning
+    confidence = Column(Float, default=1.0)
+    files_checked = Column(JSON, default=list)  # List of file paths examined
+    skip_reason = Column(Text, nullable=True)   # Why item was skipped (human_required)
+    evidence_hint = Column(Text, nullable=True) # What a human reviewer should provide
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    job = relationship("AutonomousReviewJob", back_populates="results")
+    checklist_item = relationship("ChecklistItem")
+
+
 class ChecklistRecommendation(Base):
     """AI-suggested checklist modifications"""
     __tablename__ = "checklist_recommendations"

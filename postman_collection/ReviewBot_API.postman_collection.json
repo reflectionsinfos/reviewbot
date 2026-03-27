@@ -1,0 +1,519 @@
+{
+  "info": {
+    "_postman_id": "reviewbot-api-collection-v2",
+    "name": "ReviewBot API v2.0",
+    "description": "Complete API collection for ReviewBot — covers Auth, Projects, Checklists, Reviews, Reports, and Autonomous Code Review.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url",  "value": "http://localhost:8000", "type": "string" },
+    { "key": "token",     "value": "",                      "type": "string" },
+    { "key": "project_id","value": "1",                     "type": "string" },
+    { "key": "checklist_id","value": "1",                   "type": "string" },
+    { "key": "review_id", "value": "1",                     "type": "string" },
+    { "key": "report_id", "value": "1",                     "type": "string" },
+    { "key": "job_id",    "value": "1",                     "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "🔐 Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{base_url}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@reviewbot.com\",\n  \"full_name\": \"Admin User\",\n  \"password\": \"Admin@123\",\n  \"role\": \"admin\"\n}"
+            },
+            "description": "Register a new user. Roles: reviewer | manager | admin"
+          }
+        },
+        {
+          "name": "Login (Get JWT Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.access_token) {",
+                  "  pm.collectionVariables.set('token', json.access_token);",
+                  "  console.log('Token saved:', json.access_token.slice(0,30) + '...');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{base_url}}/api/auth/login",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "username", "value": "admin@reviewbot.com" },
+                { "key": "password", "value": "Admin@123" }
+              ]
+            },
+            "description": "Login with email + password. Token auto-saved to {{token}} variable."
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/auth/me",
+            "description": "Get the currently authenticated user's profile."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "📁 Projects",
+      "item": [
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/projects/",
+            "description": "List all projects visible to the authenticated user."
+          }
+        },
+        {
+          "name": "Create Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('project_id', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/projects/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My New Project\",\n  \"domain\": \"fintech\",\n  \"description\": \"A sample project for autonomous review\",\n  \"tech_stack\": [\"Python\", \"FastAPI\", \"PostgreSQL\"],\n  \"stakeholders\": { \"PM\": \"Alice\", \"TechLead\": \"Bob\" }\n}"
+            },
+            "description": "Create a new project. project_id auto-saved."
+          }
+        },
+        {
+          "name": "Get Project",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/projects/{{project_id}}",
+            "description": "Get full project details including checklists and reviews."
+          }
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/projects/{{project_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Project Name\",\n  \"status\": \"active\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Project",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/projects/{{project_id}}"
+          }
+        },
+        {
+          "name": "Upload Checklist (Excel)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/projects/{{project_id}}/upload-checklist",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "description": "Upload .xlsx checklist file" },
+                { "key": "checklist_type", "value": "technical", "type": "text", "description": "delivery or technical" }
+              ]
+            },
+            "description": "Upload an Excel checklist (.xlsx) for a project."
+          }
+        },
+        {
+          "name": "Get Project Checklists",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/projects/{{project_id}}/checklists",
+            "description": "Get all checklists associated with this project."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "📋 Checklists",
+      "item": [
+        {
+          "name": "List Checklists",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/checklists/",
+              "query": [
+                { "key": "is_global", "value": "true", "disabled": true },
+                { "key": "checklist_type", "value": "technical", "disabled": true }
+              ]
+            },
+            "description": "List checklists. Optional filters: is_global, checklist_type."
+          }
+        },
+        {
+          "name": "Get Checklist",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/checklists/{{checklist_id}}",
+            "description": "Get checklist with all items."
+          }
+        },
+        {
+          "name": "Optimize Checklist (AI)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/checklists/{{checklist_id}}/optimize",
+            "description": "Run AI-powered checklist optimization — suggests additions and improvements."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🔍 Reviews (Conversational)",
+      "item": [
+        {
+          "name": "List Reviews",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/reviews/",
+              "query": [
+                { "key": "project_id", "value": "{{project_id}}", "disabled": true },
+                { "key": "status", "value": "completed", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Review Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('review_id', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/reviews/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": {{project_id}},\n  \"checklist_id\": {{checklist_id}},\n  \"title\": \"Q2 2026 Technical Review\",\n  \"voice_enabled\": false\n}"
+            },
+            "description": "Create a conversational review session. review_id auto-saved."
+          }
+        },
+        {
+          "name": "Get Review",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reviews/{{review_id}}"
+          }
+        },
+        {
+          "name": "Start Review (AI Agent)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reviews/{{review_id}}/start",
+            "description": "Initialise the AI review agent. Returns the first question."
+          }
+        },
+        {
+          "name": "Submit Text Response",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/reviews/{{review_id}}/respond",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"response\": \"Yes, the architecture is documented in the docs/arch folder with C4 diagrams.\"\n}"
+            },
+            "description": "Submit a text answer to the current review question."
+          }
+        },
+        {
+          "name": "Submit Voice Response",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reviews/{{review_id}}/voice-response",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "audio_file", "type": "file", "description": "Upload .webm / .mp3 / .wav audio file" }
+              ]
+            },
+            "description": "Upload audio file — transcribed via Whisper STT."
+          }
+        },
+        {
+          "name": "Complete Review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reviews/{{review_id}}/complete",
+            "description": "Mark the review as complete and trigger report generation."
+          }
+        },
+        {
+          "name": "Delete Review",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reviews/{{review_id}}"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "📄 Reports",
+      "item": [
+        {
+          "name": "List Reports",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reports/"
+          }
+        },
+        {
+          "name": "Get Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reports/{{report_id}}"
+          }
+        },
+        {
+          "name": "Download Report (Markdown)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reports/{{report_id}}/download/markdown"
+          }
+        },
+        {
+          "name": "Download Report (PDF)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/reports/{{report_id}}/download/pdf"
+          }
+        },
+        {
+          "name": "Approve Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/reports/{{report_id}}/approve",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comments\": \"Reviewed and approved. All gaps are acknowledged.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reject Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/reports/{{report_id}}/reject",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comments\": \"Section 4 needs more detail on security gaps.\"\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🤖 Autonomous Review",
+      "item": [
+        {
+          "name": "Start Autonomous Review",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.job_id) {",
+                  "  pm.collectionVariables.set('job_id', json.job_id);",
+                  "  console.log('Job started:', json.job_id);",
+                  "  console.log('WebSocket:', `ws://localhost:8000/ws/autonomous-reviews/${json.job_id}`);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "url": "{{base_url}}/api/autonomous-reviews/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": {{project_id}},\n  \"checklist_id\": {{checklist_id}},\n  \"source_path\": \"C:\\\\projects\\\\reviewbot\"\n}"
+            },
+            "description": "Start an autonomous review. source_path must be a folder accessible on the server.\n\nReturns job_id immediately. Connect to WebSocket for real-time progress:\n  ws://localhost:8000/ws/autonomous-reviews/{job_id}\n\nOr use the /ui frontend."
+          }
+        },
+        {
+          "name": "List Autonomous Review Jobs",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/autonomous-reviews/",
+              "query": [
+                { "key": "project_id", "value": "{{project_id}}", "disabled": true }
+              ]
+            },
+            "description": "List all jobs. Optional filter: ?project_id=N"
+          }
+        },
+        {
+          "name": "Get Job Status + Results",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/autonomous-reviews/{{job_id}}",
+            "description": "Get full job status with per-item results."
+          }
+        },
+        {
+          "name": "Get Final Report",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/autonomous-reviews/{{job_id}}/report",
+            "description": "Get the structured final report with RED/AMBER/GREEN/HUMAN sections and recommendations.\nOnly available when job status = 'completed'."
+          }
+        },
+        {
+          "name": "Cancel / Delete Job",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": "{{base_url}}/api/autonomous-reviews/{{job_id}}",
+            "description": "Cancel a running job or delete a completed one."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "⚙️ System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health"
+          }
+        },
+        {
+          "name": "Root",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/"
+          }
+        },
+        {
+          "name": "OpenAPI Docs (browser)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/docs",
+            "description": "Open in browser for interactive Swagger UI."
+          }
+        }
+      ]
+    }
+
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": ["// Collection-level pre-request: token is set automatically after Login"],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}

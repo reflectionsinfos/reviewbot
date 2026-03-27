@@ -4,6 +4,7 @@ Projects API Routes
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from datetime import datetime
 import logging
@@ -354,7 +355,9 @@ async def get_project_checklists(
         raise HTTPException(status_code=404, detail="Project not found")
     
     result = await db.execute(
-        select(Checklist).where(Checklist.project_id == project_id)
+        select(Checklist)
+        .where(Checklist.project_id == project_id)
+        .options(selectinload(Checklist.items))
     )
     checklists = result.scalars().all()
 

@@ -30,7 +30,7 @@ TEMPLATES  = BASE_DIR / "data" / "templates"
 PROJECTS   = BASE_DIR / "data" / "projects"
 
 # Bcrypt hash of "Admin@123" (pre-computed — no bcrypt dependency needed)
-ADMIN_HASH = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj4J/HS1i2FG"
+ADMIN_HASH = "$2b$12$1YEK5YKoxFGQcYTmG0.XiuWCC5B1an1sOocu8ivfnAohRPv9e9jyG"
 
 # Human-readable project names keyed by folder name
 PROJECT_META = {
