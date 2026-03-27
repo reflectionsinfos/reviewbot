@@ -753,7 +753,7 @@
                   data-has-rule="${item.has_routing_rule ? '1' : '0'}"
                   onclick="toggleHumanRequired(this)"
                   title="${item.has_routing_rule ? 'Remove — item will be auto-routed on next review' : 'Always skip this item on future reviews'}">
-            ${item.has_routing_rule ? '🚫 Human Required (remove)' : '👤 Mark as Human Required'}
+            ${item.has_routing_rule ? '✅ Human Required — click to remove' : '👤 Mark as Human Required'}
           </button>
         </div>` : ''}
     </div>`;
