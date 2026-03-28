@@ -475,10 +475,15 @@
 
   /* ── Show dashboard ─────────────────────────────────────────────────────── */
   async function showDashboard() {
-    document.getElementById('auth-modal').classList.add('hidden');
-    document.getElementById('main-content').style.display = 'block';
-    document.getElementById('btn-signin').style.display = 'none';
-    document.getElementById('btn-logout').style.display = 'none';
+    const authModal = document.getElementById('auth-modal');
+    const mainContent = document.getElementById('main-content');
+    const btnSignin = document.getElementById('btn-signin');
+    const btnLogout = document.getElementById('btn-logout');
+    
+    if (authModal) authModal.classList.add('hidden');
+    if (mainContent) mainContent.style.display = 'block';
+    if (btnSignin) btnSignin.style.display = 'none';
+    if (btnLogout) btnLogout.style.display = 'none';
 
     // Try to decode user info from JWT for display
     try {
@@ -606,7 +611,7 @@
   }
 
   /* ── Init ───────────────────────────────────────────────────────────────── */
-  (async function init() {
+  window.addEventListener('DOMContentLoaded', async function() {
     const tok = getToken();
     if (tok && !isTokenExpired(tok)) {
       await showDashboard();
@@ -614,7 +619,7 @@
       if (tok) localStorage.removeItem(TOKEN_KEY); // clear expired token
       showLogin();
     }
-  })();
+  });
 </script>
 </body>
 </html>
