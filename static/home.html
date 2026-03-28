@@ -10,31 +10,15 @@
 
     /* ── Header ─────────────────────────────────────────────────────────────── */
     header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 50; }
-    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
-    header .logo img { height: 32px; width: auto; }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; }
     header .tagline { font-size: 13px; color: #94a3b8; }
-    header nav { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    header nav { margin-left: auto; display: flex; gap: 8px; }
     header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; transition: all 0.15s; }
     header nav a:hover, header nav a.active { border-color: #38bdf8; color: #38bdf8; }
     .nav-right { display: flex; align-items: center; gap: 10px; margin-left: 16px; }
     #nav-user { font-size: 13px; color: #94a3b8; }
     .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
     .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
-
-    /* ── User Dropdown ──────────────────────────────────────────────────────── */
-    .user-dropdown { position: relative; }
-    .user-dropdown-btn { background: transparent; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
-    .user-dropdown-btn:hover { border-color: #38bdf8; background: #1e293b; }
-    .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #0ea5e9, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
-    .user-dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; min-width: 220px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100; }
-    .user-dropdown-menu.hidden { display: none; }
-    .user-dropdown-header { padding: 12px 16px; border-bottom: 1px solid #334155; }
-    .user-dropdown-name { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bottom: 2px; }
-    .user-dropdown-email { font-size: 11px; color: #64748b; }
-    .user-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #94a3b8; text-decoration: none; font-size: 13px; transition: all 0.15s; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
-    .user-dropdown-item:hover { background: #0f172a; color: #38bdf8; }
-    .user-dropdown-item svg { width: 16px; height: 16px; }
-    .user-dropdown-divider { border: none; border-top: 1px solid #334155; margin: 4px 0; }
 
     /* ── Buttons ─────────────────────────────────────────────────────────────── */
     .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -144,11 +128,8 @@
 
 <!-- ── Header ──────────────────────────────────────────────────────────────── -->
 <header>
-  <a href="/" class="logo">
-    <img src="https://www.reflectionsglobal.com/wp-content/uploads/2023/08/Reflections-Logo.png" alt="Reflections" onerror="this.style.display='none'" />
-    ReviewBot
-  </a>
-  <span class="tagline">Where Purposeful Innovation meets AI</span>
+  <a href="/" class="logo">ReviewBot</a>
+  <span class="tagline">AI Review Platform</span>
   <nav>
     <a href="/projects-ui">Checklists</a>
     <a href="/globals">Global Templates</a>
@@ -156,32 +137,9 @@
     <a href="/docs" target="_blank">API Docs &#x2197;</a>
   </nav>
   <div class="nav-right">
-    <div class="user-dropdown">
-      <button class="user-dropdown-btn" onclick="toggleUserDropdown()">
-        <div class="user-avatar" id="user-avatar-initial">U</div>
-        <span id="user-dropdown-name">User</span>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <div class="user-dropdown-menu hidden" id="user-dropdown-menu">
-        <div class="user-dropdown-header">
-          <div class="user-dropdown-name" id="user-menu-name">User Name</div>
-          <div class="user-dropdown-email" id="user-menu-email">user@example.com</div>
-        </div>
-        <button class="user-dropdown-item" onclick="alert('Profile settings coming soon')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Profile
-        </button>
-        <button class="user-dropdown-item" onclick="alert('AI Services info coming soon')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/></svg>
-          AI Services
-        </button>
-        <hr class="user-dropdown-divider" />
-        <button class="user-dropdown-item" onclick="logout()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
-        </button>
-      </div>
-    </div>
+    <span id="nav-user"></span>
+    <button class="btn-logout" id="btn-logout" style="display:none" onclick="logout()">Logout</button>
+    <button class="btn btn-primary btn-sm" id="btn-signin" onclick="openLogin()">Sign In</button>
   </div>
 </header>
 
@@ -321,67 +279,6 @@
 
     </div>
 
-    <!-- AI Services Section -->
-    <div class="section-heading">Reflections AI Services</div>
-    <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
-      
-      <div class="feature-card" style="border-color: #6366f1;">
-        <div class="feature-card-icon" style="background: #6366f122; border-color: #6366f144;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/>
-          </svg>
-        </div>
-        <div class="feature-card-title">AI for SDLC</div>
-        <div class="feature-card-desc">Transform your software development lifecycle with AI-led automation, from requirements to deployment and maintenance.</div>
-        <div class="feature-card-cta" style="color: #6366f1;">Learn More &#x2192;</div>
-      </div>
-
-      <div class="feature-card" style="border-color: #8b5cf6;">
-        <div class="feature-card-icon" style="background: #8b5cf622; border-color: #8b5cf644;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-          </svg>
-        </div>
-        <div class="feature-card-title">Gen AI Solutions</div>
-        <div class="feature-card-desc">Leverage generative AI for code generation, documentation, testing, and intelligent automation across your organization.</div>
-        <div class="feature-card-cta" style="color: #8b5cf6;">Explore Gen AI &#x2192;</div>
-      </div>
-
-      <div class="feature-card" style="border-color: #ec4899;">
-        <div class="feature-card-icon" style="background: #ec489922; border-color: #ec489944;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v5"/><path d="M3 12v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/><path d="M12 2v10"/><path d="m12 12 4.5-4.5"/><path d="m12 12-4.5-4.5"/>
-          </svg>
-        </div>
-        <div class="feature-card-title">Data Science &amp; AI</div>
-        <div class="feature-card-desc">Unlock insights from your data with advanced analytics, machine learning models, and AI-powered decision systems.</div>
-        <div class="feature-card-cta" style="color: #ec4899;">Discover Insights &#x2192;</div>
-      </div>
-
-      <div class="feature-card" style="border-color: #14b8a6;">
-        <div class="feature-card-icon" style="background: #14b8a622; border-color: #14b8a644;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#14b8a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-        </div>
-        <div class="feature-card-title">Hyperautomation</div>
-        <div class="feature-card-desc">Combine AI, ML, and RPA to automate complex business processes end-to-end with minimal human intervention.</div>
-        <div class="feature-card-cta" style="color: #14b8a6;">Automate Now &#x2192;</div>
-      </div>
-
-    </div>
-
-    <div style="text-align:center;margin-top:32px;padding:24px;background:#1e293b;border:1px solid #334155;border-radius:12px;">
-      <p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">
-        Powered by <strong style="color:#38bdf8;">Reflections Global</strong> — Where Purposeful Innovation meets Exponential Technologies
-      </p>
-      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
-        <a href="https://www.reflectionsglobal.com/" target="_blank" style="color:#64748b;text-decoration:none;font-size:13px;">Visit Reflections &#x2197;</a>
-        <a href="https://www.reflectionsglobal.com/what-we-do/ai-for-sdlc" target="_blank" style="color:#64748b;text-decoration:none;font-size:13px;">AI for SDLC &#x2197;</a>
-        <a href="https://www.reflectionsglobal.com/contact-us" target="_blank" style="color:#64748b;text-decoration:none;font-size:13px;">Contact Us &#x2197;</a>
-      </div>
-    </div>
-
     <!-- Recent activity -->
     <div class="section-heading">Recent Autonomous Reviews</div>
     <div class="table-wrap">
@@ -508,43 +405,18 @@
     _logoutInProgress = false;
   }
 
-  /* ── User Dropdown ──────────────────────────────────────────────────────── */
-  function toggleUserDropdown() {
-    const menu = document.getElementById('user-dropdown-menu');
-    menu.classList.toggle('hidden');
-  }
-
-  // Close dropdown when clicking outside
-  document.addEventListener('click', function(e) {
-    const dropdown = document.querySelector('.user-dropdown');
-    const menu = document.getElementById('user-dropdown-menu');
-    if (dropdown && !dropdown.contains(e.target)) {
-      menu.classList.add('hidden');
-    }
-  });
-
-  function updateUserMenu(userEmail, userName) {
-    // Update avatar initial
-    const initial = userName ? userName.charAt(0).toUpperCase() : 'U';
-    document.getElementById('user-avatar-initial').textContent = initial;
-    document.getElementById('user-dropdown-name').textContent = userName || 'User';
-    document.getElementById('user-menu-name').textContent = userName || 'User';
-    document.getElementById('user-menu-email').textContent = userEmail || '';
-  }
-
   /* ── Show dashboard ─────────────────────────────────────────────────────── */
   async function showDashboard() {
     document.getElementById('auth-modal').classList.add('hidden');
     document.getElementById('main-content').style.display = 'block';
     document.getElementById('btn-signin').style.display = 'none';
-    document.getElementById('btn-logout').style.display = 'none';
+    document.getElementById('btn-logout').style.display = '';
 
     // Try to decode email from JWT for display
     try {
       const payload = JSON.parse(atob(getToken().split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      const email = payload.sub || payload.email || '';
-      const name = payload.full_name || payload.email?.split('@')[0] || '';
-      if (email) updateUserMenu(email, name);
+      const name = payload.sub || payload.email || '';
+      if (name) document.getElementById('nav-user').textContent = name;
     } catch {}
 
     await loadDashboard();
