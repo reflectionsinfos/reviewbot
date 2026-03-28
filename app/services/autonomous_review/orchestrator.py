@@ -147,19 +147,43 @@ async def _execute_review(job_id: int, db) -> None:
     db_rules_result = await db.execute(
         select(ChecklistRoutingRule)
         .where(ChecklistRoutingRule.checklist_item_id.in_(item_ids))
+
         .where(ChecklistRoutingRule.is_active == True)
     )
-    db_rules = {
-        rule.checklist_item_id: build_strategy_config_from_db(rule)
-        for rule in db_rules_result.scalars().all()
-    }
+    db_rules_raw = db_rules_result.scalars().all()
+    db_rules = {rule.checklist_item_id: build_strategy_config_from_db(rule) for rule in db_rules_raw}
+
+    # ── Classify strategies (LLM-based batch classification) ─────────────────
+    await progress_manager.broadcast(job_id, {
+        "type": "classifying",
+        "message": "Classifying review strategies using AI...",
+    })
+
+    router = StrategyRouter(db_rules)
+    strategy_configs = await router.classify_batch(items)
+
+    # Count strategies for progress reporting
+    strategy_counts = {}
+    for config in strategy_configs.values():
+        strategy_counts[config.strategy] = strategy_counts.get(config.strategy, 0) + 1
+
+    logger.info(f"Job {job_id}: Strategy classification complete: {strategy_counts}")
+
+    await progress_manager.broadcast(job_id, {
+        "type": "classification_complete",
+        "strategies": strategy_counts,
+    })
 
     router = StrategyRouter(db_rules=db_rules)
     counters = {"green": 0, "amber": 0, "red": 0, "skipped": 0, "na": 0}
 
     # ── Process each item ─────────────────────────────────────────────────────
     for idx, item in enumerate(items):
-        strategy_cfg = router.route(item)
+        # Use pre-computed strategy config from batch classification
+        strategy_cfg = strategy_configs.get(item.id)
+        if strategy_cfg is None:
+            # Fallback to single-item routing
+            strategy_cfg = router.route(item)
 
         await progress_manager.broadcast(job_id, {
             "type": "item_start",

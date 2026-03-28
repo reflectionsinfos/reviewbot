@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReviewBot — How It Works</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ───────────────────────────────────────────────────────────── */
+    header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+    header .logo img { height: 32px; width: auto; }
+    header .tagline { font-size: 13px; color: #94a3b8; }
+    header nav { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; transition: all 0.15s; }
+    header nav a:hover, header nav a.active { border-color: #38bdf8; color: #38bdf8; }
+
+    /* ── User Dropdown ──────────────────────────────────────────────────────── */
+    .nav-right { display: flex; align-items: center; }
+    .user-dropdown { position: relative; }
+    .user-dropdown-btn { background: transparent; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .user-dropdown-btn:hover { border-color: #38bdf8; background: #1e293b; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .user-avatar-human { background: linear-gradient(135deg, #10b981, #059669); }
+    .user-avatar-bot { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+    .user-dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; min-width: 220px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100; }
+    .user-dropdown-menu.hidden { display: none; }
+    .user-dropdown-header { padding: 12px 16px; border-bottom: 1px solid #334155; }
+    .user-dropdown-name { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bottom: 2px; }
+    .user-dropdown-role { font-size: 11px; color: #64748b; text-transform: uppercase; }
+    .user-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #94a3b8; text-decoration: none; font-size: 13px; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
+    .user-dropdown-item:hover { background: #0f172a; color: #38bdf8; }
+    .user-dropdown-item svg { width: 16px; height: 16px; }
+    .user-dropdown-divider { border: none; border-top: 1px solid #334155; margin: 4px 0; }
+
+    /* ── Main Content ──────────────────────────────────────────────────────── */
+    main { max-width: 1200px; margin: 0 auto; padding: 40px 24px; flex: 1; }
+    h1 { font-size: 32px; font-weight: 700; color: #f1f5f9; margin-bottom: 16px; }
+    h2 { font-size: 24px; font-weight: 600; color: #38bdf8; margin: 40px 0 16px; }
+    h3 { font-size: 18px; font-weight: 600; color: #e2e8f0; margin: 24px 0 12px; }
+    p { font-size: 15px; color: #94a3b8; line-height: 1.7; margin-bottom: 16px; }
+    ul, ol { color: #94a3b8; line-height: 1.7; margin-bottom: 16px; padding-left: 24px; }
+    li { margin-bottom: 8px; }
+
+    /* ── Code blocks ───────────────────────────────────────────────────────── */
+    pre { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 16px 0; }
+    code { font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; color: #e2e8f0; }
+    .inline-code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+
+    /* ── Tables ────────────────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    th, td { border: 1px solid #334155; padding: 12px 16px; text-align: left; }
+    th { background: #1e293b; color: #38bdf8; font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px; }
+    td { color: #94a3b8; font-size: 14px; }
+    tr:hover { background: #1e293b44; }
+
+    /* ── Diagram boxes ─────────────────────────────────────────────────────── */
+    .diagram { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .diagram-box { background: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; padding: 12px; margin: 12px 0; }
+    .diagram-arrow { text-align: center; color: #38bdf8; font-size: 20px; margin: 8px 0; }
+
+    /* ── Callouts ──────────────────────────────────────────────────────────── */
+    .callout { background: #1e3a5f44; border: 1px solid #1d4ed8; border-radius: 8px; padding: 16px; margin: 20px 0; }
+    .callout-title { color: #60a5fa; font-weight: 600; margin-bottom: 8px; }
+    .callout-info { background: #14532d44; border-color: #166534; }
+    .callout-info .callout-title { color: #4ade80; }
+    .callout-warning { background: #78350f44; border-color: #92400e; }
+    .callout-warning .callout-title { color: #fb923c; }
+
+    /* ── Footer ────────────────────────────────────────────────────────────── */
+    footer { background: #1e293b; border-top: 1px solid #334155; padding: 20px 28px; font-size: 12px; color: #475569; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    footer a { color: #64748b; text-decoration: none; transition: color 0.15s; }
+    footer a:hover { color: #38bdf8; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-powered { display: flex; align-items: center; gap: 8px; }
+    .footer-powered img { height: 20px; width: auto; }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="/" class="logo">
+    <img src="/static/images/reflectionsit_logo.jpg" alt="Reflections" onerror="this.style.display='none'" />
+    ReviewBot
+  </a>
+  <span class="tagline">AI Review Platform</span>
+  <nav>
+    <a href="/projects-ui">Projects</a>
+    <a href="/globals">Global Templates</a>
+    <a href="/history">History</a>
+    <a href="/documentation" class="active">How It Works</a>
+    <a href="/docs" target="_blank">API Docs &#x2197;</a>
+  </nav>
+  <div class="nav-right">
+    <div class="user-dropdown">
+      <button class="user-dropdown-btn" onclick="toggleUserDropdown()">
+        <div class="user-avatar user-avatar-human" id="user-avatar">🧑</div>
+        <span id="user-dropdown-name">User</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="user-dropdown-menu hidden" id="user-dropdown-menu">
+        <div class="user-dropdown-header">
+          <div class="user-dropdown-name" id="user-menu-name">User Name</div>
+          <div class="user-dropdown-role" id="user-menu-role">User</div>
+        </div>
+        <button class="user-dropdown-item" onclick="logout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>How ReviewBot Works</h1>
+  <p style="font-size: 16px; color: #64748b;">Understanding the autonomous review architecture, strategies, and decision-making process.</p>
+
+  <!-- Overview -->
+  <h2 id="overview">Overview</h2>
+  <p>ReviewBot uses a <strong>multi-strategy analysis system</strong> to review your codebase against structured checklists. Instead of using a single approach for all questions, ReviewBot intelligently selects the best analysis method for each checklist item based on what the question is asking.</p>
+
+  <div class="callout callout-info">
+    <div class="callout-title">💡 Why Multiple Strategies?</div>
+    <p style="margin: 0;">Using the right tool for each question improves <strong>accuracy</strong>, reduces <strong>cost</strong>, and speeds up <strong>review time</strong>. Simple file checks cost $0 and take milliseconds, while complex architectural questions benefit from LLM analysis.</p>
+  </div>
+
+  <!-- Architecture Diagram -->
+  <h2 id="architecture">Architecture</h2>
+  
+  <div class="diagram">
+    <div class="diagram-box">
+      <strong>1. User Initiates Review</strong><br/>
+      <span style="color: #64748b;">Via VS Code Plugin or CLI • Selects project path and checklist</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>2. Strategy Decision (LLM)</strong><br/>
+      <span style="color: #64748b;">Classifies each item: file_presence, pattern_scan, llm_analysis, human_required, etc.</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>3. Analyzer Execution</strong><br/>
+      <span style="color: #64748b;">Runs the appropriate analyzer based on strategy</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>4. Results Stored</strong><br/>
+      <span style="color: #64748b;">RAG status, evidence, confidence, files checked</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>5. Report Generated</strong><br/>
+      <span style="color: #64748b;">Compliance score, gaps, recommendations, action items</span>
+    </div>
+  </div>
+
+  <!-- Review Strategies -->
+  <h2 id="strategies">Review Strategies</h2>
+  <p>ReviewBot supports 6 different analysis strategies. The strategy router automatically selects the most appropriate one for each checklist item.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Strategy</th>
+        <th>What It Does</th>
+        <th>When Used</th>
+        <th>Cost</th>
+        <th>Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code class="inline-code">file_presence</code></td>
+        <td>Checks if specific files or directories exist</td>
+        <td>"Is there an ARCHITECTURE.md?"</td>
+        <td>Free</td>
+        <td>~10ms</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">pattern_scan</code></td>
+        <td>Regex scan of source files for patterns</td>
+        <td>"Are there hardcoded secrets?"</td>
+        <td>Free</td>
+        <td>~50ms</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">metadata_check</code></td>
+        <td>Checks package.json, requirements.txt, etc.</td>
+        <td>"Are dependencies scanned for vulnerabilities?"</td>
+        <td>Free</td>
+        <td>~20ms</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">llm_analysis</code></td>
+        <td>LLM analyzes code structure and quality</td>
+        <td>"Is the code well-architected?"</td>
+        <td>~$0.002-0.01</td>
+        <td>~3-15s</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">human_required</code></td>
+        <td>Skipped for AI — requires human interview</td>
+        <td>"What's team morale?"</td>
+        <td>Human time</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">ai_and_human</code></td>
+        <td>AI analyzes first, human validates</td>
+        <td>"Is the architecture sound?"</td>
+        <td>~$0.002 + human</td>
+        <td>~3-15s + review</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Strategy Decision Logic -->
+  <h2 id="strategy-decision">How Strategy is Decided</h2>
+  
+  <h3>Current Implementation (LLM-Based Classification)</h3>
+  <p>ReviewBot uses an LLM to semantically classify each checklist item into the appropriate strategy. This is more accurate than keyword matching and handles variations in question phrasing.</p>
+
+  <div class="callout">
+    <div class="callout-title">🧠 Example Classification</div>
+    <pre><code>Input: "Do you have design documentation?"
+Output: strategy = "file_presence"
+        file_patterns = ["DESIGN.md", "design.md", "docs/design/"]
+
+Input: "Are credentials stored securely?"
+Output: strategy = "pattern_scan"
+        scan_patterns = [r"password\s*=\s*['\"].{6,}['\""]
+
+Input: "Is the codebase well-structured?"
+Output: strategy = "llm_analysis"
+        context_keywords = ["architecture", "structure", "modularity"]</code></pre>
+  </div>
+
+  <h3>Decision Priority</h3>
+  <ol>
+    <li><strong>Database Rules</strong> — Admin-defined overrides (ChecklistRoutingRule table)</li>
+    <li><strong>Human Required Detection</strong> — Organizational/process questions (fast path)</li>
+    <li><strong>LLM Classification</strong> — Semantic analysis of area + question</li>
+    <li><strong>Default</strong> — llm_analysis (if uncertain)</li>
+  </ol>
+
+  <!-- Analyzers -->
+  <h2 id="analyzers">Analyzers</h2>
+  <p>Each strategy has a dedicated analyzer module that executes the actual review logic.</p>
+
+  <h3>FilePresenceAnalyzer</h3>
+  <pre><code># Checks for files/directories matching patterns
+found = file_index.find_files(["ARCHITECTURE.md", "*.drawio"])
+if found:
+    return AnalysisResult(rag_status="green", evidence=f"Found {len(found)} files")
+else:
+    return AnalysisResult(rag_status="red", evidence="No matching files found")</code></pre>
+
+  <h3>PatternScanAnalyzer</h3>
+  <pre><code># Regex scan of source files
+matches = []
+for file in source_files:
+    if re.search(r"password\s*=\s*['\"]", file.content):
+        matches.append(file.path)
+
+if matches:
+    return AnalysisResult(rag_status="red", evidence=f"Found secrets in {len(matches)} files")</code></pre>
+
+  <h3>LLMAnalyzer</h3>
+  <pre><code># Sends code context to LLM for analysis
+prompt = build_prompt(checklist_item, code_context)
+response = llm_client.chat.completions.create(
+    model="gpt-4",
+    messages=[{"role": "user", "content": prompt}]
+)
+return parse_llm_response(response)</code></pre>
+
+  <h3>MetadataCheckAnalyzer</h3>
+  <pre><code># Checks package.json, requirements.txt, etc.
+deps = parse_package_json("package.json")
+vulnerabilities = scan_dependencies(deps)
+if vulnerabilities:
+    return AnalysisResult(rag_status="amber", evidence=f"{len(vulnerabilities)} vulnerable deps")</code></pre>
+
+  <!-- Results Storage -->
+  <h2 id="results">Results Storage</h2>
+  <p>Each review result is stored in the <code class="inline-code">autonomous_review_results</code> table:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Column</th>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code class="inline-code">strategy</code></td>
+        <td>String</td>
+        <td>Which strategy was used (file_presence, llm_analysis, etc.)</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">rag_status</code></td>
+        <td>String</td>
+        <td>green | amber | red | na | skipped</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">evidence</code></td>
+        <td>Text</td>
+        <td>What was found (file list, LLM reasoning, etc.)</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">confidence</code></td>
+        <td>Float</td>
+        <td>0.0-1.0 (1.0 for deterministic, 0.7-0.9 for LLM)</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">files_checked</code></td>
+        <td>JSON</td>
+        <td>List of file paths examined</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">skip_reason</code></td>
+        <td>Text</td>
+        <td>Why item was skipped (human_required)</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">needs_human_sign_off</code></td>
+        <td>Boolean</td>
+        <td>AI ran but human must confirm</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Initiation Sources -->
+  <h2 id="initiation">Initiation Sources</h2>
+  <p>Reviews can be initiated from multiple sources:</p>
+
+  <ul>
+    <li><strong>VS Code Plugin</strong> — Right-click project folder → "Run ReviewBot Review"</li>
+    <li><strong>CLI</strong> — <code class="inline-code">reviewbot review --path ./myproject --checklist 1</code></li>
+  </ul>
+
+  <div class="callout callout-warning">
+    <div class="callout-title">⚠️ Web Interface Deprecated</div>
+    <p style="margin: 0;">The web-based review initiation is being phased out. Use VS Code Plugin or CLI for production reviews.</p>
+  </div>
+
+  <!-- Cost Optimization -->
+  <h2 id="cost">Cost Optimization</h2>
+  <p>ReviewBot's multi-strategy approach significantly reduces costs compared to LLM-only analysis:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Approach</th>
+        <th>Cost per Review (85 items)</th>
+        <th>Annual Cost (1000 reviews)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>LLM for everything</td>
+        <td>$0.17 - $0.85</td>
+        <td>$170 - $850</td>
+      </tr>
+      <tr>
+        <td>Multi-strategy (ReviewBot)</td>
+        <td>$0.05 - $0.20</td>
+        <td>$50 - $200</td>
+      </tr>
+      <tr>
+        <td><strong>Savings</strong></td>
+        <td><strong>70-80%</strong></td>
+        <td><strong>$120 - $650</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Manual Override -->
+  <h2 id="override">Manual Strategy Override</h2>
+  <p>Admin users can override the automatic strategy decision by creating a routing rule:</p>
+
+  <pre><code>-- Via API
+POST /api/routing-rules
+{
+  "checklist_item_id": 42,
+  "strategy": "human_required",
+  "skip_reason": "This requires organizational data — interview the PM",
+  "evidence_hint": "Provide roadmap document or stakeholder interview notes"
+}</code></pre>
+
+  <p>Database rules take priority over automatic classification, allowing fine-tuned control for edge cases.</p>
+
+  <!-- Future Enhancements -->
+  <h2 id="future">Future Enhancements</h2>
+  <ul>
+    <li><strong>Role-Based Reviews</strong> — Assign checklist items to personas (PM, Tech Lead, DevOps, Security)</li>
+    <li><strong>Strategy Breakdown Reports</strong> — Show count of AI vs Human reviewed items</li>
+    <li><strong>LLM Model Tracking</strong> — Record which LLM model reviewed each item</li>
+    <li><strong>Reviewer Attribution</strong> — Track human reviewer name and role</li>
+  </ul>
+
+  <div class="callout">
+    <div class="callout-title">📚 Related Documentation</div>
+    <ul style="margin: 8px 0 0 20px;">
+      <li><a href="/docs" target="_blank">API Reference</a></li>
+      <li><a href="https://github.com/reflectionsinfos/reviewbot" target="_blank">GitHub Repository</a></li>
+      <li><a href="https://www.reflectionsglobal.com/contact-us" target="_blank">Contact Support</a></li>
+    </ul>
+  </div>
+
+</main>
+
+<footer>
+  <div class="footer-powered">
+    <span>Powered by</span>
+    <img src="/static/images/reflectionsit_logo.jpg" alt="Reflections Global" onerror="this.style.display='none'" />
+    <span>Reflections Global</span>
+  </div>
+  <div class="footer-links">
+    <a href="https://www.reflectionsglobal.com/contact-us" target="_blank">Contact Us</a>
+    <a href="/docs" target="_blank">API Docs</a>
+  </div>
+</footer>
+
+<script>
+  const TOKEN_KEY = 'rb_token';
+
+  function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+  function isTokenExpired(tok) {
+    try {
+      const payload = JSON.parse(atob(tok.split('.')[1]));
+      return payload.exp && (payload.exp * 1000) < Date.now();
+    } catch { return true; }
+  }
+
+  function logout() {
+    localStorage.removeItem(TOKEN_KEY);
+    window.location.href = '/';
+  }
+
+  function toggleUserDropdown() {
+    const menu = document.getElementById('user-dropdown-menu');
+    menu.classList.toggle('hidden');
+  }
+
+  document.addEventListener('click', function(e) {
+    const dropdown = document.querySelector('.user-dropdown');
+    const menu = document.getElementById('user-dropdown-menu');
+    if (dropdown && !dropdown.contains(e.target)) {
+      menu.classList.add('hidden');
+    }
+  });
+
+  function updateUserMenu(userEmail, userName, userRole) {
+    const isBot = userRole && userRole.toLowerCase().includes('bot');
+    const avatar = document.getElementById('user-avatar');
+    avatar.className = 'user-avatar ' + (isBot ? 'user-avatar-bot' : 'user-avatar-human');
+    avatar.textContent = isBot ? '🤖' : '🧑';
+    
+    const displayName = userName || userEmail?.split('@')[0] || 'User';
+    document.getElementById('user-dropdown-name').textContent = displayName;
+    document.getElementById('user-menu-name').textContent = displayName;
+    document.getElementById('user-menu-role').textContent = (userRole || 'user').toUpperCase();
+  }
+
+  window.addEventListener('DOMContentLoaded', async function() {
+    const tok = getToken();
+    if (tok && !isTokenExpired(tok)) {
+      try {
+        const payload = JSON.parse(atob(tok.split('.')[1]));
+        const email = payload.sub || payload.email || '';
+        const name = payload.full_name || '';
+        const role = payload.role || 'user';
+        if (email) updateUserMenu(email, name, role);
+      } catch {}
+    }
+  });
+</script>
+</body>
+</html>

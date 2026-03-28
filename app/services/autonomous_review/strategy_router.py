@@ -2,11 +2,18 @@
 Strategy Router
 Maps each checklist item (area + question) to the best analysis strategy
 and provides configuration for the chosen analyzer.
+
+Uses LLM-based semantic classification for strategy decision,
+with fallback to hardcoded rules for known patterns.
 """
 from __future__ import annotations
 import re
+import json
+import logging
 from dataclasses import dataclass, field
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -36,6 +43,69 @@ class StrategyConfig:
 
     # AI_AND_HUMAN config
     needs_human_sign_off: bool = False  # Run AI analyzer but flag result for human confirmation
+
+
+# ── LLM Strategy Classification ──────────────────────────────────────────────
+
+_LLM_STRATEGY_PROMPT = """
+You are a ReviewBot strategy classifier. For each checklist item, classify which analysis strategy should be used.
+
+STRATEGY DEFINITIONS:
+- file_presence: Questions about specific files/documents existing (e.g., "Is there an ARCHITECTURE.md?")
+- pattern_scan: Questions about code patterns, security issues, hardcoded secrets (e.g., "Are credentials hardcoded?")
+- metadata_check: Questions about dependencies, package.json, requirements.txt, versions (e.g., "Are dependencies scanned?")
+- llm_analysis: Questions requiring code quality judgment, architecture evaluation, design patterns (e.g., "Is the code well-structured?")
+- human_required: Organizational, process, survey questions that can't be answered by scanning files (e.g., "What's team morale?")
+- ai_and_human: AI can analyze but human should validate the result (e.g., "Is the architecture sound?")
+
+CLASSIFY THESE ITEMS (return JSON array):
+"""
+
+
+async def classify_strategies_with_llm(items: list, llm_client=None) -> dict[int, str]:
+    """
+    Batch classify multiple checklist items using LLM.
+    Returns: {item_id: strategy}
+    """
+    if not items:
+        return {}
+    
+    # Build prompt with items
+    items_text = "\n".join([
+        f"{i+1}. Area: {item.area}\n   Question: {item.question}"
+        for i, item in enumerate(items[:50])  # Batch limit
+    ])
+    
+    prompt = f"{_LLM_STRATEGY_PROMPT}\n\n{items_text}\n\nReturn JSON array like: [{{\"id\": 1, \"strategy\": \"file_presence\"}}, ...]"
+    
+    try:
+        # Use configured LLM client
+        if llm_client is None:
+            from app.core.config import settings
+            # Import dynamically to avoid circular imports
+            from .connectors.llm import get_llm_client
+            llm_client = get_llm_client()
+        
+        response = await llm_client.chat.completions.create(
+            model="gpt-4o-mini",  # Use fast, cheap model for classification
+            messages=[
+                {"role": "system", "content": "You are a strategy classifier. Return only valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            max_tokens=1000
+        )
+        
+        result_text = response.choices[0].message.content.strip()
+        # Parse JSON response
+        classifications = json.loads(result_text)
+        
+        # Convert to {item_id: strategy} map
+        return {c["id"]: c["strategy"] for c in classifications if "id" in c and "strategy" in c}
+    
+    except Exception as e:
+        logger.warning(f"LLM strategy classification failed: {e}. Falling back to rule-based.")
+        return {}  # Fallback to rule-based
 
 
 # ── Human-required detection ─────────────────────────────────────────────────
@@ -455,13 +525,98 @@ class StrategyRouter:
 
     Accepts an optional dict of DB-defined rules keyed by checklist_item_id.
     DB rules are checked first, before any hard-coded logic.
+    
+    Supports both single-item routing (route()) and batch LLM classification
+    (classify_batch()).
     """
 
     def __init__(self, db_rules: dict[int, "StrategyConfig"] | None = None):
         # db_rules: {checklist_item_id: StrategyConfig}
         self._db_rules = db_rules or {}
 
+    async def classify_batch(self, items: list) -> dict[int, StrategyConfig]:
+        """
+        Classify multiple items using LLM-based strategy decision.
+        Falls back to rule-based classification if LLM fails.
+        
+        Returns: {item_id: StrategyConfig}
+        """
+        if not items:
+            return {}
+        
+        # 1. Try LLM batch classification
+        llm_strategies = await classify_strategies_with_llm(items)
+        
+        # 2. Build StrategyConfig for each item
+        results = {}
+        for item in items:
+            # DB rules take highest priority
+            if item.id in self._db_rules:
+                results[item.id] = self._db_rules[item.id]
+                continue
+            
+            # Use LLM strategy if available
+            if item.id in llm_strategies:
+                strategy = llm_strategies[item.id]
+                results[item.id] = self._build_config_for_strategy(strategy, item)
+            else:
+                # Fallback to rule-based
+                results[item.id] = self._auto_route(item)
+        
+        return results
+
+    def _build_config_for_strategy(self, strategy: str, item) -> StrategyConfig:
+        """Build StrategyConfig based on strategy name and item details."""
+        area = (item.area or "").strip()
+        question = (item.question or "").strip()
+        
+        if strategy == "human_required":
+            return StrategyConfig(
+                strategy="human_required",
+                skip_reason="Requires human/organisational data — interview or survey team members",
+                evidence_hint=_build_evidence_hint(area, question),
+            )
+        
+        elif strategy == "ai_and_human":
+            # Run normal routing but flag for human sign-off
+            config = self._auto_route(item)
+            config.needs_human_sign_off = True
+            return config
+        
+        elif strategy == "file_presence":
+            # Use default file patterns based on area
+            keywords = _extract_keywords(area, question)
+            return StrategyConfig(
+                strategy="file_presence",
+                file_patterns=[f"{k}.md" for k in keywords[:5]],
+                context_keywords=keywords,
+            )
+        
+        elif strategy == "pattern_scan":
+            # Generic security/code pattern scan
+            return StrategyConfig(
+                strategy="pattern_scan",
+                scan_patterns=[r'(?i)(password|secret|api_key)\s*=\s*["\'][^"\']+["\']'],
+                scan_extensions=[".py", ".js", ".ts", ".java", ".yml", ".json"],
+            )
+        
+        elif strategy == "metadata_check":
+            return StrategyConfig(
+                strategy="metadata_check",
+                metadata_check="dependencies_scanned",
+                metadata_files=["package.json", "requirements.txt"],
+            )
+        
+        else:  # Default to llm_analysis
+            keywords = _extract_keywords(area, question)
+            return StrategyConfig(
+                strategy="llm_analysis",
+                context_keywords=keywords,
+                focus_prompt=question,
+            )
+
     def route(self, item) -> StrategyConfig:
+        """Route a single item (legacy method, kept for backwards compatibility)."""
         # 0. DB rule — highest priority (admin/PM override)
         if item.id in self._db_rules:
             db_rule = self._db_rules[item.id]
@@ -475,11 +630,11 @@ class StrategyRouter:
         return self._auto_route(item)
 
     def _auto_route(self, item) -> StrategyConfig:
-        """Hard-coded routing logic — no DB rules applied."""
+        """Hard-coded routing logic — fallback if LLM classification fails."""
         area = (item.area or "").strip()
         question = (item.question or "").strip()
 
-        # 1. Hard-coded human-required check
+        # 1. Hard-coded human-required check (fast path for obvious cases)
         human = _is_human_required(area, question)
         if human:
             return human
