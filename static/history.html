@@ -240,9 +240,11 @@
   </a>
   <span class="tagline">Where Purposeful Innovation meets AI</span>
   <nav>
+    <a href="/ui">AI Review</a>
     <a href="/projects-ui">Projects</a>
     <a href="/globals">Global Templates</a>
     <a href="/history" class="active">History</a>
+    <a href="/documentation">How It Works</a>
     <a href="/docs" target="_blank">API Docs ↗</a>
   </nav>
   <div class="nav-right">
@@ -718,12 +720,24 @@
     }
 
     const s = data.summary || {};
+    
+    // Calculate strategy breakdown from detail items
+    const strategyCounts = {};
+    (allDetailItems || []).forEach(item => {
+      const strat = item.strategy || 'llm_analysis';
+      strategyCounts[strat] = (strategyCounts[strat] || 0) + 1;
+    });
+    
     document.getElementById('det-stats').innerHTML = [
       statBox((r.compliance_score ?? 0).toFixed(1) + '%', 'Score',    scoreClass(r.compliance_score), 'all'),
       statBox(s.red     ?? 0, 'Critical',       'red',     'red'),
       statBox(s.amber   ?? 0, 'Amber',          'amber',   'amber'),
       statBox(s.green   ?? 0, 'Compliant',      'green',   'green'),
       statBox((s.human_required ?? 0) + (s.na ?? 0), 'Human Required', 'gray', 'skipped'),
+      statBox(strategyCounts['file_presence'] || 0, 'File', 'gray', 'strategy-file'),
+      statBox(strategyCounts['pattern_scan'] || 0, 'Pattern', 'gray', 'strategy-pattern'),
+      statBox(strategyCounts['llm_analysis'] || 0, 'LLM', 'blue', 'strategy-llm'),
+      statBox(strategyCounts['metadata_check'] || 0, 'Meta', 'gray', 'strategy-meta'),
       statBox(r.override_count ?? 0, 'Overrides', 'blue', 'overridden'),
       statBox(allDetailItems.filter(i => i.needs_human_sign_off).length, 'Sign-off', 'blue', 'signoff'),
     ].join('');

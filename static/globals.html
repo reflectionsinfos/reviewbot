@@ -156,9 +156,11 @@
   </a>
   <span class="tagline">AI Review Platform</span>
   <nav>
+    <a href="/ui">AI Review</a>
     <a href="/projects-ui">Projects</a>
     <a href="/globals" class="active">Global Templates</a>
     <a href="/history">History</a>
+    <a href="/documentation">How It Works</a>
     <a href="/docs" target="_blank">API Docs ↗</a>
   </nav>
   <div class="nav-right">
@@ -560,11 +562,12 @@
   function renderItemsTable() {
     const tbody = document.getElementById('items-tbody');
     tbody.innerHTML = '';
-    
+
     selectedItems.sort((a, b) => a.order - b.order).forEach((item, index) => {
       const tr = document.createElement('tr');
-      
+
       if (editingItemId === item.id) {
+        const strategy = item.strategy || 'auto';
         tr.innerHTML = `
           <td><input id="edit-code-${item.id}" class="inline-input" value="${escapeHtml(item.item_code || '')}" style="width:70px;" /></td>
           <td><input id="edit-area-${item.id}" class="inline-input" value="${escapeHtml(item.area || '')}" /></td>
@@ -574,12 +577,24 @@
           </td>
           <td><input id="edit-weight-${item.id}" type="number" step="0.5" class="inline-input" value="${item.weight}" style="width:60px;" /></td>
           <td><select id="edit-req-${item.id}" class="inline-input" style="width:50px;"><option value="true" ${item.is_required ? 'selected' : ''}>Yes</option><option value="false" ${!item.is_required ? 'selected' : ''}>No</option></select></td>
+          <td>
+            <select id="edit-strategy-${item.id}" class="inline-input" style="width:90px;font-size:11px;" title="Review strategy">
+              <option value="auto" ${strategy === 'auto' ? 'selected' : ''}>Auto</option>
+              <option value="file_presence" ${strategy === 'file_presence' ? 'selected' : ''}>File</option>
+              <option value="pattern_scan" ${strategy === 'pattern_scan' ? 'selected' : ''}>Pattern</option>
+              <option value="llm_analysis" ${strategy === 'llm_analysis' ? 'selected' : ''}>LLM</option>
+              <option value="metadata_check" ${strategy === 'metadata_check' ? 'selected' : ''}>Metadata</option>
+              <option value="human_required" ${strategy === 'human_required' ? 'selected' : ''}>Human</option>
+              <option value="ai_and_human" ${strategy === 'ai_and_human' ? 'selected' : ''}>AI+Human</option>
+            </select>
+          </td>
           <td class="actions-cell">
             <button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})" title="Save">💾</button>
             <button class="btn-icon-only" onclick="cancelEdit()" title="Cancel">✕</button>
           </td>
         `;
       } else {
+        const strategyBadge = getStrategyBadge(item.strategy);
         tr.innerHTML = `
           <td style="font-family:monospace;color:#94a3b8">${escapeHtml(item.item_code || '')}</td>
           <td style="color:#94a3b8;font-size:12px">${escapeHtml(item.area || '')}</td>
@@ -589,14 +604,32 @@
           </td>
           <td>${item.weight}</td>
           <td>${item.is_required ? 'Yes' : 'No'}</td>
-          <td class="actions-cell">
-            <button class="btn-icon-only" onclick="startEdit(${item.id})" title="Edit">✏️</button>
-            <button class="btn-icon-only" style="color:#f87171" onclick="confirmDeleteItem(${item.id}, '${escapeHtml(item.question || '').replace(/'/g, "\\'")}')" title="Delete">🗑️</button>
+          <td>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+              ${strategyBadge}
+              <div class="actions-cell">
+                <button class="btn-icon-only" onclick="startEdit(${item.id})" title="Edit">✏️</button>
+                <button class="btn-icon-only" style="color:#f87171" onclick="confirmDeleteItem(${item.id}, '${escapeHtml(item.question || '').replace(/'/g, "\\'")}')" title="Delete">🗑️</button>
+              </div>
+            </div>
           </td>
         `;
       }
       tbody.appendChild(tr);
     });
+  }
+
+  function getStrategyBadge(strategy) {
+    if (!strategy || strategy === 'auto') return '';
+    const badges = {
+      'file_presence': '<span class="badge badge-gray" style="font-size:9px;">File</span>',
+      'pattern_scan': '<span class="badge badge-gray" style="font-size:9px;">Pattern</span>',
+      'llm_analysis': '<span class="badge badge-blue" style="font-size:9px;">LLM</span>',
+      'metadata_check': '<span class="badge badge-gray" style="font-size:9px;">Meta</span>',
+      'human_required': '<span class="badge badge-purple" style="font-size:9px;">Human</span>',
+      'ai_and_human': '<span class="badge badge-blue" style="font-size:9px;">AI+H</span>',
+    };
+    return badges[strategy] || '';
   }
 
   function startEdit(id) {
@@ -618,16 +651,33 @@
       weight: parseFloat(document.getElementById(`edit-weight-${id}`).value),
       is_required: document.getElementById(`edit-req-${id}`).value === 'true'
     };
-    
+
     if (!payload.question) { toast('Question is required', 'error'); return; }
     if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
-    
+
     try {
+      // Save item
       await api(`/api/checklists/globals/${selectedTemplate.id}/items/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+
+      // Save strategy override if not auto
+      const strategy = document.getElementById(`edit-strategy-${id}`).value;
+      if (strategy && strategy !== 'auto') {
+        // Create or update routing rule
+        await api('/api/routing-rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            checklist_item_id: id,
+            strategy: strategy,
+            is_active: true
+          })
+        });
+      }
+
       toast('Item updated', 'success');
       editingItemId = null;
       await selectTemplate(selectedTemplate.id);
