@@ -106,52 +106,158 @@ class GlobalChecklistItemUpdate(BaseModel):
 async def _generate_item_code(db: AsyncSession, checklist_id: int, area: str) -> str:
     """
     Auto-generate item_code based on area grouping.
-    Format: {area_number}.{item_number}
-    - area_number: 1-based index of unique area (alphabetically sorted)
-    - item_number: next sequence number within that area
+    Format: {AREA_CODE}-{NNN}
+    - AREA_CODE: 3-4 letter code for the area (e.g., SEC, TECH, GOV)
+    - NNN: 3-digit sequence number within that area (e.g., 001, 002)
+    
+    Area codes are stored in the checklist's area_codes mapping.
+    If area doesn't have a code, one is auto-generated and saved.
     """
-    # Get all existing items for this checklist
+    # Get the checklist
+    checklist_result = await db.execute(
+        select(Checklist).where(Checklist.id == checklist_id)
+    )
+    checklist = checklist_result.scalar_one_or_none()
+    
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+    
+    # Get or initialize area_codes mapping
+    area_codes: dict[str, str] = checklist.area_codes or {}
+    
+    # Generate area code if not exists
+    if area not in area_codes:
+        area_codes[area] = _generate_area_code(area)
+        checklist.area_codes = area_codes
+        await db.flush()
+    
+    area_code = area_codes[area]
+    
+    # Get all existing items for this checklist to find max sequence
     result = await db.execute(
         select(ChecklistItem)
         .where(ChecklistItem.checklist_id == checklist_id)
-        .order_by(ChecklistItem.area, ChecklistItem.item_code)
     )
     existing_items = result.scalars().all()
-
-    # Build area -> max sequence number mapping
-    area_sequences: dict[str, int] = {}
-    area_order: list[str] = []
-
+    
+    # Find max sequence number for this area
+    max_seq = 0
     for item in existing_items:
-        if item.area not in area_sequences:
-            area_order.append(item.area)
-            area_sequences[item.area] = 0
-
-        # Extract sequence number from existing item_code (e.g., "1.3" -> 3)
-        if item.item_code and "." in item.item_code:
+        if item.item_code and item.item_code.startswith(f"{area_code}-"):
             try:
-                seq = int(item.item_code.split(".")[1])
-                area_sequences[item.area] = max(area_sequences[item.area], seq)
+                seq = int(item.item_code.split("-")[1])
+                max_seq = max(max_seq, seq)
             except (ValueError, IndexError):
                 pass
+    
+    return f"{area_code}-{str(max_seq + 1).zfill(3)}"
 
-    # Sort areas alphabetically for consistent numbering
-    area_order_sorted = sorted(area_order)
 
-    # Determine area number for the new area
-    if area not in area_order_sorted:
-        area_order_sorted.append(area)
-        area_order_sorted = sorted(area_order_sorted)
+def _generate_area_code(area_name: str) -> str:
+    """
+    Generate a 3-4 letter area code from area name.
+    Uses consonants and first letter, uppercase.
+    
+    Examples:
+        "Security" → "SEC"
+        "Technical Architecture" → "TECH"
+        "Governance" → "GOV"
+        "Scope & Planning" → "SCOP"
+    """
+    # Remove special chars and split into words
+    import re
+    words = re.sub(r'[^a-zA-Z\s]', '', area_name).split()
+    
+    # Build code from first letters and consonants
+    consonants = set('BCDFGHJKLMNPQRSTVWXYZ')
+    code = ""
+    
+    for word in words:
+        if len(code) >= 4:
+            break
+        # Add first letter
+        if word:
+            code += word[0].upper()
+        # Add next 2-3 consonants
+        for char in word[1:]:
+            if char.upper() in consonants and len(code) < 4:
+                code += char.upper()
+    
+    # Ensure at least 3 chars
+    code = (code + "XXX")[:4]
+    
+    return code
 
-    area_number = area_order_sorted.index(area) + 1
 
-    # Get next sequence number for this area
-    next_sequence = area_sequences.get(area, 0) + 1
-
-    return f"{area_number}.{next_sequence}"
+async def _validate_item_code(db: AsyncSession, checklist_id: int, item_code: str, area: str) -> bool:
+    """
+    Validate manually provided item_code.
+    Must match pattern: {AREA_CODE}-{NNN}
+    Area code must be registered for this checklist or match the provided area.
+    """
+    import re
+    
+    # Check pattern: 3-4 letters, dash, 3 digits
+    pattern = r'^[A-Z]{3,4}-\d{3}$'
+    if not re.match(pattern, item_code):
+        return False
+    
+    # Get checklist area_codes
+    checklist_result = await db.execute(
+        select(Checklist).where(Checklist.id == checklist_id)
+    )
+    checklist = checklist_result.scalar_one_or_none()
+    
+    if not checklist:
+        return False
+    
+    area_codes: dict[str, str] = checklist.area_codes or {}
+    
+    # Extract area code from item_code
+    provided_code = item_code.split("-")[0]
+    
+    # Check if code matches any registered area code
+    registered_codes = set(area_codes.values())
+    
+    # Also check if it matches the area being added (auto-register if needed)
+    if area in area_codes:
+        registered_codes.add(area_codes[area])
+    else:
+        # Generate what the code would be for this area
+        expected_code = _generate_area_code(area)
+        registered_codes.add(expected_code)
+    
+    return provided_code in registered_codes
 
 
 router = APIRouter()
+
+
+@router.get("/globals/{checklist_id}/area-codes")
+async def get_checklist_area_codes(
+    checklist_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get area code mapping for a checklist.
+    Returns: {"area_codes": {"Security": "SEC", "Technical": "TECH"}}
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+    
+    result = await db.execute(
+        select(Checklist).where(Checklist.id == checklist_id)
+    )
+    checklist = result.scalar_one_or_none()
+    
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+    
+    return {
+        "checklist_id": checklist_id,
+        "area_codes": checklist.area_codes or {}
+    }
 
 
 @router.get("/{checklist_id}")
@@ -625,16 +731,27 @@ async def add_checklist_item(
         if not project or (current_user.role != "admin" and project.owner_id != current_user.id):
             raise HTTPException(status_code=403, detail="Not authorized to modify this checklist")
 
-        # Auto-generate item_code if not provided
+        area = item_in.area.strip() if item_in.area else ""
+        
+        # Handle item_code: auto-generate or validate manual override
         item_code = item_in.item_code.strip() if item_in.item_code else ""
         if not item_code:
-            item_code = await _generate_item_code(db, checklist_id, item_in.area.strip())
+            # Auto-generate
+            item_code = await _generate_item_code(db, checklist_id, area)
+        else:
+            # Validate manual override
+            valid = await _validate_item_code(db, checklist_id, item_code, area)
+            if not valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid item_code '{item_code}'. Must match pattern AREA-NNN (e.g., SEC-001) where AREA is a registered area code."
+                )
 
         new_item = ChecklistItem(
             checklist_id=checklist_id,
             item_code=item_code,
-            area=item_in.area.strip() if item_in.area else None,
-            question=item_in.question.strip() if item_in.question else None,
+            area=area,
+            question=item_in.question.strip() if item_in.question else "",
             category=item_in.category.strip() if item_in.category else None,
             weight=item_in.weight,
             is_required=item_in.is_required,
@@ -1112,15 +1229,26 @@ async def add_item_to_global_checklist(
         if not checklist.is_global:
             raise HTTPException(status_code=400, detail="Can only add items to global checklists")
 
-        # Auto-generate item_code if not provided
+        area = item_in.area.strip()
+        
+        # Handle item_code: auto-generate or validate manual override
         item_code = item_in.item_code.strip() if item_in.item_code else ""
         if not item_code:
-            item_code = await _generate_item_code(db, checklist_id, item_in.area.strip())
+            # Auto-generate
+            item_code = await _generate_item_code(db, checklist_id, area)
+        else:
+            # Validate manual override
+            valid = await _validate_item_code(db, checklist_id, item_code, area)
+            if not valid:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid item_code '{item_code}'. Must match pattern AREA-NNN (e.g., SEC-001) where AREA is a registered area code for this checklist."
+                )
 
         item = ChecklistItem(
             checklist_id=checklist_id,
             item_code=item_code,
-            area=item_in.area.strip(),
+            area=area,
             question=item_in.question.strip(),
             category=item_in.category.strip() if item_in.category else None,
             weight=item_in.weight,

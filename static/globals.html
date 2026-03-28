@@ -179,6 +179,9 @@
               <span id="td-version" style="font-size:11px;color:#64748b;"></span>
               <span id="td-id" style="font-size:11px;color:#475569;background:#0f172a;border:1px solid #334155;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
             </div>
+            <div id="td-area-codes" style="margin-top:8px;font-size:11px;color:#64748b;">
+              <!-- Area codes displayed here -->
+            </div>
           </div>
           <div class="right-panel-actions">
             <button id="btn-rename" class="btn btn-ghost btn-sm" onclick="startRename()">Rename</button>
@@ -202,7 +205,7 @@
               <tbody id="items-tbody"></tbody>
               <tbody>
                 <tr class="add-row">
-                  <td><input id="add-code" class="inline-input" placeholder="Auto" style="width:70px;" title="Leave blank for auto-generated code (e.g., 1.1, 1.2, etc.)" /></td>
+                  <td><input id="add-code" class="inline-input" placeholder="SEC-001" style="width:80px;" title="Leave blank for auto-generated code (e.g., SEC-001, TECH-002). Format: AREA-NNN where AREA is a registered area code." /></td>
                   <td><input id="add-area" class="inline-input" placeholder="General" /></td>
                   <td>
                     <input id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;margin-bottom:4px;" />
@@ -452,21 +455,34 @@
     try {
       const data = await api(`/api/checklists/${id}?include_items=true`);
       if (!data) return;
-      
+
       selectedTemplate = { id: data.id, name: data.name, type: data.type, version: data.version };
       selectedItems = data.items || [];
-      
+
       // Update UI
       document.getElementById('empty-state').classList.add('hidden');
       document.getElementById('template-detail').classList.remove('hidden');
-      
+
       // Render header
       document.getElementById('td-name').textContent = data.name;
       document.getElementById('td-type').textContent = data.type.toUpperCase();
       document.getElementById('td-type').className = `badge ${data.type === 'technical' ? 'badge-purple' : 'badge-blue'}`;
       document.getElementById('td-version').textContent = `v${data.version}`;
       document.getElementById('td-id').textContent = `ID: ${data.id}`;
-      
+
+      // Fetch and display area codes
+      try {
+        const acData = await api(`/api/checklists/globals/${id}/area-codes`);
+        if (acData && acData.area_codes) {
+          const codes = Object.entries(acData.area_codes)
+            .map(([area, code]) => `<span style="margin-right:12px;"><strong style="color:#38bdf8;">${code}</strong>: ${escapeHtml(area)}</span>`)
+            .join('');
+          document.getElementById('td-area-codes').innerHTML = codes || '<span style="color:#64748b;">No area codes yet — they will be created when you add items</span>';
+        }
+      } catch(e) {
+        document.getElementById('td-area-codes').innerHTML = '<span style="color:#64748b;">Area codes unavailable</span>';
+      }
+
       renderItemsTable();
       renderTemplateList();
     } catch(e) {

@@ -62,6 +62,9 @@ async def init_db():
             # 007c — autonomous_review_job_id on reports (links a report to an autonomous job)
             """ALTER TABLE reports
                ADD COLUMN IF NOT EXISTS autonomous_review_job_id INTEGER""",
+            # 008 — area_codes on checklists (JSON mapping: area name → code)
+            """ALTER TABLE checklists
+               ADD COLUMN IF NOT EXISTS area_codes JSONB""",
         ]
         for sql in migrations:
             try:

@@ -85,23 +85,26 @@ class Project(Base):
 class Checklist(Base):
     """Checklist template for reviews"""
     __tablename__ = "checklists"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)  # e.g., "Delivery Check List V 1.0"
     type = Column(String, nullable=False)  # "delivery" or "technical"
     version = Column(String, default="1.0")
-    
+
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     project = relationship("Project", back_populates="checklists")
-    
+
     # Is this a global template or project-specific
     is_global = Column(Boolean, default=True)
-    
+
     # Optional reference to original template if cloned
     source_checklist_id = Column(Integer, ForeignKey("checklists.id", ondelete="SET NULL"), nullable=True)
-    
+
+    # Area code mapping: {"Security": "SEC", "Technical Architecture": "TECH"}
+    area_codes = Column(JSON, nullable=True)
+
     items = relationship("ChecklistItem", back_populates="checklist", cascade="all, delete-orphan")
-    
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
