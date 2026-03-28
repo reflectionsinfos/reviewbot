@@ -49,6 +49,9 @@ class CloneChecklistResponse(BaseModel):
     item_count: int
     source_checklist_id: Optional[int] = None
 
+class CloneChecklistReq(BaseModel):
+    custom_name: Optional[str] = None
+
 class SyncStrategyReq(BaseModel):
     strategy: Literal["add_new_only", "add_and_update", "full_reset"]
 
@@ -271,6 +274,7 @@ async def use_global_template(
 async def clone_checklist_to_project(
     checklist_id: int,
     project_id: int,
+    req: CloneChecklistReq = CloneChecklistReq(),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -301,8 +305,10 @@ async def clone_checklist_to_project(
             raise HTTPException(status_code=403, detail="Not authorized to clone to this project")
             
         # Clones: creates new Checklist... deep copies items
+        checklist_name = (req.custom_name.strip() if req.custom_name and req.custom_name.strip()
+                          else source_checklist.name)
         new_checklist = Checklist(
-            name=f"{source_checklist.name} (Project Copy)",
+            name=checklist_name,
             type=source_checklist.type,
             version=source_checklist.version,
             project_id=project_id,

@@ -568,17 +568,27 @@
       const iconEmoji = t.type === 'technical' ? '⚙️' : '📋';
       const typeLabel = t.type.charAt(0).toUpperCase() + t.type.slice(1);
       return `
-        <div class="template-row ${alreadyAdded ? 'template-row-added' : ''}">
+        <div class="template-row ${alreadyAdded ? 'template-row-added' : ''}" id="trow-${t.id}">
           <div class="template-row-icon ${iconClass}">${iconEmoji}</div>
           <div class="template-row-info">
-            <div class="template-row-name">${t.name}</div>
+            <div class="template-row-name">${escapeHtml(t.name)}</div>
             <div class="template-row-meta">${typeLabel} · ${t.items_count} items · v${t.version}</div>
           </div>
           <div class="template-row-action">
             ${alreadyAdded
               ? `<span class="badge badge-green">✓ Already added</span>`
-              : `<button class="btn btn-primary btn-sm" onclick="cloneTemplate(${t.id}, '${escapeHtml(t.name)}')">Add to Project</button>`
+              : `<button class="btn btn-primary btn-sm" onclick="expandNameInput(${t.id}, '${escapeHtml(t.name).replace(/'/g,"\\'")}')">Add to Project</button>`
             }
+          </div>
+        </div>
+        <div id="trow-name-${t.id}" class="hidden" style="padding:0 0 12px 56px;">
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="trow-input-${t.id}" type="text" value="${escapeHtml(t.name)}"
+              style="flex:1;background:#0f172a;border:1px solid #38bdf8;color:#e2e8f0;padding:7px 10px;border-radius:7px;font-size:13px;"
+              onkeydown="if(event.key==='Enter')cloneTemplate(${t.id});if(event.key==='Escape')collapseNameInput(${t.id})"
+              placeholder="Enter a name for this checklist" />
+            <button class="btn btn-primary btn-sm" id="trow-confirm-${t.id}" onclick="cloneTemplate(${t.id})">Confirm</button>
+            <button class="btn btn-ghost btn-sm" onclick="collapseNameInput(${t.id})">Cancel</button>
           </div>
         </div>
       `;
@@ -639,17 +649,39 @@
     }
   }
 
-  async function cloneTemplate(templateId, templateName) {
+  function expandNameInput(templateId, defaultName) {
+    // Collapse any other open name inputs first
+    document.querySelectorAll('[id^="trow-name-"]').forEach(el => el.classList.add('hidden'));
+    const nameRow = document.getElementById(`trow-name-${templateId}`);
+    if (nameRow) {
+      nameRow.classList.remove('hidden');
+      const input = document.getElementById(`trow-input-${templateId}`);
+      if (input) { input.value = defaultName; input.focus(); input.select(); }
+    }
+  }
+
+  function collapseNameInput(templateId) {
+    const nameRow = document.getElementById(`trow-name-${templateId}`);
+    if (nameRow) nameRow.classList.add('hidden');
+  }
+
+  async function cloneTemplate(templateId) {
     const projectId = document.getElementById('project-select').value;
     if (!projectId) { toast('No project selected', 'error'); return; }
 
-    // Disable the button immediately to prevent double-click
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = 'Adding…';
+    const input = document.getElementById(`trow-input-${templateId}`);
+    const customName = input ? input.value.trim() : '';
+    if (!customName) { toast('Please enter a name for the checklist', 'error'); if (input) input.focus(); return; }
+
+    const btn = document.getElementById(`trow-confirm-${templateId}`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
 
     try {
-      const res = await api(`/api/checklists/${templateId}/clone-to-project/${projectId}`, { method: 'POST' });
+      const res = await api(`/api/checklists/${templateId}/clone-to-project/${projectId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ custom_name: customName })
+      });
       closeAddModal();
 
       // Reload project checklists and navigate to the new one
@@ -663,15 +695,14 @@
 
       // Show success callout on the new checklist
       showCallout(
-        `<strong>${res.item_count} items copied</strong> from "${templateName}". ` +
+        `<strong>${res.item_count} items copied</strong> into "${escapeHtml(res.name)}". ` +
         `Customise them below — add, edit, reorder, or remove as needed. ` +
         `Use <em>Sync from Global Template</em> to pull in future updates.`,
         'success'
       );
     } catch(e) {
       toast('Failed to add checklist: ' + e.message, 'error');
-      btn.disabled = false;
-      btn.textContent = 'Add to Project';
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirm'; }
     }
   }
 
