@@ -97,6 +97,9 @@ class Checklist(Base):
     # Is this a global template or project-specific
     is_global = Column(Boolean, default=True)
     
+    # Optional reference to original template if cloned
+    source_checklist_id = Column(Integer, ForeignKey("checklists.id", ondelete="SET NULL"), nullable=True)
+    
     items = relationship("ChecklistItem", back_populates="checklist", cascade="all, delete-orphan")
     
     created_at = Column(DateTime, default=datetime.utcnow)

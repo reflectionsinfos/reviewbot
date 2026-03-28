@@ -27,7 +27,25 @@
       "Bash(docker cp:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(find /c/projects/reviewbot-agent -not -path */.git/* -type f)",
+      "Bash(docker compose:*)",
+      "Bash(python -c \"from app.models import *; print\\(''models OK -'', len\\(Base.metadata.tables\\), ''tables''\\)\")",
+      "Bash(python -c \"from app.api.routes import reports; print\\(''reports OK''\\)\")",
+      "Bash(reviewbot --version)",
+      "Bash(reviewbot --help)",
+      "Bash(reviewbot status:*)",
+      "Bash(NEW_HASH='$2b$12$3WevSR4zoXQs7Ey3gCAeYePwo0BfFXaoAI3Lp04C61oIi7xqIk0Q.')",
+      "Bash(ls c:/projects/reviewbot/*.ini)",
+      "Bash(docker restart:*)",
+      "Bash($config = Get-Content \"$env:USERPROFILE\\\\.reviewbot\\\\config.json\")",
+      "Bash(ConvertFrom-Json)",
+      "Bash($token = $config.api_key)",
+      "Bash(Invoke-RestMethod \"http://localhost:8000/api/v1/agent/scan/8/results\" -Headers @{Authorization=\"Bearer $token\"})",
+      "Bash(ConvertTo-Json -Depth 5)",
+      "Bash(Select-Object -First 60)",
+      "Bash(ls *.md)",
+      "Bash(grep -E '\\\\.py$')"
     ]
   }
 }

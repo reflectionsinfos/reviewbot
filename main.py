@@ -90,6 +90,13 @@ async def serve_history(job_id: int = None):
     return FileResponse(os.path.join(_static_dir, "history.html"))
 
 
+@app.get("/projects-ui", include_in_schema=False)
+@app.get("/projects-ui/{project_id}", include_in_schema=False)
+async def serve_projects_ui(project_id: int = None):
+    """Serve the Projects & Checklists Management UI"""
+    return FileResponse(os.path.join(_static_dir, "project.html"))
+
+
 # ── Health / root ─────────────────────────────────────────────────────────────
 @app.get("/")
 async def root():
