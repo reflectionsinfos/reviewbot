@@ -248,24 +248,15 @@
   <div class="nav-right">
     <div class="user-dropdown">
       <button class="user-dropdown-btn" onclick="toggleUserDropdown()">
-        <div class="user-avatar" id="user-avatar-initial">U</div>
+        <div class="user-avatar user-avatar-human" id="user-avatar">🧑</div>
         <span id="user-dropdown-name">User</span>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="user-dropdown-menu hidden" id="user-dropdown-menu">
         <div class="user-dropdown-header">
           <div class="user-dropdown-name" id="user-menu-name">User Name</div>
-          <div class="user-dropdown-email" id="user-menu-email">user@example.com</div>
+          <div class="user-dropdown-role" id="user-menu-role">User</div>
         </div>
-        <button class="user-dropdown-item" onclick="alert('Profile settings coming soon')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Profile
-        </button>
-        <button class="user-dropdown-item" onclick="alert('AI Services info coming soon')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/></svg>
-          AI Services
-        </button>
-        <hr class="user-dropdown-divider" />
         <button class="user-dropdown-item" onclick="logout()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Logout
@@ -479,12 +470,16 @@
     }
   });
 
-  function updateUserMenu(userEmail, userName) {
-    const initial = userName ? userName.charAt(0).toUpperCase() : 'U';
-    document.getElementById('user-avatar-initial').textContent = initial;
-    document.getElementById('user-dropdown-name').textContent = userName || 'User';
-    document.getElementById('user-menu-name').textContent = userName || 'User';
-    document.getElementById('user-menu-email').textContent = userEmail || '';
+  function updateUserMenu(userEmail, userName, userRole) {
+    const isBot = userRole && userRole.toLowerCase().includes('bot');
+    const avatar = document.getElementById('user-avatar');
+    avatar.className = 'user-avatar ' + (isBot ? 'user-avatar-bot' : 'user-avatar-human');
+    avatar.textContent = isBot ? '🤖' : '🧑';
+    
+    const displayName = userName || userEmail?.split('@')[0] || 'User';
+    document.getElementById('user-dropdown-name').textContent = displayName;
+    document.getElementById('user-menu-name').textContent = displayName;
+    document.getElementById('user-menu-role').textContent = (userRole || 'user').toUpperCase();
   }
 
   // Parse token and update user menu on load
@@ -492,8 +487,9 @@
     try {
       const payload = JSON.parse(atob(TOKEN.split('.')[1]));
       const email = payload.sub || '';
-      const name = payload.full_name || payload.email?.split('@')[0] || '';
-      updateUserMenu(email, name);
+      const name = payload.full_name || '';
+      const role = payload.role || 'user';
+      updateUserMenu(email, name, role);
     } catch {}
   }
 
