@@ -229,6 +229,7 @@
         <div class="checklist-meta">
           <span id="c-type" class="badge badge-gray"></span>
           <span id="c-items-count" style="font-size:13px;color:#94a3b8;"></span>
+          <span id="c-id-badge" style="font-size:11px;color:#475569;background:#0f172a;border:1px solid #334155;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
         </div>
       </div>
       <div>
@@ -532,6 +533,7 @@
       document.getElementById('c-name').textContent = d.name;
       document.getElementById('c-type').textContent = d.type.toUpperCase();
       document.getElementById('c-items-count').textContent = `${d.items_count || 0} items`;
+      document.getElementById('c-id-badge').textContent = `ID: ${d.id}`;
       const syncBtn = document.getElementById('btn-sync-global');
       d.source_checklist_id ? syncBtn.classList.remove('hidden') : syncBtn.classList.add('hidden');
       renderItemsTable(d.items || []);
