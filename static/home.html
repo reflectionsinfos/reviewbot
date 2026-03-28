@@ -10,7 +10,8 @@
 
     /* ── Header ─────────────────────────────────────────────────────────────── */
     header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 50; }
-    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+    header .logo img { height: 32px; width: auto; }
     header .tagline { font-size: 13px; color: #94a3b8; }
     header nav { margin-left: auto; display: flex; gap: 8px; }
     header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; transition: all 0.15s; }
@@ -19,6 +20,23 @@
     #nav-user { font-size: 13px; color: #94a3b8; }
     .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
     .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── User Dropdown ───────────────────────────────────────────────────────── */
+    .user-dropdown { position: relative; }
+    .user-dropdown-btn { background: transparent; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
+    .user-dropdown-btn:hover { border-color: #38bdf8; background: #1e293b; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .user-avatar-human { background: linear-gradient(135deg, #10b981, #059669); }
+    .user-avatar-bot { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+    .user-dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; min-width: 220px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100; }
+    .user-dropdown-menu.hidden { display: none; }
+    .user-dropdown-header { padding: 12px 16px; border-bottom: 1px solid #334155; }
+    .user-dropdown-name { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bottom: 2px; }
+    .user-dropdown-role { font-size: 11px; color: #64748b; text-transform: uppercase; }
+    .user-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #94a3b8; text-decoration: none; font-size: 13px; transition: all 0.15s; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
+    .user-dropdown-item:hover { background: #0f172a; color: #38bdf8; }
+    .user-dropdown-item svg { width: 16px; height: 16px; }
+    .user-dropdown-divider { border: none; border-top: 1px solid #334155; margin: 4px 0; }
 
     /* ── Buttons ─────────────────────────────────────────────────────────────── */
     .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -109,6 +127,8 @@
     footer a { color: #64748b; text-decoration: none; transition: color 0.15s; }
     footer a:hover { color: #38bdf8; }
     .footer-links { display: flex; gap: 20px; }
+    .footer-powered { display: flex; align-items: center; gap: 8px; }
+    .footer-powered img { height: 20px; width: auto; }
 
     /* ── Score display ───────────────────────────────────────────────────────── */
     .score-green { color: #4ade80; font-weight: 700; }
@@ -128,7 +148,10 @@
 
 <!-- ── Header ──────────────────────────────────────────────────────────────── -->
 <header>
-  <a href="/" class="logo">ReviewBot</a>
+  <a href="/" class="logo">
+    <img src="/static/images/reflectionsit_logo.jpg" alt="Reflections" onerror="this.style.display='none'" />
+    ReviewBot
+  </a>
   <span class="tagline">AI Review Platform</span>
   <nav>
     <a href="/projects-ui">Checklists</a>
@@ -137,9 +160,23 @@
     <a href="/docs" target="_blank">API Docs &#x2197;</a>
   </nav>
   <div class="nav-right">
-    <span id="nav-user"></span>
-    <button class="btn-logout" id="btn-logout" style="display:none" onclick="logout()">Logout</button>
-    <button class="btn btn-primary btn-sm" id="btn-signin" onclick="openLogin()">Sign In</button>
+    <div class="user-dropdown">
+      <button class="user-dropdown-btn" onclick="toggleUserDropdown()">
+        <div class="user-avatar user-avatar-human" id="user-avatar">🧑</div>
+        <span id="user-dropdown-name">User</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="user-dropdown-menu hidden" id="user-dropdown-menu">
+        <div class="user-dropdown-header">
+          <div class="user-dropdown-name" id="user-menu-name">User Name</div>
+          <div class="user-dropdown-role" id="user-menu-role">User</div>
+        </div>
+        <button class="user-dropdown-item" onclick="logout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -306,11 +343,14 @@
 
 <!-- ── Footer ──────────────────────────────────────────────────────────────── -->
 <footer>
-  <span>&copy; 2025 ReviewBot &middot; AI-powered project reviews &middot; v2.0</span>
+  <div class="footer-powered">
+    <span>Powered by</span>
+    <img src="/static/images/reflectionsit_logo.jpg" alt="Reflections Global" onerror="this.style.display='none'" />
+    <span>Reflections Global</span>
+  </div>
   <div class="footer-links">
-    <a href="#">Privacy</a>
+    <a href="https://www.reflectionsglobal.com/contact-us" target="_blank">Contact Us</a>
     <a href="/docs" target="_blank">Docs</a>
-    <a href="#">GitHub</a>
   </div>
 </footer>
 
@@ -405,18 +445,49 @@
     _logoutInProgress = false;
   }
 
+  /* ── User Dropdown ──────────────────────────────────────────────────────── */
+  function toggleUserDropdown() {
+    const menu = document.getElementById('user-dropdown-menu');
+    menu.classList.toggle('hidden');
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    const dropdown = document.querySelector('.user-dropdown');
+    const menu = document.getElementById('user-dropdown-menu');
+    if (dropdown && !dropdown.contains(e.target)) {
+      menu.classList.add('hidden');
+    }
+  });
+
+  function updateUserMenu(userEmail, userName, userRole) {
+    // Determine if bot or human
+    const isBot = userRole && userRole.toLowerCase().includes('bot');
+    const avatar = document.getElementById('user-avatar');
+    avatar.className = 'user-avatar ' + (isBot ? 'user-avatar-bot' : 'user-avatar-human');
+    avatar.textContent = isBot ? '🤖' : '🧑';
+    
+    // Update display
+    const displayName = userName || userEmail?.split('@')[0] || 'User';
+    document.getElementById('user-dropdown-name').textContent = displayName;
+    document.getElementById('user-menu-name').textContent = displayName;
+    document.getElementById('user-menu-role').textContent = userRole || 'User';
+  }
+
   /* ── Show dashboard ─────────────────────────────────────────────────────── */
   async function showDashboard() {
     document.getElementById('auth-modal').classList.add('hidden');
     document.getElementById('main-content').style.display = 'block';
     document.getElementById('btn-signin').style.display = 'none';
-    document.getElementById('btn-logout').style.display = '';
+    document.getElementById('btn-logout').style.display = 'none';
 
-    // Try to decode email from JWT for display
+    // Try to decode user info from JWT for display
     try {
       const payload = JSON.parse(atob(getToken().split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      const name = payload.sub || payload.email || '';
-      if (name) document.getElementById('nav-user').textContent = name;
+      const email = payload.sub || payload.email || '';
+      const name = payload.full_name || '';
+      const role = payload.role || 'user';
+      if (email) updateUserMenu(email, name, role);
     } catch {}
 
     await loadDashboard();
