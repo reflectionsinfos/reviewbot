@@ -460,8 +460,8 @@
 
     // Global checklists
     if (checklists.status === 'fulfilled') {
-      const items = checklists.value?.items ?? checklists.value?.results ?? (Array.isArray(checklists.value) ? checklists.value : []);
-      const total = checklists.value?.pagination?.total ?? checklists.value?.total ?? items.length;
+      const templates = checklists.value?.templates ?? [];
+      const total = checklists.value?.total ?? templates.length;
       document.getElementById('stat-checklists').textContent = total;
     }
 
