@@ -242,18 +242,6 @@
 
       <div class="stat-card">
         <div class="stat-card-info">
-          <div class="stat-num" id="stat-pending">–</div>
-          <div class="stat-label">Pending Approval</div>
-        </div>
-        <div class="stat-card-icon stat-icon-amber">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/>
-          </svg>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-card-info">
           <div class="stat-num" id="stat-checklists">–</div>
           <div class="stat-label">Global Checklists</div>
         </div>
@@ -468,13 +456,6 @@
       const items = reviews.value?.items ?? reviews.value?.results ?? (Array.isArray(reviews.value) ? reviews.value : []);
       const total = reviews.value?.pagination?.total ?? reviews.value?.total ?? items.length;
       document.getElementById('stat-reviews').textContent = total;
-    }
-
-    // Pending approval
-    if (reports.status === 'fulfilled') {
-      const items = reports.value?.items ?? reports.value?.results ?? (Array.isArray(reports.value) ? reports.value : []);
-      const pending = items.filter(r => r.approval_status === 'pending' || r.approval_status === 'pending_approval').length;
-      document.getElementById('stat-pending').textContent = pending;
     }
 
     // Global checklists
