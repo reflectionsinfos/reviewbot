@@ -264,7 +264,7 @@
             <th>Checklist</th>
             <th>Status</th>
             <th>Score</th>
-            <th>Date</th>
+            <th>Reviewed Date</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -496,22 +496,61 @@
       return;
     }
 
+    // Fetch project and checklist names for display
+    const projectsMap = {};
+    const checklistsMap = {};
+    const reportsMap = {};
+    
+    // Collect unique project IDs and checklist IDs
+    const projectIds = [...new Set(items.map(r => r.project_id).filter(Boolean))];
+    const checklistIds = [...new Set(items.map(r => r.checklist_id).filter(Boolean))];
+    
+    // Fetch project names
+    if (projectIds.length > 0) {
+      try {
+        const projectsData = await api('/api/projects/');
+        if (projectsData?.projects) {
+          projectsData.projects.forEach(p => { projectsMap[p.id] = p.name; });
+        }
+      } catch {}
+    }
+    
+    // Fetch checklist names
+    if (checklistIds.length > 0) {
+      try {
+        const promises = checklistIds.map(id => api(`/api/checklists/${id}`).then(d => { checklistsMap[id] = d?.name; }).catch(() => {}));
+        await Promise.all(promises);
+      } catch {}
+    }
+    
+    // Fetch report scores (reports are linked by autonomous_review_job_id)
+    try {
+      const reportsData = await api('/api/reports/');
+      if (reportsData?.reports) {
+        reportsData.reports.forEach(r => {
+          if (r.autonomous_review_job_id) {
+            reportsMap[r.autonomous_review_job_id] = r.compliance_score;
+          }
+        });
+      }
+    } catch {}
+
     const recent = items.slice(0, 5);
     tbody.innerHTML = recent.map(r => {
-      const project   = escHtml(r.project_path || r.project_name || r.project_id || '–');
-      const checklist = escHtml(r.checklist_name || r.checklist_id || '–');
-      const status    = statusBadge(r.status);
-      const score     = scoreDisplay(r.compliance_score ?? r.score ?? null);
-      const date      = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '–';
-      const jobId     = r.job_id || r.id || '';
-      const viewHref  = jobId ? `/history/${encodeURIComponent(jobId)}` : '/history';
+      const projectName = projectsMap[r.project_id] || `Project ${r.project_id}`;
+      const checklistName = checklistsMap[r.checklist_id] || `Checklist ${r.checklist_id}`;
+      const status = statusBadge(r.status);
+      const score = scoreDisplay(reportsMap[r.id] ?? r.compliance_score ?? r.score ?? null);
+      const date = r.completed_at || r.created_at ? new Date(r.completed_at || r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '–';
+      const jobId = r.job_id || r.id || '';
+      const editHref = jobId ? `/history/${encodeURIComponent(jobId)}` : '/history';
       return `<tr>
-        <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${project}">${project}</td>
-        <td>${checklist}</td>
+        <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(projectName)}">${escHtml(projectName)}</td>
+        <td>${escHtml(checklistName)}</td>
         <td>${status}</td>
         <td>${score}</td>
         <td style="color:#64748b;white-space:nowrap">${date}</td>
-        <td><a href="${viewHref}" class="btn btn-ghost btn-sm">View</a></td>
+        <td><a href="${editHref}" class="btn btn-ghost btn-sm">Edit</a></td>
       </tr>`;
     }).join('');
   }
