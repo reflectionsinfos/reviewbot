@@ -1,0 +1,57 @@
+FAILURES ===================================
+_______________________ test_clone_checklist_happy_path _______________________
+
+async_client = <httpx.AsyncClient object at 0x000001B25F347230>
+db_session = <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x000001B25F346660>
+create_test_user = <function create_test_user.<locals>._create_user at 0x000001B25F3E5B20>
+project_factory = <function project_factory.<locals>._create_project at 0x000001B25F3E5BC0>
+checklist_factory = <function checklist_factory.<locals>._create_checklist at 0x000001B25F3E5C60>
+item_factory = <function item_factory.<locals>._create_item at 0x000001B25F3E5D00>
+
+    async def test_clone_checklist_happy_path(
+        async_client: AsyncClient,
+        db_session: AsyncSession,
+        create_test_user,
+        project_factory,
+        checklist_factory,
+        item_factory
+    ):
+        """Happy path: clones items, sets is_global=False, source_checklist_id matches."""
+        user, headers = await create_test_user()
+        project = await project_factory(owner_id=user.id)
+        global_chk = await checklist_factory(is_global=True, name="Global Blueprint")
+        await item_factory(checklist_id=global_chk.id, item_code="1.1", question="Q1", weight=1.0)
+        await item_factory(checklist_id=global_chk.id, item_code="1.2", question="Q2", weight=2.0)
+    
+        res = await async_client.post(
+            f"/api/checklists/{global_chk.id}/clone-to-project/{project.id}",
+            headers=headers
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["is_global"] is False
+        assert data["source_checklist_id"] == global_chk.id
+        assert data["project_id"] == project.id
+>       assert len(data["items"]) == 2
+E       KeyError: 'items'
+
+tests\test_checklists_integration.py:38: KeyError
+------------------------------ Captured log call ------------------------------
+WARNING  passlib.handlers.bcrypt:bcrypt.py:622 (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\mallikarjun.shankesi\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+============================== warnings summary ===============================
+..\..\Users\mallikarjun.shankesi\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pydantic\_internal\_config.py:323
+  C:\Users\mallikarjun.shankesi\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\pydantic\_internal\_config.py:323: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.11/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+tests/test_checklists_integration.py: 11 warnings
+  C:\Users\mallikarjun.shankesi\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\sqlalchemy\sql\schema.py:3625: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    return util.wrap_callable(lambda ctx: fn(), fn)  # type: ignore
+
+tests/test_checklists_integration.py::test_clone_checklist_happy_path
+  c:\projects\reviewbot\app\api\routes\auth.py:34: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    expire = date

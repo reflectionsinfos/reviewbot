@@ -5,18 +5,33 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 import logging
 import re
 import json
 
+from pydantic import BaseModel
+
 from app.db.session import get_db
-from app.models import Project, Checklist, ChecklistItem
+from app.models import Project, Checklist, ChecklistItem, User
 from app.services.checklist_parser import parse_excel_checklist
+from app.api.routes.auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class ProjectWithChecklistsCreate(BaseModel):
+    """Request model for creating a project with checklists"""
+    name: str
+    domain: Optional[str] = None
+    description: Optional[str] = None
+    tech_stack: Optional[List[str]] = None
+    stakeholders: Optional[Dict] = None
+    status: str = "active"
+    checklist_ids: Optional[List[int]] = []
+    checklist_names: Optional[Dict[str, str]] = None
 
 
 @router.get("/")
@@ -106,7 +121,7 @@ async def create_project(
             status_code=400,
             detail="Project name cannot be empty"
         )
-    
+
     # Validate status
     valid_statuses = ["active", "completed", "on_hold"]
     if status not in valid_statuses:
@@ -114,7 +129,7 @@ async def create_project(
             status_code=400,
             detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
         )
-    
+
     # Parse JSON fields
     try:
         tech_stack_list = json.loads(tech_stack) if tech_stack else None
@@ -124,7 +139,7 @@ async def create_project(
             status_code=400,
             detail=f"Invalid JSON format in tech_stack or stakeholders: {str(e)}"
         )
-    
+
     project = Project(
         name=name.strip(),
         domain=domain.strip() if domain else None,
@@ -133,18 +148,151 @@ async def create_project(
         stakeholders=stakeholders_dict,
         status=status
     )
-    
+
     db.add(project)
     await db.commit()
     await db.refresh(project)
-    
+
     logger.info(f"Project created: {project.name} (ID: {project.id})")
-    
+
     return {
         "message": "Project created successfully",
         "project_id": project.id,
         "name": project.name
     }
+
+
+@router.post("/create-with-checklists")
+async def create_project_with_checklists(
+    req: ProjectWithChecklistsCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Create a new project and clone one or more global checklists into it in a single transaction.
+    """
+    try:
+        # Validate project name
+        if not req.name or len(req.name.strip()) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Project name cannot be empty"
+            )
+
+        # Validate status
+        valid_statuses = ["active", "completed", "on_hold"]
+        if req.status not in valid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+            )
+
+        # Create the project
+        project = Project(
+            name=req.name.strip(),
+            domain=req.domain.strip() if req.domain else None,
+            description=req.description.strip() if req.description else None,
+            tech_stack=req.tech_stack,
+            stakeholders=req.stakeholders,
+            status=req.status,
+            owner_id=current_user.id
+        )
+
+        db.add(project)
+        await db.flush()  # Get project ID without committing
+
+        # Clone checklists
+        checklists_cloned = []
+
+        for checklist_id in req.checklist_ids or []:
+            # Load the global checklist with items
+            result = await db.execute(
+                select(Checklist)
+                .options(selectinload(Checklist.items))
+                .where(Checklist.id == checklist_id)
+            )
+            source_checklist = result.scalar_one_or_none()
+
+            if not source_checklist:
+                logger.warning(f"Checklist ID {checklist_id} not found, skipping")
+                continue
+
+            if not source_checklist.is_global:
+                logger.warning(f"Checklist ID {checklist_id} is not global, skipping")
+                continue
+
+            # Determine the name for the cloned checklist
+            checklist_name = (
+                req.checklist_names.get(str(checklist_id), "").strip()
+                if req.checklist_names and req.checklist_names.get(str(checklist_id))
+                else source_checklist.name
+            )
+            if not checklist_name:
+                checklist_name = source_checklist.name
+
+            # Create the cloned checklist
+            new_checklist = Checklist(
+                name=checklist_name,
+                type=source_checklist.type,
+                version=source_checklist.version,
+                project_id=project.id,
+                is_global=False,
+                source_checklist_id=source_checklist.id
+            )
+            db.add(new_checklist)
+            await db.flush()  # Get checklist ID
+
+            # Deep-copy all items
+            items_count = 0
+            for item in source_checklist.items:
+                new_item = ChecklistItem(
+                    checklist_id=new_checklist.id,
+                    item_code=item.item_code,
+                    area=item.area,
+                    question=item.question,
+                    category=item.category,
+                    weight=item.weight,
+                    is_required=item.is_required,
+                    expected_evidence=item.expected_evidence,
+                    suggested_for_domains=item.suggested_for_domains,
+                    order=item.order
+                )
+                db.add(new_item)
+                items_count += 1
+
+            checklists_cloned.append({
+                "id": new_checklist.id,
+                "name": new_checklist.name,
+                "type": new_checklist.type,
+                "item_count": items_count
+            })
+
+            logger.info(
+                f"Cloned checklist '{source_checklist.name}' (ID: {checklist_id}) "
+                f"to project '{project.name}' (ID: {project.id}) as '{new_checklist.name}'"
+            )
+
+        await db.commit()
+        await db.refresh(project)
+
+        logger.info(
+            f"Project created with checklists: {project.name} (ID: {project.id}), "
+            f"owner: {current_user.email}, checklists cloned: {len(checklists_cloned)}"
+        )
+
+        return {
+            "project_id": project.id,
+            "name": project.name,
+            "checklists_cloned": checklists_cloned
+        }
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error creating project with checklists: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{project_id}/upload-checklist")

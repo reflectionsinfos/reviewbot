@@ -1,0 +1,7 @@
+[
+  "clone_checklist_happy_path _______________________\ntests\\test_checklists_integration.py:38: in test_clone_checklist_happy_path\n    assert len(data[\"items\"]) == 2\nE   KeyError: 'items'\n------------------------------ Captured log call ------------------------------\nWARNING  passlib.handlers.bcrypt:bcr",
+  "items_crud_403_on_global_checklist ___________________\ntests\\test_checklists_integration.py:121: in test_items_crud_403_on_global_checklist\n    assert res.status_code == 403\nE   assert 422 == 403\nE    +  where 422 = <Response [422 Unprocessable Entity]>.status_code\n_______________________",
+  "items_crud_workflow ___________________________\ntests\\test_checklists_integration.py:171: in test_items_crud_workflow\n    assert not any(i[\"id\"] == item_id for i in items_after)\nE   assert not True\nE    +  where True = any(<generator object test_items_crud_workflow.<locals>.<genexpr> at 0x00000218B4",
+  "sync_add_new_only ____________________________\ntests\\test_checklists_integration.py:210: in test_sync_add_new_only\n    assert len(items) == 2\nE   AssertionError: assert 1 == 2\nE    +  where 1 = len([{'area': 'General', 'category': 'delivery', 'expected_evidence': None, 'id': 3, ...}])\n______________",
+  "sync_full_reset _____________________________\ntests\\test_checklists_integration.py:287: in test_sync_full_reset\n    assert items[0][\"item_code\"] == \"NEW.G\"\nE   AssertionError: assert 'LOCAL.1' == 'NEW.G'\nE     \nE     - NEW.G\nE     + LOCAL.1\n============================== warnings summary ==========="
+]

@@ -45,7 +45,8 @@
       "Bash(ConvertTo-Json -Depth 5)",
       "Bash(Select-Object -First 60)",
       "Bash(ls *.md)",
-      "Bash(grep -E '\\\\.py$')"
+      "Bash(grep -E '\\\\.py$')",
+      "Bash(find /c/projects/reviewbot -name *autonomous* -type f)"
     ]
   }
 }

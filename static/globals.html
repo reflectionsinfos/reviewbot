@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReviewBot — Global Templates</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ───────────────────────────────────────────────────────────── */
+    header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; }
+    header .tagline { font-size: 13px; color: #94a3b8; }
+    header nav { margin-left: auto; display: flex; gap: 8px; }
+    header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; transition: all 0.15s; }
+    header nav a:hover, header nav a.active { border-color: #38bdf8; color: #38bdf8; }
+    header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
+    header .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Auth Overlay ─────────────────────────────────────────────────────── */
+    #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .auth-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 36px; width: 380px; }
+    .auth-card h2 { color: #38bdf8; margin-bottom: 6px; }
+    .auth-card p { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+
+    /* ── Form elements ────────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    input, select, textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #38bdf8; }
+    select option { background: #1e293b; }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #38bdf8; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+    .btn-ghost:hover { border-color: #38bdf8; color: #38bdf8; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-danger:hover { background: #f87171; }
+    .btn-sm { padding: 4px 10px; font-size: 11px; }
+    .btn-icon-only { background: none; border: none; cursor: pointer; color: #475569; padding: 4px; border-radius: 4px; font-size: 14px; }
+    .btn-icon-only:hover { background: #1e293b; color: #38bdf8; }
+
+    /* ── Badges ───────────────────────────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .badge-blue { background: #1e3a5f44; color: #7dd3fc; border: 1px solid #1d4ed8; }
+    .badge-purple { background: #3b0764aa; color: #c084fc; border: 1px solid #6d28d9; }
+    .badge-gray { background: #1e293b; color: #94a3b8; border-color: #334155; }
+
+    /* ── Left Panel ───────────────────────────────────────────────────────── */
+    .left-panel { width: 320px; background: #1e293b; border-right: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; }
+    .left-panel-header { padding: 16px 20px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
+    .left-panel-header h2 { font-size: 16px; font-weight: 700; color: #f1f5f9; }
+    .left-panel-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .template-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
+    .template-card:hover { border-color: #475569; }
+    .template-card.selected { border-color: #38bdf8; background: #1e3a5f33; }
+    .template-card-name { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bottom: 6px; }
+    .template-card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; }
+
+    /* ── Right Panel ──────────────────────────────────────────────────────── */
+    .right-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .right-panel-header { padding: 20px 28px; border-bottom: 1px solid #334155; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .right-panel-info h2 { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+    .right-panel-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .right-panel-actions { display: flex; gap: 8px; }
+    .inline-edit-name { background: #0f172a; border: 1px solid #38bdf8; color: #e2e8f0; padding: 6px 10px; border-radius: 6px; font-size: 14px; width: 280px; }
+
+    /* ── Empty State ──────────────────────────────────────────────────────── */
+    .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .empty-state-content { text-align: center; color: #64748b; }
+    .empty-state-content h3 { font-size: 16px; font-weight: 600; color: #94a3b8; margin-bottom: 4px; }
+    .empty-state-content p { font-size: 13px; }
+
+    /* ── Table ────────────────────────────────────────────────────────────── */
+    .table-container { flex: 1; overflow: auto; padding: 20px 28px; }
+    .table-card { background: #0f172a55; border: 1px solid #334155; border-radius: 10px; overflow: hidden; }
+    .table-card > table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #0f172a; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 12px 14px; text-align: left; position: sticky; top: 0; }
+    td { padding: 12px 14px; vertical-align: top; border-bottom: 1px solid #1e293b22; }
+    tr:last-child td { border-bottom: none; }
+    .actions-cell { display: flex; gap: 4px; }
+    .inline-input { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
+    .inline-input:focus { outline: none; border-color: #38bdf8; }
+    .inline-textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
+    .add-row { background: #0f172a44; border-top: 2px dashed #334155; }
+    .add-row td { vertical-align: middle; }
+
+    /* ── Modals ───────────────────────────────────────────────────────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+    .modal-box h3 { margin-bottom: 6px; font-size: 18px; font-weight: 700; }
+    .modal-subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+    .modal-desc { font-size: 13px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
+    .modal-divider { border: none; border-top: 1px solid #334155; margin: 16px 0; }
+
+    /* ── Toast ────────────────────────────────────────────────────────────── */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+    #toast.success { border-color: #22c55e; color: #4ade80; }
+    #toast.error { border-color: #ef4444; color: #f87171; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- ── Auth Overlay ───────────────────────────────────────────────────────── -->
+<div id="auth-overlay">
+  <div class="auth-card">
+    <h2>ReviewBot</h2>
+    <p>Sign in to manage global templates</p>
+    <div id="auth-error" class="form-group" style="color:#f87171;font-size:12px;display:none;"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input id="login-email" type="email" value="admin@reviewbot.com" onkeydown="if(event.key==='Enter')login()" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input id="login-password" type="password" value="Admin@123" onkeydown="if(event.key==='Enter')login()" />
+    </div>
+    <button class="btn btn-primary btn-block" onclick="login()">Sign In</button>
+  </div>
+</div>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header>
+  <a href="/" class="logo">ReviewBot</a>
+  <span class="tagline">AI Review Platform</span>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/ui">AI Review</a>
+    <a href="/projects-ui">Checklists</a>
+    <a href="/globals" class="active">Global Templates</a>
+    <a href="/history">History</a>
+    <a href="/docs" target="_blank">API Docs ↗</a>
+  </nav>
+  <span id="header-user" style="font-size:13px;color:#64748b;margin-left:12px;"></span>
+  <button class="btn-logout" onclick="logout()">Sign out</button>
+</header>
+
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
+<main>
+  <!-- Left Panel: Template List -->
+  <div class="left-panel">
+    <div class="left-panel-header">
+      <h2>Global Templates</h2>
+      <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New Template</button>
+    </div>
+    <div class="left-panel-content" id="template-list">
+      <div style="text-align:center;color:#64748b;font-size:13px;padding:24px;">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Right Panel: Items Table -->
+  <div class="right-panel">
+    <div id="right-panel-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <!-- Empty state -->
+      <div id="empty-state" class="empty-state">
+        <div class="empty-state-content">
+          <h3>Select a template</h3>
+          <p>Choose a global template from the left to view and edit its items</p>
+        </div>
+      </div>
+
+      <!-- Template detail view -->
+      <div id="template-detail" class="hidden" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+        <div class="right-panel-header">
+          <div class="right-panel-info">
+            <h2 id="td-name">Template Name</h2>
+            <div class="right-panel-meta">
+              <span id="td-type" class="badge badge-blue"></span>
+              <span id="td-version" style="font-size:11px;color:#64748b;"></span>
+              <span id="td-id" style="font-size:11px;color:#475569;background:#0f172a;border:1px solid #334155;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
+            </div>
+          </div>
+          <div class="right-panel-actions">
+            <button id="btn-rename" class="btn btn-ghost btn-sm" onclick="startRename()">Rename</button>
+            <button id="btn-delete-template" class="btn btn-danger btn-sm" onclick="confirmDeleteTemplate()">Delete Template</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <div class="table-card">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:80px;">Code</th>
+                  <th style="width:120px;">Area</th>
+                  <th>Question &amp; Evidence</th>
+                  <th style="width:70px;">Weight</th>
+                  <th style="width:50px;">Req</th>
+                  <th style="width:90px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="items-tbody"></tbody>
+              <tbody>
+                <tr class="add-row">
+                  <td><input id="add-code" class="inline-input" placeholder="1.1" style="width:70px;" /></td>
+                  <td><input id="add-area" class="inline-input" placeholder="General" /></td>
+                  <td>
+                    <input id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;margin-bottom:4px;" />
+                    <input id="add-evidence" class="inline-input" placeholder="Expected evidence..." />
+                  </td>
+                  <td><input id="add-weight" type="number" step="0.5" class="inline-input" value="1.0" style="width:60px;" /></td>
+                  <td><select id="add-req" class="inline-input" style="width:50px;"><option value="true">Yes</option><option value="false">No</option></select></td>
+                  <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ── Create Template Modal ──────────────────────────────────────────────── -->
+<div id="create-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>Create New Template</h3>
+    <p class="modal-subtitle">Create a new global checklist template. You can add items after creation.</p>
+    
+    <div class="form-group">
+      <label>Name *</label>
+      <input id="ct-name" type="text" placeholder="e.g. Delivery Checklist v1.0" maxlength="200" />
+    </div>
+    
+    <div class="form-group">
+      <label>Type *</label>
+      <select id="ct-type">
+        <option value="delivery">Delivery</option>
+        <option value="technical">Technical</option>
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label>Version</label>
+      <input id="ct-version" type="text" value="1.0" placeholder="1.0" maxlength="20" />
+    </div>
+    
+    <div id="ct-error" style="display:none;color:#f87171;font-size:13px;margin-bottom:12px;"></div>
+    
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
+      <button id="btn-create" class="btn btn-primary" onclick="submitCreate()">Create Template</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Rename Modal ───────────────────────────────────────────────────────── -->
+<div id="rename-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>Rename Template</h3>
+    <p class="modal-subtitle">Update the name and/or version of this template.</p>
+    
+    <div class="form-group">
+      <label>Name</label>
+      <input id="rn-name" type="text" maxlength="200" />
+    </div>
+    
+    <div class="form-group">
+      <label>Version</label>
+      <input id="rn-version" type="text" maxlength="20" />
+    </div>
+    
+    <div id="rn-error" style="display:none;color:#f87171;font-size:13px;margin-bottom:12px;"></div>
+    
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeRenameModal()">Cancel</button>
+      <button id="btn-rename-save" class="btn btn-primary" onclick="submitRename()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Template Confirmation Modal ────────────────────────────────── -->
+<div id="delete-template-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3 style="color:#f87171;">Delete Template</h3>
+    <p class="modal-desc" id="delete-template-msg"></p>
+    <div id="delete-template-warning" style="background:#ef444411;border:1px solid #ef444444;border-radius:8px;padding:12px 14px;font-size:12px;color:#fca5a5;margin-bottom:8px;display:none;">
+      ⚠ <span id="delete-template-warning-text"></span>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDeleteTemplateModal()">Cancel</button>
+      <button id="btn-confirm-delete-template" class="btn btn-danger" onclick="executeDeleteTemplate()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Item Confirmation Modal ────────────────────────────────────── -->
+<div id="delete-item-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:420px;">
+    <h3 style="color:#f87171;">Delete Item</h3>
+    <p class="modal-desc" id="delete-item-msg"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDeleteItemModal()">Cancel</button>
+      <button id="btn-confirm-delete-item" class="btn btn-danger" onclick="executeDeleteItem()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let TOKEN = localStorage.getItem('rb_token') || '';
+  let templates = [];
+  let selectedTemplate = null;
+  let selectedItems = [];
+  let editingItemId = null;
+  let deleteTemplateId = null;
+  let deleteItemId = null;
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  let _logoutInProgress = false;
+
+  function isTokenExpired(tok) {
+    try {
+      const payload = JSON.parse(atob(tok.split('.')[1]));
+      return payload.exp && (payload.exp * 1000) < Date.now();
+    } catch { return true; }
+  }
+
+  async function login() {
+    const errorEl = document.getElementById('auth-error');
+    errorEl.style.display = 'none';
+    const btn = document.querySelector('#auth-overlay .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
+    const fd = new FormData();
+    fd.append('username', document.getElementById('login-email').value);
+    fd.append('password', document.getElementById('login-password').value);
+    try {
+      const res = await fetch('/api/auth/login', { method: 'POST', body: fd });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Login failed');
+      const data = await res.json();
+      TOKEN = data.access_token;
+      localStorage.setItem('rb_token', TOKEN);
+      _logoutInProgress = false;
+      document.getElementById('auth-overlay').style.display = 'none';
+      parseTokenAndLoad();
+    } catch(e) {
+      errorEl.textContent = e.message;
+      errorEl.style.display = 'block';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
+    }
+  }
+
+  function logout() {
+    if (_logoutInProgress) return;
+    _logoutInProgress = true;
+    TOKEN = '';
+    localStorage.removeItem('rb_token');
+    location.reload();
+  }
+
+  function parseTokenAndLoad() {
+    try {
+      const payload = JSON.parse(atob(TOKEN.split('.')[1]));
+      document.getElementById('header-user').textContent = payload.sub || '';
+    } catch {}
+    loadTemplates();
+  }
+
+  if (TOKEN) {
+    if (isTokenExpired(TOKEN)) {
+      TOKEN = '';
+      localStorage.removeItem('rb_token');
+    } else {
+      document.getElementById('auth-overlay').style.display = 'none';
+      parseTokenAndLoad();
+    }
+  }
+
+  async function api(path, opts = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const headers = { 'Authorization': `Bearer ${TOKEN}`, ...(opts.headers || {}) };
+      const res = await fetch(path, { ...opts, headers, signal: controller.signal });
+      clearTimeout(timer);
+      if (res.status === 401) { logout(); return null; }
+      if (!res.ok) { let d = {}; try { d = await res.json(); } catch(e2) {} throw new Error(d.detail || res.statusText); }
+      return res.json();
+    } catch(e) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') throw new Error('Request timed out — the server may still be starting up. Please wait and try again.');
+      throw e;
+    }
+  }
+
+  function toast(msg, type = '') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = type;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 3500);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // ── Load Templates ─────────────────────────────────────────────────────────
+  async function loadTemplates() {
+    const container = document.getElementById('template-list');
+    container.innerHTML = '<div style="text-align:center;color:#64748b;font-size:13px;padding:24px;">Loading…</div>';
+    
+    try {
+      const data = await api('/api/checklists/templates/global');
+      if (!data) return;
+      templates = data.templates || [];
+      
+      if (templates.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#64748b;font-size:13px;padding:24px;">No global templates found.<br>Click "+ New Template" to create one.</div>';
+        return;
+      }
+      
+      renderTemplateList();
+    } catch(e) {
+      container.innerHTML = `<div style="text-align:center;color:#f87171;font-size:13px;padding:24px;">Failed to load: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderTemplateList() {
+    const container = document.getElementById('template-list');
+    container.innerHTML = templates.map(t => {
+      const badgeClass = t.type === 'technical' ? 'badge-purple' : 'badge-blue';
+      const typeLabel = t.type.toUpperCase();
+      const selected = selectedTemplate && selectedTemplate.id === t.id ? 'selected' : '';
+      return `
+        <div class="template-card ${selected}" onclick="selectTemplate(${t.id})">
+          <div class="template-card-name">${escapeHtml(t.name)}</div>
+          <div class="template-card-meta">
+            <span class="badge ${badgeClass}">${typeLabel}</span>
+            <span>${t.items_count} items</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Select Template ────────────────────────────────────────────────────────
+  async function selectTemplate(id) {
+    try {
+      const data = await api(`/api/checklists/${id}?include_items=true`);
+      if (!data) return;
+      
+      selectedTemplate = { id: data.id, name: data.name, type: data.type, version: data.version };
+      selectedItems = data.items || [];
+      
+      // Update UI
+      document.getElementById('empty-state').classList.add('hidden');
+      document.getElementById('template-detail').classList.remove('hidden');
+      
+      // Render header
+      document.getElementById('td-name').textContent = data.name;
+      document.getElementById('td-type').textContent = data.type.toUpperCase();
+      document.getElementById('td-type').className = `badge ${data.type === 'technical' ? 'badge-purple' : 'badge-blue'}`;
+      document.getElementById('td-version').textContent = `v${data.version}`;
+      document.getElementById('td-id').textContent = `ID: ${data.id}`;
+      
+      renderItemsTable();
+      renderTemplateList();
+    } catch(e) {
+      toast('Failed to load template: ' + e.message, 'error');
+    }
+  }
+
+  // ── Items Table ────────────────────────────────────────────────────────────
+  function renderItemsTable() {
+    const tbody = document.getElementById('items-tbody');
+    tbody.innerHTML = '';
+    
+    selectedItems.sort((a, b) => a.order - b.order).forEach((item, index) => {
+      const tr = document.createElement('tr');
+      
+      if (editingItemId === item.id) {
+        tr.innerHTML = `
+          <td><input id="edit-code-${item.id}" class="inline-input" value="${escapeHtml(item.item_code || '')}" style="width:70px;" /></td>
+          <td><input id="edit-area-${item.id}" class="inline-input" value="${escapeHtml(item.area || '')}" /></td>
+          <td>
+            <textarea id="edit-question-${item.id}" class="inline-textarea" style="min-height:40px;margin-bottom:4px;">${escapeHtml(item.question || '')}</textarea>
+            <input id="edit-evidence-${item.id}" class="inline-input" value="${escapeHtml(item.expected_evidence || '')}" placeholder="Expected evidence..." />
+          </td>
+          <td><input id="edit-weight-${item.id}" type="number" step="0.5" class="inline-input" value="${item.weight}" style="width:60px;" /></td>
+          <td><select id="edit-req-${item.id}" class="inline-input" style="width:50px;"><option value="true" ${item.is_required ? 'selected' : ''}>Yes</option><option value="false" ${!item.is_required ? 'selected' : ''}>No</option></select></td>
+          <td class="actions-cell">
+            <button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})" title="Save">💾</button>
+            <button class="btn-icon-only" onclick="cancelEdit()" title="Cancel">✕</button>
+          </td>
+        `;
+      } else {
+        tr.innerHTML = `
+          <td style="font-family:monospace;color:#94a3b8">${escapeHtml(item.item_code || '')}</td>
+          <td style="color:#94a3b8;font-size:12px">${escapeHtml(item.area || '')}</td>
+          <td>
+            <div style="font-weight:500;margin-bottom:3px">${escapeHtml(item.question || '')}</div>
+            <div style="font-size:11px;color:#64748b">${escapeHtml(item.expected_evidence || '')}</div>
+          </td>
+          <td>${item.weight}</td>
+          <td>${item.is_required ? 'Yes' : 'No'}</td>
+          <td class="actions-cell">
+            <button class="btn-icon-only" onclick="startEdit(${item.id})" title="Edit">✏️</button>
+            <button class="btn-icon-only" style="color:#f87171" onclick="confirmDeleteItem(${item.id}, '${escapeHtml(item.question || '').replace(/'/g, "\\'")}')" title="Delete">🗑️</button>
+          </td>
+        `;
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  function startEdit(id) {
+    editingItemId = id;
+    renderItemsTable();
+  }
+
+  function cancelEdit() {
+    editingItemId = null;
+    renderItemsTable();
+  }
+
+  async function saveItem(id) {
+    const payload = {
+      item_code: document.getElementById(`edit-code-${id}`).value,
+      area: document.getElementById(`edit-area-${id}`).value,
+      question: document.getElementById(`edit-question-${id}`).value,
+      expected_evidence: document.getElementById(`edit-evidence-${id}`).value,
+      weight: parseFloat(document.getElementById(`edit-weight-${id}`).value),
+      is_required: document.getElementById(`edit-req-${id}`).value === 'true'
+    };
+    
+    if (!payload.question) { toast('Question is required', 'error'); return; }
+    if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
+    
+    try {
+      await api(`/api/checklists/globals/${selectedTemplate.id}/items/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      toast('Item updated', 'success');
+      editingItemId = null;
+      await selectTemplate(selectedTemplate.id);
+    } catch(e) {
+      toast('Update failed: ' + e.message, 'error');
+    }
+  }
+
+  async function addItem() {
+    const payload = {
+      item_code: document.getElementById('add-code').value,
+      area: document.getElementById('add-area').value,
+      question: document.getElementById('add-question').value,
+      expected_evidence: document.getElementById('add-evidence').value,
+      weight: parseFloat(document.getElementById('add-weight').value || 1),
+      is_required: document.getElementById('add-req').value === 'true',
+      order: selectedItems.length
+    };
+    
+    if (!payload.question) { toast('Question is required', 'error'); return; }
+    if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
+    
+    try {
+      await api(`/api/checklists/globals/${selectedTemplate.id}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      toast('Item added', 'success');
+      document.getElementById('add-code').value = '';
+      document.getElementById('add-area').value = '';
+      document.getElementById('add-question').value = '';
+      document.getElementById('add-evidence').value = '';
+      document.getElementById('add-weight').value = '1.0';
+      await selectTemplate(selectedTemplate.id);
+    } catch(e) {
+      toast('Add failed: ' + e.message, 'error');
+    }
+  }
+
+  // ── Create Template ────────────────────────────────────────────────────────
+  function openCreateModal() {
+    document.getElementById('ct-name').value = '';
+    document.getElementById('ct-type').value = 'delivery';
+    document.getElementById('ct-version').value = '1.0';
+    document.getElementById('ct-error').style.display = 'none';
+    document.getElementById('create-modal').classList.remove('hidden');
+  }
+
+  function closeCreateModal() {
+    document.getElementById('create-modal').classList.add('hidden');
+  }
+
+  async function submitCreate() {
+    const errorEl = document.getElementById('ct-error');
+    const btn = document.getElementById('btn-create');
+    
+    errorEl.style.display = 'none';
+    
+    const name = document.getElementById('ct-name').value.trim();
+    if (!name) {
+      errorEl.textContent = 'Name is required';
+      errorEl.style.display = 'block';
+      return;
+    }
+    
+    const type = document.getElementById('ct-type').value;
+    const version = document.getElementById('ct-version').value.trim() || '1.0';
+    
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+    
+    try {
+      const res = await api('/api/checklists/globals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, type, version })
+      });
+      
+      closeCreateModal();
+      toast('Template created!', 'success');
+      await loadTemplates();
+      await selectTemplate(res.id);
+    } catch(e) {
+      errorEl.textContent = 'Failed to create: ' + e.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create Template';
+    }
+  }
+
+  // ── Rename Template ────────────────────────────────────────────────────────
+  function startRename() {
+    document.getElementById('rn-name').value = selectedTemplate.name;
+    document.getElementById('rn-version').value = selectedTemplate.version;
+    document.getElementById('rn-error').style.display = 'none';
+    document.getElementById('rename-modal').classList.remove('hidden');
+  }
+
+  function closeRenameModal() {
+    document.getElementById('rename-modal').classList.add('hidden');
+  }
+
+  async function submitRename() {
+    const errorEl = document.getElementById('rn-error');
+    const btn = document.getElementById('btn-rename-save');
+    
+    errorEl.style.display = 'none';
+    
+    const name = document.getElementById('rn-name').value.trim();
+    const version = document.getElementById('rn-version').value.trim();
+    
+    if (!name) {
+      errorEl.textContent = 'Name cannot be empty';
+      errorEl.style.display = 'block';
+      return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    
+    try {
+      const body = {};
+      if (name !== selectedTemplate.name) body.name = name;
+      if (version !== selectedTemplate.version) body.version = version;
+      
+      if (Object.keys(body).length === 0) {
+        closeRenameModal();
+        return;
+      }
+      
+      await api(`/api/checklists/globals/${selectedTemplate.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      closeRenameModal();
+      toast('Template updated', 'success');
+      selectedTemplate.name = name;
+      selectedTemplate.version = version;
+      await loadTemplates();
+      await selectTemplate(selectedTemplate.id);
+    } catch(e) {
+      errorEl.textContent = 'Failed to update: ' + e.message;
+      errorEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Changes';
+    }
+  }
+
+  // ── Delete Template ────────────────────────────────────────────────────────
+  function confirmDeleteTemplate() {
+    deleteTemplateId = selectedTemplate.id;
+    document.getElementById('delete-template-msg').innerHTML = `Are you sure you want to delete <strong>${escapeHtml(selectedTemplate.name)}</strong>?`;
+    document.getElementById('delete-template-warning').style.display = 'none';
+    document.getElementById('delete-template-modal').classList.remove('hidden');
+  }
+
+  function closeDeleteTemplateModal() {
+    deleteTemplateId = null;
+    document.getElementById('delete-template-modal').classList.add('hidden');
+  }
+
+  async function executeDeleteTemplate() {
+    const btn = document.getElementById('btn-confirm-delete-template');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    
+    try {
+      await api(`/api/checklists/globals/${deleteTemplateId}`, { method: 'DELETE' });
+      closeDeleteTemplateModal();
+      toast('Template deleted', 'success');
+      
+      // Reset and reload
+      selectedTemplate = null;
+      selectedItems = [];
+      document.getElementById('template-detail').classList.add('hidden');
+      document.getElementById('empty-state').classList.remove('hidden');
+      await loadTemplates();
+    } catch(e) {
+      const msg = e.message || '';
+      if (msg.includes('Cannot delete')) {
+        document.getElementById('delete-template-warning-text').textContent = msg;
+        document.getElementById('delete-template-warning').style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+      } else {
+        closeDeleteTemplateModal();
+        toast('Delete failed: ' + msg, 'error');
+      }
+    }
+  }
+
+  // ── Delete Item ────────────────────────────────────────────────────────────
+  function confirmDeleteItem(id, question) {
+    deleteItemId = id;
+    document.getElementById('delete-item-msg').innerHTML = `Delete this item from <strong>${escapeHtml(selectedTemplate.name)}</strong>?<br><br><em>${escapeHtml(question)}</em>`;
+    document.getElementById('delete-item-modal').classList.remove('hidden');
+  }
+
+  function closeDeleteItemModal() {
+    deleteItemId = null;
+    document.getElementById('delete-item-modal').classList.add('hidden');
+  }
+
+  async function executeDeleteItem() {
+    const btn = document.getElementById('btn-confirm-delete-item');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    
+    try {
+      await api(`/api/checklists/globals/${selectedTemplate.id}/items/${deleteItemId}`, { method: 'DELETE' });
+      closeDeleteItemModal();
+      toast('Item deleted', 'success');
+      await selectTemplate(selectedTemplate.id);
+    } catch(e) {
+      closeDeleteItemModal();
+      toast('Delete failed: ' + e.message, 'error');
+    }
+  }
+
+  // ── Escape key for modals ──────────────────────────────────────────────────
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const modals = ['create-modal', 'rename-modal', 'delete-template-modal', 'delete-item-modal'];
+      modals.forEach(id => {
+        const modal = document.getElementById(id);
+        if (modal && !modal.classList.contains('hidden')) {
+          modal.classList.add('hidden');
+        }
+      });
+    }
+  });
+</script>
+</body>
+</html>

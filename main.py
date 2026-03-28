@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.core.config import settings
 from app.api.routes import projects, reviews, reports, checklists, auth
@@ -95,6 +95,18 @@ async def serve_history(job_id: int = None):
 async def serve_projects_ui(project_id: int = None):
     """Serve the Projects & Checklists Management UI"""
     return FileResponse(os.path.join(_static_dir, "project.html"))
+
+
+@app.get("/globals", include_in_schema=False)
+async def serve_globals():
+    """Serve the Global Templates Management UI"""
+    return FileResponse(os.path.join(_static_dir, "globals.html"))
+
+
+@app.get("/global", include_in_schema=False)
+async def redirect_to_globals():
+    """Redirect /global to /globals"""
+    return RedirectResponse(url="/globals")
 
 
 # ── Health / root ─────────────────────────────────────────────────────────────

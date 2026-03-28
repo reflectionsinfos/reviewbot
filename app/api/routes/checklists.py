@@ -1,6 +1,7 @@
 """
 Checklists API Routes
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -14,6 +15,8 @@ from app.db.session import get_db
 from app.models import Checklist, ChecklistItem, ChecklistRecommendation, User, Project, Review, AutonomousReviewJob
 from app.api.routes.auth import get_current_user
 from app.services.checklist_optimizer import get_checklist_optimizer
+
+logger = logging.getLogger(__name__)
 
 class ChecklistItemCreate(BaseModel):
     area: str
@@ -61,6 +64,44 @@ class SyncResult(BaseModel):
     flagged_removed: int
     strategy_used: str
     flagged_items: List[str]
+
+
+class GlobalChecklistCreate(BaseModel):
+    """Request model for creating a global checklist"""
+    name: str
+    type: Literal["delivery", "technical"]
+    version: Optional[str] = "1.0"
+
+
+class GlobalChecklistUpdate(BaseModel):
+    """Request model for updating a global checklist"""
+    name: Optional[str] = None
+    version: Optional[str] = None
+
+
+class GlobalChecklistItemCreate(BaseModel):
+    """Request model for adding an item to a global checklist"""
+    item_code: str
+    area: str
+    question: str
+    category: Optional[str] = None
+    weight: float = 1.0
+    is_required: bool = True
+    expected_evidence: Optional[str] = None
+    order: int = 0
+
+
+class GlobalChecklistItemUpdate(BaseModel):
+    """Request model for updating an item on a global checklist"""
+    item_code: Optional[str] = None
+    area: Optional[str] = None
+    question: Optional[str] = None
+    category: Optional[str] = None
+    weight: Optional[float] = None
+    is_required: Optional[bool] = None
+    expected_evidence: Optional[str] = None
+    order: Optional[int] = None
+
 
 router = APIRouter()
 
@@ -788,4 +829,402 @@ async def delete_checklist(
         raise
     except Exception as e:
         await db.rollback()
+        logger.error(f"Error deleting checklist: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Global Checklist Management (Admin Only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/globals")
+async def create_global_checklist(
+    req: GlobalChecklistCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Create a new global checklist (empty, no items).
+    Requires admin role.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    try:
+        checklist = Checklist(
+            name=req.name.strip(),
+            type=req.type,
+            version=req.version.strip() if req.version else "1.0",
+            is_global=True,
+            project_id=None,
+            source_checklist_id=None
+        )
+
+        db.add(checklist)
+        await db.commit()
+        await db.refresh(checklist)
+
+        logger.info(f"Global checklist created: {checklist.name} (ID: {checklist.id}) by {current_user.email}")
+
+        return {
+            "id": checklist.id,
+            "name": checklist.name,
+            "type": checklist.type,
+            "version": checklist.version,
+            "is_global": True,
+            "item_count": 0
+        }
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error creating global checklist: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/globals/{checklist_id}")
+async def update_global_checklist(
+    checklist_id: int,
+    req: GlobalChecklistUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Rename a global checklist or update its version.
+    Requires admin role.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    try:
+        result = await db.execute(
+            select(Checklist).where(Checklist.id == checklist_id)
+        )
+        checklist = result.scalar_one_or_none()
+
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+
+        if not checklist.is_global:
+            raise HTTPException(status_code=400, detail="Can only update global checklists")
+
+        if req.name is not None:
+            if not req.name.strip():
+                raise HTTPException(status_code=400, detail="Name cannot be empty")
+            checklist.name = req.name.strip()
+
+        if req.version is not None:
+            checklist.version = req.version.strip() if req.version.strip() else "1.0"
+
+        checklist.updated_at = datetime.utcnow()
+
+        await db.commit()
+        await db.refresh(checklist)
+
+        logger.info(f"Global checklist updated: {checklist.name} (ID: {checklist.id}) by {current_user.email}")
+
+        return {
+            "id": checklist.id,
+            "name": checklist.name,
+            "version": checklist.version
+        }
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error updating global checklist: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/globals/{checklist_id}")
+async def delete_global_checklist(
+    checklist_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a global checklist.
+    Requires admin role.
+    Blocked if any project checklists are cloned from it or if reviews exist.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    try:
+        result = await db.execute(
+            select(Checklist).where(Checklist.id == checklist_id)
+        )
+        checklist = result.scalar_one_or_none()
+
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+
+        if not checklist.is_global:
+            raise HTTPException(status_code=400, detail="Can only delete global checklists")
+
+        # Check for cloned project checklists
+        cloned_count_result = await db.execute(
+            select(func.count()).select_from(Checklist).where(
+                Checklist.source_checklist_id == checklist_id
+            )
+        )
+        cloned_count = cloned_count_result.scalar() or 0
+
+        if cloned_count > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot delete: {cloned_count} project checklist(s) are cloned from this template. Remove those first."
+            )
+
+        # Check for autonomous review jobs
+        job_count_result = await db.execute(
+            select(func.count()).select_from(AutonomousReviewJob).where(
+                AutonomousReviewJob.checklist_id == checklist_id
+            )
+        )
+        job_count = job_count_result.scalar() or 0
+
+        if job_count > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot delete: {job_count} autonomous review job(s) reference this checklist."
+            )
+
+        # Check for manual reviews
+        review_count_result = await db.execute(
+            select(func.count()).select_from(Review).where(
+                Review.checklist_id == checklist_id
+            )
+        )
+        review_count = review_count_result.scalar() or 0
+
+        if review_count > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot delete: {review_count} review session(s) reference this checklist."
+            )
+
+        # Safe to delete — cascade removes all ChecklistItems
+        checklist_name = checklist.name
+        await db.delete(checklist)
+        await db.commit()
+
+        logger.info(f"Global checklist deleted: {checklist_name} (ID: {checklist_id}) by {current_user.email}")
+
+        return {"message": f"Global checklist '{checklist_name}' deleted successfully"}
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error deleting global checklist: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/globals/{checklist_id}/items")
+async def add_item_to_global_checklist(
+    checklist_id: int,
+    item_in: GlobalChecklistItemCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Add an item to a global checklist.
+    Requires admin role.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    try:
+        result = await db.execute(
+            select(Checklist).where(Checklist.id == checklist_id)
+        )
+        checklist = result.scalar_one_or_none()
+
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+
+        if not checklist.is_global:
+            raise HTTPException(status_code=400, detail="Can only add items to global checklists")
+
+        item = ChecklistItem(
+            checklist_id=checklist_id,
+            item_code=item_in.item_code.strip(),
+            area=item_in.area.strip(),
+            question=item_in.question.strip(),
+            category=item_in.category.strip() if item_in.category else None,
+            weight=item_in.weight,
+            is_required=item_in.is_required,
+            expected_evidence=item_in.expected_evidence.strip() if item_in.expected_evidence else None,
+            order=item_in.order
+        )
+
+        db.add(item)
+        await db.commit()
+        await db.refresh(item)
+
+        logger.info(
+            f"Item added to global checklist: checklist_id={checklist_id}, "
+            f"item_code={item.item_code} by {current_user.email}"
+        )
+
+        return {
+            "id": item.id,
+            "checklist_id": item.checklist_id,
+            "item_code": item.item_code,
+            "area": item.area,
+            "question": item.question,
+            "category": item.category,
+            "weight": item.weight,
+            "is_required": item.is_required,
+            "expected_evidence": item.expected_evidence,
+            "order": item.order
+        }
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error adding item to global checklist: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/globals/{checklist_id}/items/{item_id}")
+async def update_item_in_global_checklist(
+    checklist_id: int,
+    item_id: int,
+    item_in: GlobalChecklistItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update an item on a global checklist.
+    Requires admin role.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    try:
+        # Verify checklist is global
+        checklist_result = await db.execute(
+            select(Checklist).where(Checklist.id == checklist_id)
+        )
+        checklist = checklist_result.scalar_one_or_none()
+
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+
+        if not checklist.is_global:
+            raise HTTPException(status_code=400, detail="Can only update items in global checklists")
+
+        # Get the item
+        item_result = await db.execute(
+            select(ChecklistItem).where(
+                ChecklistItem.id == item_id,
+                ChecklistItem.checklist_id == checklist_id
+            )
+        )
+        item = item_result.scalar_one_or_none()
+
+        if not item:
+            raise HTTPException(status_code=404, detail="Item not found")
+
+        # Update fields
+        update_data = item_in.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            if value is not None:
+                if isinstance(value, str):
+                    setattr(item, key, value.strip())
+                else:
+                    setattr(item, key, value)
+
+        await db.commit()
+        await db.refresh(item)
+
+        logger.info(
+            f"Item updated in global checklist: checklist_id={checklist_id}, item_id={item_id} by {current_user.email}"
+        )
+
+        return {
+            "id": item.id,
+            "checklist_id": item.checklist_id,
+            "item_code": item.item_code,
+            "area": item.area,
+            "question": item.question,
+            "category": item.category,
+            "weight": item.weight,
+            "is_required": item.is_required,
+            "expected_evidence": item.expected_evidence,
+            "order": item.order
+        }
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error updating item in global checklist: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/globals/{checklist_id}/items/{item_id}")
+async def delete_item_from_global_checklist(
+    checklist_id: int,
+    item_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete an item from a global checklist.
+    Requires admin role.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    try:
+        # Verify checklist is global
+        checklist_result = await db.execute(
+            select(Checklist).where(Checklist.id == checklist_id)
+        )
+        checklist = checklist_result.scalar_one_or_none()
+
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+
+        if not checklist.is_global:
+            raise HTTPException(status_code=400, detail="Can only delete items from global checklists")
+
+        # Get the item
+        item_result = await db.execute(
+            select(ChecklistItem).where(
+                ChecklistItem.id == item_id,
+                ChecklistItem.checklist_id == checklist_id
+            )
+        )
+        item = item_result.scalar_one_or_none()
+
+        if not item:
+            raise HTTPException(status_code=404, detail="Item not found")
+
+        await db.delete(item)
+        await db.commit()
+
+        logger.info(
+            f"Item deleted from global checklist: checklist_id={checklist_id}, item_id={item_id} by {current_user.email}"
+        )
+
+        return {"message": "Item deleted"}
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error deleting item from global checklist: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
