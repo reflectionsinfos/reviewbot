@@ -202,7 +202,7 @@
               <tbody id="items-tbody"></tbody>
               <tbody>
                 <tr class="add-row">
-                  <td><input id="add-code" class="inline-input" placeholder="1.1" style="width:70px;" /></td>
+                  <td><input id="add-code" class="inline-input" placeholder="Auto" style="width:70px;" title="Leave blank for auto-generated code (e.g., 1.1, 1.2, etc.)" /></td>
                   <td><input id="add-area" class="inline-input" placeholder="General" /></td>
                   <td>
                     <input id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;margin-bottom:4px;" />
@@ -555,8 +555,9 @@
   }
 
   async function addItem() {
+    const codeVal = document.getElementById('add-code').value.trim();
     const payload = {
-      item_code: document.getElementById('add-code').value,
+      item_code: codeVal || null,  // Send null/empty to trigger auto-generation
       area: document.getElementById('add-area').value,
       question: document.getElementById('add-question').value,
       expected_evidence: document.getElementById('add-evidence').value,
@@ -564,10 +565,10 @@
       is_required: document.getElementById('add-req').value === 'true',
       order: selectedItems.length
     };
-    
+
     if (!payload.question) { toast('Question is required', 'error'); return; }
     if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
-    
+
     try {
       await api(`/api/checklists/globals/${selectedTemplate.id}/items`, {
         method: 'POST',

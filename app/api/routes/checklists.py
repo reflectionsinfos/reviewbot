@@ -81,7 +81,7 @@ class GlobalChecklistUpdate(BaseModel):
 
 class GlobalChecklistItemCreate(BaseModel):
     """Request model for adding an item to a global checklist"""
-    item_code: str
+    item_code: Optional[str] = None
     area: str
     question: str
     category: Optional[str] = None
@@ -101,6 +101,54 @@ class GlobalChecklistItemUpdate(BaseModel):
     is_required: Optional[bool] = None
     expected_evidence: Optional[str] = None
     order: Optional[int] = None
+
+
+async def _generate_item_code(db: AsyncSession, checklist_id: int, area: str) -> str:
+    """
+    Auto-generate item_code based on area grouping.
+    Format: {area_number}.{item_number}
+    - area_number: 1-based index of unique area (alphabetically sorted)
+    - item_number: next sequence number within that area
+    """
+    # Get all existing items for this checklist
+    result = await db.execute(
+        select(ChecklistItem)
+        .where(ChecklistItem.checklist_id == checklist_id)
+        .order_by(ChecklistItem.area, ChecklistItem.item_code)
+    )
+    existing_items = result.scalars().all()
+
+    # Build area -> max sequence number mapping
+    area_sequences: dict[str, int] = {}
+    area_order: list[str] = []
+
+    for item in existing_items:
+        if item.area not in area_sequences:
+            area_order.append(item.area)
+            area_sequences[item.area] = 0
+
+        # Extract sequence number from existing item_code (e.g., "1.3" -> 3)
+        if item.item_code and "." in item.item_code:
+            try:
+                seq = int(item.item_code.split(".")[1])
+                area_sequences[item.area] = max(area_sequences[item.area], seq)
+            except (ValueError, IndexError):
+                pass
+
+    # Sort areas alphabetically for consistent numbering
+    area_order_sorted = sorted(area_order)
+
+    # Determine area number for the new area
+    if area not in area_order_sorted:
+        area_order_sorted.append(area)
+        area_order_sorted = sorted(area_order_sorted)
+
+    area_number = area_order_sorted.index(area) + 1
+
+    # Get next sequence number for this area
+    next_sequence = area_sequences.get(area, 0) + 1
+
+    return f"{area_number}.{next_sequence}"
 
 
 router = APIRouter()
@@ -565,26 +613,38 @@ async def add_checklist_item(
     try:
         result = await db.execute(select(Checklist).where(Checklist.id == checklist_id))
         checklist = result.scalar_one_or_none()
-        
+
         if not checklist:
             raise HTTPException(status_code=404, detail="Checklist not found")
-            
+
         if checklist.is_global:
             raise HTTPException(status_code=403, detail="Cannot modify global checklist")
-            
+
         project_result = await db.execute(select(Project).where(Project.id == checklist.project_id))
         project = project_result.scalar_one_or_none()
         if not project or (current_user.role != "admin" and project.owner_id != current_user.id):
             raise HTTPException(status_code=403, detail="Not authorized to modify this checklist")
-            
+
+        # Auto-generate item_code if not provided
+        item_code = item_in.item_code.strip() if item_in.item_code else ""
+        if not item_code:
+            item_code = await _generate_item_code(db, checklist_id, item_in.area.strip())
+
         new_item = ChecklistItem(
             checklist_id=checklist_id,
-            **item_in.model_dump()
+            item_code=item_code,
+            area=item_in.area.strip() if item_in.area else None,
+            question=item_in.question.strip() if item_in.question else None,
+            category=item_in.category.strip() if item_in.category else None,
+            weight=item_in.weight,
+            is_required=item_in.is_required,
+            expected_evidence=item_in.expected_evidence.strip() if item_in.expected_evidence else None,
+            order=item_in.order
         )
         db.add(new_item)
         await db.commit()
         await db.refresh(new_item)
-        
+
         return {
             "id": new_item.id,
             "checklist_id": new_item.checklist_id,
@@ -1052,9 +1112,14 @@ async def add_item_to_global_checklist(
         if not checklist.is_global:
             raise HTTPException(status_code=400, detail="Can only add items to global checklists")
 
+        # Auto-generate item_code if not provided
+        item_code = item_in.item_code.strip() if item_in.item_code else ""
+        if not item_code:
+            item_code = await _generate_item_code(db, checklist_id, item_in.area.strip())
+
         item = ChecklistItem(
             checklist_id=checklist_id,
-            item_code=item_in.item_code.strip(),
+            item_code=item_code,
             area=item_in.area.strip(),
             question=item_in.question.strip(),
             category=item_in.category.strip() if item_in.category else None,
