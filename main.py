@@ -116,6 +116,12 @@ async def serve_home():
     return FileResponse(os.path.join(_static_dir, "home.html"))
 
 
+@app.get("/dashboard", include_in_schema=False)
+async def serve_dashboard():
+    """Alias for / - serves the ReviewBot dashboard page"""
+    return FileResponse(os.path.join(_static_dir, "home.html"))
+
+
 @app.get("/api/status")
 async def root():
     """JSON status endpoint (previously at /)"""
