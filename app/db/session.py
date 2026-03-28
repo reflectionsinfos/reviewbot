@@ -59,6 +59,9 @@ async def init_db():
             #         here we just ensure the column exists on pre-existing databases)
             """ALTER TABLE checklists
                ADD COLUMN IF NOT EXISTS source_checklist_id INTEGER""",
+            # 007c — autonomous_review_job_id on reports (links a report to an autonomous job)
+            """ALTER TABLE reports
+               ADD COLUMN IF NOT EXISTS autonomous_review_job_id INTEGER""",
         ]
         for sql in migrations:
             try:
