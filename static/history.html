@@ -375,18 +375,30 @@
   let sortAsc = true;            // sort by item_code ascending
 
   // ── Auth ───────────────────────────────────────────────────────────────────
+  let _logoutInProgress = false;
+
+  function isTokenExpired(tok) {
+    try {
+      const payload = JSON.parse(atob(tok.split('.')[1]));
+      return payload.exp && (payload.exp * 1000) < Date.now();
+    } catch { return true; }
+  }
+
   async function login() {
     const email = document.getElementById('login-email').value;
     const pw    = document.getElementById('login-password').value;
+    const btn   = document.querySelector('#auth-overlay .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
     const fd = new FormData();
     fd.append('username', email);
     fd.append('password', pw);
     try {
       const res = await fetch('/api/auth/login', { method: 'POST', body: fd });
-      if (!res.ok) throw new Error('Invalid credentials');
+      if (!res.ok) throw new Error((await res.json()).detail || 'Invalid credentials');
       const data = await res.json();
       TOKEN = data.access_token;
       localStorage.setItem('rb_token', TOKEN);
+      _logoutInProgress = false;
       document.getElementById('auth-overlay').style.display = 'none';
       document.getElementById('user-label').textContent = email;
       loadHistory();
@@ -394,10 +406,14 @@
       const el = document.getElementById('auth-error');
       el.textContent = e.message;
       el.style.display = 'block';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
     }
   }
 
   function logout() {
+    if (_logoutInProgress) return;
+    _logoutInProgress = true;
     TOKEN = '';
     localStorage.removeItem('rb_token');
     location.reload();
@@ -405,6 +421,22 @@
 
   function authHeader() {
     return { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' };
+  }
+
+  async function apiFetch(path, opts = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch(path, { ...opts, headers: { ...authHeader(), ...(opts.headers || {}) }, signal: controller.signal });
+      clearTimeout(timer);
+      if (res.status === 401) { logout(); return null; }
+      if (!res.ok) { let d = {}; try { d = await res.json(); } catch(e2) {} throw new Error(d.detail || res.statusText); }
+      return res.json();
+    } catch(e) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') throw new Error('Request timed out — the server may still be starting up.');
+      throw e;
+    }
   }
 
   // ── Toast ──────────────────────────────────────────────────────────────────
@@ -423,14 +455,14 @@
       '<tr class="loading-row"><td colspan="8"><span class="spinner"></span> Loading…</td></tr>';
 
     try {
-      const res = await fetch('/api/reports/history', { headers: authHeader() });
-      if (res.status === 401) { TOKEN=''; location.reload(); return; }
-      const data = await res.json();
+      const data = await apiFetch('/api/reports/history');
+      if (!data) return; // logout already called
       allReports = data.reports || data || [];
       renderHistory(allReports);
     } catch (e) {
       document.getElementById('history-body').innerHTML =
-        `<tr class="loading-row"><td colspan="8" style="color:#f87171;">Failed to load: ${e.message}</td></tr>`;
+        `<tr class="loading-row"><td colspan="8" style="color:#f87171;">Failed to load: ${e.message} ` +
+        `<button onclick="loadHistory()" style="margin-left:8px;background:transparent;border:1px solid #475569;color:#94a3b8;padding:3px 10px;border-radius:6px;cursor:pointer;">Retry</button></td></tr>`;
     }
   }
 
@@ -528,12 +560,11 @@
     const newPath = document.getElementById(`path-input-${reportId}`).value.trim();
     if (!newPath) return;
     try {
-      const res = await fetch(`/api/reports/${reportId}/source-path`, {
+      const data = await apiFetch(`/api/reports/${reportId}/source-path`, {
         method: 'PUT',
-        headers: authHeader(),
         body: JSON.stringify({ source_path: newPath }),
       });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Save failed');
+      if (data === null) return; // 401 — logout already called
       toast('Source path updated', 'success');
       cancelEditPath(reportId);
       // Update in-memory data
@@ -551,13 +582,11 @@
   async function regenerate(reportId) {
     if (!confirm('Regenerate this report? This will re-run the analysis.')) return;
     try {
-      const res = await fetch(`/api/reports/${reportId}/regenerate`, {
+      const data = await apiFetch(`/api/reports/${reportId}/regenerate`, {
         method: 'POST',
-        headers: authHeader(),
         body: JSON.stringify({ use_updated_source_path: true, include_overrides: true }),
       });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
-      const data = await res.json();
+      if (data === null) return;
       toast(`Regeneration started (job #${data.job_id})`, 'success');
     } catch (e) {
       toast(e.message, 'error');
@@ -580,12 +609,11 @@
     document.getElementById('det-items').innerHTML = '';
 
     try {
-      const res = await fetch(`/api/reports/${reportId}/details`, { headers: authHeader() });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Load failed');
-      const data = await res.json();
+      const data = await apiFetch(`/api/reports/${reportId}/details`);
+      if (data === null) return;
       renderDetails(data);
     } catch (e) {
-      document.getElementById('det-title').textContent = 'Error: ' + e.message;
+      document.getElementById('det-title').textContent = 'Error loading details: ' + e.message;
     }
   }
 
@@ -826,15 +854,11 @@
     if (!payload.comments) { toast('Please enter a comment', 'error'); return; }
 
     try {
-      const res = await fetch(
+      const data = await apiFetch(
         `/api/autonomous-reviews/${currentJobId}/results/${overrideTarget.resultId}/override`,
-        { method: 'POST', headers: authHeader(), body: JSON.stringify(payload) }
+        { method: 'POST', body: JSON.stringify(payload) }
       );
-      if (!res.ok) {
-        const err = await res.json();
-        const detail = err.detail;
-        throw new Error(typeof detail === 'string' ? detail : (JSON.stringify(detail) || 'Override failed'));
-      }
+      if (data === null) return;
       toast('Override saved', 'success');
       closeOverrideModal();
       viewDetails(currentReportId, currentJobId); // refresh
@@ -856,25 +880,23 @@
 
     try {
       if (mode === 'auto') {
+        // DELETE returns 204 (no body) — use raw fetch to handle 404 gracefully
         const res = await fetch(`/api/routing-rules/items/${ciId}`, {
           method: 'DELETE', headers: authHeader(),
         });
-        if (!res.ok) {
-          const err = await res.json();
-          // 404 = no rule existed, that's fine
-          if (res.status !== 404) throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed');
+        if (res.status === 401) { logout(); return; }
+        if (!res.ok && res.status !== 404) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed');
         }
         toast('Reset to AI — strategy will be auto-selected on next review', 'success');
       } else {
         const labels = { human_required: 'Human Only', ai_and_human: 'AI + Human' };
-        const res = await fetch(`/api/routing-rules/items/${ciId}`, {
-          method: 'POST', headers: authHeader(),
+        const data = await apiFetch(`/api/routing-rules/items/${ciId}`, {
+          method: 'POST',
           body: JSON.stringify({ strategy: mode }),
         });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(typeof err.detail === 'string' ? err.detail : 'Failed');
-        }
+        if (data === null) return;
         toast(`Review mode set to "${labels[mode]}" for future reviews`, 'success');
       }
       // Update dropdown styling without full reload
@@ -918,13 +940,19 @@
 
   // ── Init ───────────────────────────────────────────────────────────────────
   if (TOKEN) {
-    document.getElementById('auth-overlay').style.display = 'none';
-    // Check if URL has a report ID (e.g. /history/42) — load it directly
-    const urlMatch = window.location.pathname.match(/\/history\/(\d+)/);
-    if (urlMatch) {
-      loadHistory().then(() => viewDetails(parseInt(urlMatch[1]), parseInt(urlMatch[1]), false));
+    if (isTokenExpired(TOKEN)) {
+      TOKEN = '';
+      localStorage.removeItem('rb_token');
+      // auth overlay stays visible — user must re-login
     } else {
-      loadHistory();
+      document.getElementById('auth-overlay').style.display = 'none';
+      // Check if URL has a report ID (e.g. /history/42) — load it directly
+      const urlMatch = window.location.pathname.match(/\/history\/(\d+)/);
+      if (urlMatch) {
+        loadHistory().then(() => viewDetails(parseInt(urlMatch[1]), parseInt(urlMatch[1]), false));
+      } else {
+        loadHistory();
+      }
     }
   }
 </script>

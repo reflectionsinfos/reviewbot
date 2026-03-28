@@ -317,15 +317,32 @@
 
 <script>
   const TOKEN_KEY = 'rb_token';
+  let _logoutInProgress = false;
 
   function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
 
+  function isTokenExpired(tok) {
+    try {
+      const payload = JSON.parse(atob(tok.split('.')[1]));
+      return payload.exp && (payload.exp * 1000) < Date.now();
+    } catch { return true; }
+  }
+
   async function api(path, opts = {}) {
-    const headers = { 'Authorization': `Bearer ${getToken()}`, ...(opts.headers || {}) };
-    const res = await fetch(path, { ...opts, headers });
-    if (res.status === 401) { showLogin(); throw new Error('Unauthorised'); }
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const headers = { 'Authorization': `Bearer ${getToken()}`, ...(opts.headers || {}) };
+      const res = await fetch(path, { ...opts, headers, signal: controller.signal });
+      clearTimeout(timer);
+      if (res.status === 401) { showLogin(); throw new Error('Session expired — please sign in again.'); }
+      if (!res.ok) { let d = {}; try { d = await res.json(); } catch(e2) {} throw new Error(d.detail || res.statusText); }
+      return res.json();
+    } catch(e) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') throw new Error('Request timed out — the server may still be starting up.');
+      throw e;
+    }
   }
 
   /* ── Modal helpers ──────────────────────────────────────────────────────── */
@@ -382,8 +399,11 @@
 
   /* ── Logout ─────────────────────────────────────────────────────────────── */
   function logout() {
+    if (_logoutInProgress) return;
+    _logoutInProgress = true;
     localStorage.removeItem(TOKEN_KEY);
     showLogin();
+    _logoutInProgress = false;
   }
 
   /* ── Show dashboard ─────────────────────────────────────────────────────── */
@@ -518,9 +538,11 @@
 
   /* ── Init ───────────────────────────────────────────────────────────────── */
   (async function init() {
-    if (getToken()) {
+    const tok = getToken();
+    if (tok && !isTokenExpired(tok)) {
       await showDashboard();
     } else {
+      if (tok) localStorage.removeItem(TOKEN_KEY); // clear expired token
       showLogin();
     }
   })();

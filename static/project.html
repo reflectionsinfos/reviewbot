@@ -361,9 +361,20 @@
   let draggedRowIndex = null;
 
   // ── Auth ───────────────────────────────────────────────────────────────────
+  let _logoutInProgress = false;
+
+  function isTokenExpired(tok) {
+    try {
+      const payload = JSON.parse(atob(tok.split('.')[1]));
+      return payload.exp && (payload.exp * 1000) < Date.now();
+    } catch { return true; }
+  }
+
   async function login() {
     const errorEl = document.getElementById('auth-error');
     errorEl.style.display = 'none';
+    const btn = document.querySelector('#auth-overlay .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Signing in…'; }
     const fd = new FormData();
     fd.append('username', document.getElementById('login-email').value);
     fd.append('password', document.getElementById('login-password').value);
@@ -373,15 +384,24 @@
       const data = await res.json();
       TOKEN = data.access_token;
       localStorage.setItem('rb_token', TOKEN);
+      _logoutInProgress = false;
       document.getElementById('auth-overlay').style.display = 'none';
       parseTokenAndLoad();
     } catch(e) {
       errorEl.textContent = e.message;
       errorEl.style.display = 'block';
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Sign In'; }
     }
   }
 
-  function logout() { TOKEN = ''; localStorage.removeItem('rb_token'); location.reload(); }
+  function logout() {
+    if (_logoutInProgress) return;
+    _logoutInProgress = true;
+    TOKEN = '';
+    localStorage.removeItem('rb_token');
+    location.reload();
+  }
 
   function parseTokenAndLoad() {
     try {
@@ -392,16 +412,31 @@
   }
 
   if (TOKEN) {
-    document.getElementById('auth-overlay').style.display = 'none';
-    parseTokenAndLoad();
+    if (isTokenExpired(TOKEN)) {
+      TOKEN = '';
+      localStorage.removeItem('rb_token');
+      // auth overlay stays visible — user must re-login
+    } else {
+      document.getElementById('auth-overlay').style.display = 'none';
+      parseTokenAndLoad();
+    }
   }
 
   async function api(path, opts = {}) {
-    const headers = { 'Authorization': `Bearer ${TOKEN}`, ...(opts.headers || {}) };
-    const res = await fetch(path, { ...opts, headers });
-    if (res.status === 401) { logout(); return null; }
-    if (!res.ok) { let d = {}; try { d = await res.json(); } catch(e) {} throw new Error(d.detail || res.statusText); }
-    return res.json();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const headers = { 'Authorization': `Bearer ${TOKEN}`, ...(opts.headers || {}) };
+      const res = await fetch(path, { ...opts, headers, signal: controller.signal });
+      clearTimeout(timer);
+      if (res.status === 401) { logout(); return null; }
+      if (!res.ok) { let d = {}; try { d = await res.json(); } catch(e2) {} throw new Error(d.detail || res.statusText); }
+      return res.json();
+    } catch(e) {
+      clearTimeout(timer);
+      if (e.name === 'AbortError') throw new Error('Request timed out — the server may still be starting up. Please wait and try again.');
+      throw e;
+    }
   }
 
   function toast(msg, type = '') {
@@ -414,11 +449,16 @@
 
   // ── Initialization ─────────────────────────────────────────────────────────
   async function loadInitialData() {
+    // Show a loading placeholder so the user knows something is happening
+    document.getElementById('state-no-project').innerHTML =
+      '<div class="empty-state-icon">⏳</div><h3>Loading…</h3><p>Connecting to server</p>';
     try {
       const [globalsData, projectsData] = await Promise.all([
         api('/api/checklists/templates/global'),
         api('/api/projects/')
       ]);
+      // api() returns null on 401 — logout() has already been called; abort here
+      if (!globalsData || !projectsData) return;
       globalTemplates = globalsData.templates || [];
       allProjects = projectsData.projects || projectsData || [];
 
@@ -430,7 +470,16 @@
         o.textContent = p.name;
         pSel.appendChild(o);
       });
-    } catch(e) { toast('Error loading data: ' + e.message, 'error'); }
+      // Restore the default empty-state message now that data is loaded
+      document.getElementById('state-no-project').innerHTML =
+        '<div class="empty-state-icon">📋</div><h3>Select a project</h3>' +
+        '<p>Choose a project from the dropdown above to view and manage its checklists.</p>';
+    } catch(e) {
+      document.getElementById('state-no-project').innerHTML =
+        `<div class="empty-state-icon">⚠️</div><h3>Failed to load</h3>` +
+        `<p style="color:#f87171;">${e.message}</p>` +
+        `<button class="btn btn-ghost" onclick="loadInitialData()" style="margin-top:12px;">Retry</button>`;
+    }
   }
 
   // ── Project change ─────────────────────────────────────────────────────────
