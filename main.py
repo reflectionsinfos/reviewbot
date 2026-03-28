@@ -109,6 +109,12 @@ async def redirect_to_globals():
     return RedirectResponse(url="/globals")
 
 
+@app.get("/documentation", include_in_schema=False)
+async def serve_documentation():
+    """Serve the How It Works documentation page"""
+    return FileResponse(os.path.join(_static_dir, "documentation.html"))
+
+
 # ── Health / root ─────────────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 async def serve_home():
