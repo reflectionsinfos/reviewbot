@@ -46,7 +46,9 @@
       "Bash(Select-Object -First 60)",
       "Bash(ls *.md)",
       "Bash(grep -E '\\\\.py$')",
-      "Bash(find /c/projects/reviewbot -name *autonomous* -type f)"
+      "Bash(find /c/projects/reviewbot -name *autonomous* -type f)",
+      "Bash(grep -r \"serverUrl\\\\|BASE_URL\\\\|API_URL\" /c/projects/reviewbot-vscode/src --include=*.ts)",
+      "Bash(ls -la /c/projects/reviewbot/*.vsix /c/projects/reviewbot-vscode/*.vsix)"
     ]
   }
 }

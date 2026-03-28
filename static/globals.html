@@ -10,13 +10,30 @@
 
     /* ── Header ───────────────────────────────────────────────────────────── */
     header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
-    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+    header .logo img { height: 32px; width: auto; }
     header .tagline { font-size: 13px; color: #94a3b8; }
-    header nav { margin-left: auto; display: flex; gap: 8px; }
+    header nav { margin-left: auto; display: flex; gap: 8px; align-items: center; }
     header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; transition: all 0.15s; }
     header nav a:hover, header nav a.active { border-color: #38bdf8; color: #38bdf8; }
     header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
     header .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── User Dropdown ──────────────────────────────────────────────────────── */
+    .nav-right { display: flex; align-items: center; }
+    .user-dropdown { position: relative; }
+    .user-dropdown-btn { background: transparent; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
+    .user-dropdown-btn:hover { border-color: #38bdf8; background: #1e293b; }
+    .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #0ea5e9, #6366f1); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
+    .user-dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; min-width: 220px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100; }
+    .user-dropdown-menu.hidden { display: none; }
+    .user-dropdown-header { padding: 12px 16px; border-bottom: 1px solid #334155; }
+    .user-dropdown-name { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bottom: 2px; }
+    .user-dropdown-email { font-size: 11px; color: #64748b; }
+    .user-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #94a3b8; text-decoration: none; font-size: 13px; transition: all 0.15s; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
+    .user-dropdown-item:hover { background: #0f172a; color: #38bdf8; }
+    .user-dropdown-item svg { width: 16px; height: 16px; }
+    .user-dropdown-divider { border: none; border-top: 1px solid #334155; margin: 4px 0; }
 
     /* ── Layout ───────────────────────────────────────────────────────────── */
     main { display: flex; flex: 1; overflow: hidden; }
@@ -131,16 +148,45 @@
 
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <header>
-  <a href="/" class="logo">ReviewBot</a>
-  <span class="tagline">AI Review Platform</span>
+  <a href="/" class="logo">
+    <img src="https://www.reflectionsglobal.com/wp-content/uploads/2023/08/Reflections-Logo.png" alt="Reflections" onerror="this.style.display='none'" />
+    ReviewBot
+  </a>
+  <span class="tagline">Where Purposeful Innovation meets AI</span>
   <nav>
     <a href="/projects-ui">Checklists</a>
     <a href="/globals" class="active">Global Templates</a>
     <a href="/history">History</a>
     <a href="/docs" target="_blank">API Docs ↗</a>
   </nav>
-  <span id="header-user" style="font-size:13px;color:#64748b;margin-left:12px;"></span>
-  <button class="btn-logout" onclick="logout()">Sign out</button>
+  <div class="nav-right">
+    <div class="user-dropdown">
+      <button class="user-dropdown-btn" onclick="toggleUserDropdown()">
+        <div class="user-avatar" id="user-avatar-initial">U</div>
+        <span id="user-dropdown-name">User</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="user-dropdown-menu hidden" id="user-dropdown-menu">
+        <div class="user-dropdown-header">
+          <div class="user-dropdown-name" id="user-menu-name">User Name</div>
+          <div class="user-dropdown-email" id="user-menu-email">user@example.com</div>
+        </div>
+        <button class="user-dropdown-item" onclick="alert('Profile settings coming soon')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Profile
+        </button>
+        <button class="user-dropdown-item" onclick="alert('AI Services info coming soon')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6v6l4 2"/></svg>
+          AI Services
+        </button>
+        <hr class="user-dropdown-divider" />
+        <button class="user-dropdown-item" onclick="logout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
 </header>
 
 <!-- ── Main ───────────────────────────────────────────────────────────────── -->
