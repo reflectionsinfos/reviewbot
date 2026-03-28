@@ -14,6 +14,7 @@
 | Phase | Name | Duration | Status | Start |
 |-------|------|----------|--------|-------|
 | **Phase 1** | Foundation + Autonomous Review | 8 weeks | 🔄 In Progress | Mar 27, 2026 |
+| **Phase 1c** | Two-Track Action Item System | 2 weeks | 📋 Planned | Apr 14, 2026 |
 | **Phase 1b** | Repository Integration + Source Types | 2 weeks | 📋 Planned | Apr 28, 2026 |
 | **Phase 2** | Document Review Engine | 6 weeks | 📋 Planned | May 12, 2026 |
 | **Phase 3** | Knowledge QUIZ (text + voice) | 6 weeks | 📋 Planned | Jun 23, 2026 |
@@ -265,6 +266,72 @@
 - [ ] SonarQube quality metrics retrieved successfully
 - [ ] Code coverage > 80%
 - [ ] All Phase 1 tests passing
+
+---
+
+## 🎯 Phase 1c: Two-Track Action Item System (2 weeks)
+
+**Status:** 📋 Planned
+**Start:** April 14, 2026
+**Duration:** 2 weeks
+**Depends on:** Phase 1 (Autonomous Review)
+**Requirements:** FR-21.1 – FR-21.4
+
+### Goal
+Transform raw review results into actionable, developer-ready output — structured action cards for teams and copy-paste AI IDE prompts for developers.
+
+### Key Deliverables
+- `app/services/action_plan_generator.py` — assembles action plan from existing review data (no new DB schema)
+- `GET /api/autonomous-reviews/{job_id}/action-plan` — new endpoint
+- `POST /api/autonomous-reviews/{job_id}/action-plan/enhance` — optional LLM prompt enrichment (202 Async)
+- Action Plan tab in `history.html` with expand-to-reveal prompts, IDE flavour toggle, copy buttons, export
+
+### Tasks
+
+#### Week 1: Backend
+
+- [ ] **1c.1** Create `app/services/action_plan_generator.py`
+  - `ActionPlanGenerator.generate()` — assemble Track 2 cards from AutonomousReviewResult + ChecklistItem + Project
+  - `ActionPlanGenerator._build_prompt()` — template-based Track 1 prompt per card (generic / cursor / claude_code flavours)
+  - Estimate: 8h
+
+- [ ] **1c.2** Add `GET /api/autonomous-reviews/{job_id}/action-plan` endpoint in `app/api/routes/reports.py`
+  - Loads results with selectinload, calls generator, returns structured response
+  - Estimate: 4h
+
+- [ ] **1c.3** Add `POST /api/autonomous-reviews/{job_id}/action-plan/enhance` endpoint
+  - Background LLM enrichment; caches enriched prompts in `AutonomousReviewJob.agent_metadata["action_plan_prompts"]`
+  - Estimate: 6h
+
+- [ ] **1c.4** Unit tests for `ActionPlanGenerator` (red/amber/green grouping, prompt template correctness, tech stack injection)
+  - Estimate: 4h
+
+#### Week 2: Frontend
+
+- [ ] **1c.5** Add "Action Plan" tab to `history.html` details view
+  - IDE flavour toggle (Generic / Cursor / Claude Code) stored in localStorage
+  - Render Track 2 action cards grouped by priority
+  - Expand-to-reveal Track 1 prompt per card
+  - Estimate: 8h
+
+- [ ] **1c.6** Copy-to-clipboard per prompt (Clipboard API + visual feedback)
+  - Estimate: 2h
+
+- [ ] **1c.7** "Export Action Plan" button → download Markdown with all cards + prompts
+  - Estimate: 3h
+
+- [ ] **1c.8** "Enhance with AI" button — calls enhance endpoint, polls until done, refreshes prompts
+  - Estimate: 4h
+
+- [ ] **1c.9** Integration test: full review → action plan endpoint → verify grouping and prompt fields populated
+  - Estimate: 3h
+
+### Definition of Done
+- [ ] Action plan renders for any completed autonomous review job
+- [ ] All red/amber items produce action cards with populated evidence, fix guidance, and all 3 prompt flavours
+- [ ] Copy button works; Export downloads valid Markdown
+- [ ] "Enhance with AI" enriches prompts and refreshes UI without page reload
+- [ ] Tests pass
 
 ---
 

@@ -312,6 +312,52 @@ Become the industry-standard AI platform for comprehensive organizational review
 
 ---
 
+### FR-21: Two-Track Action Item System
+
+**Overview:** After an autonomous review completes, the system shall produce a structured Action Plan giving teams both human-readable action cards and AI IDE–ready prompts so they can directly remediate findings using their AI development tooling.
+
+#### FR-21.1: Structured Action Cards (Track 2 — Team/Manager View)
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-21.1.1 | Each red and amber review item produces an action card with: title, area, priority (High/Medium), AI evidence summary, human-readable remediation step, and expected outcome | Must Have | TODO |
+| FR-21.1.2 | Action cards are grouped by priority (Critical Blockers first, then Advisories) | Must Have | TODO |
+| FR-21.1.3 | Items requiring human sign-off are listed as a separate "Needs Sign-off" section | Must Have | TODO |
+| FR-21.1.4 | Green items are summarised in an "Already Compliant" section for team confidence | Should Have | TODO |
+| FR-21.1.5 | Each action card has editable Assigned To and Due Date fields | Should Have | TODO |
+| FR-21.1.6 | Action cards can be exported as a Markdown or PDF action plan document | Must Have | TODO |
+
+#### FR-21.2: AI IDE Prompts (Track 1 — Developer View)
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-21.2.1 | Each action card has an expandable "AI Prompt" section with a copy-paste ready prompt | Must Have | TODO |
+| FR-21.2.2 | Prompts include: what is missing (from AI evidence), which files to touch (from files_checked), what the standard expects (from ChecklistItem.expected_evidence), and tech stack context (from Project.tech_stack) | Must Have | TODO |
+| FR-21.2.3 | Prompts are available in three flavours: Generic (default), Cursor/GitHub Copilot Chat, Claude Code | Should Have | TODO |
+| FR-21.2.4 | A single "Copy All Prompts" button exports all prompts as a structured Markdown file | Should Have | TODO |
+| FR-21.2.5 | By default prompts are template-generated (fast, no LLM cost); an "Enhance with AI" button optionally invokes LLM enrichment per prompt | Could Have | TODO |
+| FR-21.2.6 | LLM-enriched prompts incorporate codebase-specific context gathered during the review scan (file paths, patterns found, code snippets) | Could Have | TODO |
+
+#### FR-21.3: API & Storage
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-21.3.1 | `GET /api/autonomous-reviews/{job_id}/action-plan` returns both tracks in a single response | Must Have | TODO |
+| FR-21.3.2 | Action plan items are persisted in the `action_items` JSON field on the `Report` model (no new schema required for MVP) | Must Have | TODO |
+| FR-21.3.3 | AI-enriched prompts are stored against the review job so re-fetching does not incur additional LLM cost | Should Have | TODO |
+
+#### FR-21.4: UI — Action Plan Tab in History
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| FR-21.4.1 | History details page has a new "Action Plan" tab alongside the existing item grid | Must Have | TODO |
+| FR-21.4.2 | The tab shows Track 2 action cards with an expand-to-reveal Track 1 prompt per card | Must Have | TODO |
+| FR-21.4.3 | IDE flavour toggle (Generic / Cursor / Claude Code) is shown at top of the tab | Should Have | TODO |
+| FR-21.4.4 | "Export Action Plan" downloads a Markdown file with all cards and prompts formatted | Must Have | TODO |
+| FR-21.4.5 | Each prompt has a one-click "Copy" button (Clipboard API) | Must Have | TODO |
+
+---
+
 ### FR-9: Repository Integration
 
 | ID | Requirement | Priority | Status |
@@ -1126,6 +1172,7 @@ Become the industry-standard AI platform for comprehensive organizational review
 - [ ] Document Review: upload and AI review of HLD/LLD, architecture docs, process docs (FR-10)
 - [ ] Knowledge QUIZ in text mode (FR-11.1, FR-11.2, FR-11.4, FR-11.5, FR-11.6, FR-11.9)
 - [ ] Architecture Review: basic pattern evaluation and SPOF identification (FR-12.1-FR-12.5)
+- [ ] **Two-Track Action Item System** — Action cards + AI IDE prompts after each review (FR-21.1–FR-21.4)
 
 ### Phase 1.5: QUIZ Voice & Enhanced Reviews (Q3 2026)
 

@@ -35,7 +35,7 @@ async def test_clone_checklist_happy_path(
     assert data["is_global"] is False
     assert data["source_checklist_id"] == global_chk.id
     assert data["project_id"] == project.id
-    assert len(data["items"]) == 2
+    assert data["item_count"] == 2
 
     # Verify DB explicitly
     result = await db_session.execute(select(Checklist).where(Checklist.id == data["id"]))
@@ -87,8 +87,8 @@ async def test_clone_checklist_403_wrong_project_owner(
     checklist_factory
 ):
     """403 if project belongs to another user (non-admin)."""
-    user1, _ = await create_test_user(role="user")
-    user2, headers2 = await create_test_user(role="user")  # Attacker
+    user1, _ = await create_test_user(role="reviewer")
+    user2, headers2 = await create_test_user(role="reviewer")  # Attacker
 
     project = await project_factory(owner_id=user1.id)
     global_chk = await checklist_factory(is_global=True)
@@ -119,7 +119,7 @@ async def test_items_crud_403_on_global_checklist(
         headers=headers
     )
     assert res.status_code == 403
-    assert "read-only" in res.json()["detail"].lower()
+    assert "global" in res.json()["detail"].lower()
 
 
 async def test_items_crud_workflow(
@@ -282,6 +282,33 @@ async def test_sync_full_reset(
 
     res_get = await async_client.get(f"/api/checklists/{proj_chk.id}?include_items=true", headers=headers)
     items = res_get.json()["items"]
-    
+
     assert len(items) == 1
     assert items[0]["item_code"] == "NEW.G"
+
+
+async def test_sync_403_wrong_project_owner(
+    async_client: AsyncClient,
+    create_test_user,
+    project_factory,
+    checklist_factory,
+    item_factory
+):
+    """403 when a non-owner tries to sync another user's project checklist."""
+    owner, _ = await create_test_user(role="reviewer")
+    attacker, attacker_headers = await create_test_user(role="reviewer")
+
+    project = await project_factory(owner_id=owner.id)
+    global_chk = await checklist_factory(is_global=True)
+    await item_factory(checklist_id=global_chk.id, item_code="1.1", question="Q1")
+
+    proj_chk = await checklist_factory(
+        is_global=False, project_id=project.id, source_checklist_id=global_chk.id
+    )
+
+    res = await async_client.post(
+        f"/api/checklists/{proj_chk.id}/sync-from-global",
+        json={"strategy": "add_new_only"},
+        headers=attacker_headers,
+    )
+    assert res.status_code == 403

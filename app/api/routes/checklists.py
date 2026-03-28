@@ -3,7 +3,7 @@ Checklists API Routes
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from typing import List, Optional, Literal
 from datetime import datetime
 
@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
-from app.models import Checklist, ChecklistItem, ChecklistRecommendation, User, Project
+from app.models import Checklist, ChecklistItem, ChecklistRecommendation, User, Project, Review, AutonomousReviewJob
 from app.api.routes.auth import get_current_user
 from app.services.checklist_optimizer import get_checklist_optimizer
 
@@ -86,6 +86,7 @@ async def get_checklist(
         "version": checklist.version,
         "is_global": checklist.is_global,
         "project_id": checklist.project_id,
+        "source_checklist_id": checklist.source_checklist_id,
         "created_at": checklist.created_at.isoformat() if checklist.created_at else None
     }
     
@@ -254,54 +255,16 @@ async def get_global_checklist_templates(
 async def use_global_template(
     template_id: int,
     project_id: int,
-    db: AsyncSession = Depends(get_db)
 ):
-    """Copy a global template to a project"""
-    # Get template
-    result = await db.execute(
-        select(Checklist)
-        .options(selectinload(Checklist.items))
-        .where(Checklist.id == template_id)
-    )
-    template = result.scalar_one_or_none()
-    
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-    
-    # Create copy for project
-    project_checklist = Checklist(
-        name=template.name,
-        type=template.type,
-        version=template.version,
-        project_id=project_id,
-        is_global=False
-    )
-    
-    db.add(project_checklist)
-    await db.flush()
-    
-    # Copy items
-    for item in template.items:
-        new_item = ChecklistItem(
-            checklist_id=project_checklist.id,
-            item_code=item.item_code,
-            area=item.area,
-            question=item.question,
-            category=item.category,
-            weight=item.weight,
-            is_required=item.is_required,
-            expected_evidence=item.expected_evidence,
-            order=item.order
+    """Deprecated — use POST /api/checklists/{template_id}/clone-to-project/{project_id} instead."""
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "This endpoint is deprecated. Use "
+            f"POST /api/checklists/{template_id}/clone-to-project/<project_id> instead. "
+            "The new endpoint requires authentication and tracks the source template for sync."
         )
-        db.add(new_item)
-    
-    await db.commit()
-    
-    return {
-        "message": "Template applied successfully",
-        "new_checklist_id": project_checklist.id,
-        "items_copied": len(template.items)
-    }
+    )
 
 
 @router.post("/{checklist_id}/clone-to-project/{project_id}", response_model=CloneChecklistResponse)
@@ -360,6 +323,7 @@ async def clone_checklist_to_project(
                 weight=item.weight,
                 is_required=item.is_required,
                 expected_evidence=item.expected_evidence,
+                suggested_for_domains=item.suggested_for_domains,
                 order=item.order
             )
             db.add(new_item)
@@ -453,6 +417,7 @@ async def sync_from_global(
                     weight=g_item.weight,
                     is_required=g_item.is_required,
                     expected_evidence=g_item.expected_evidence,
+                    suggested_for_domains=g_item.suggested_for_domains,
                     order=g_item.order
                 )
                 db.add(new_item)
@@ -480,9 +445,13 @@ async def sync_from_global(
                 new_items.append(g_item)
             else:
                 p_item = p_dict[g_code]
-                if (p_item.question != g_item.question or 
-                    p_item.weight != g_item.weight or 
-                    p_item.expected_evidence != g_item.expected_evidence):
+                if (p_item.question != g_item.question or
+                    p_item.area != g_item.area or
+                    p_item.category != g_item.category or
+                    p_item.weight != g_item.weight or
+                    p_item.is_required != g_item.is_required or
+                    p_item.expected_evidence != g_item.expected_evidence or
+                    p_item.order != g_item.order):
                     changed_items.append((p_item, g_item))
                     
         # Identify removed
@@ -502,17 +471,22 @@ async def sync_from_global(
                 weight=g_item.weight,
                 is_required=g_item.is_required,
                 expected_evidence=g_item.expected_evidence,
+                suggested_for_domains=g_item.suggested_for_domains,
                 order=g_item.order
             )
             db.add(new_item)
             added += 1
-            
+
         # Apply updates if strategy allows
         if req.strategy == "add_and_update":
             for p_item, g_item in changed_items:
+                p_item.area = g_item.area
                 p_item.question = g_item.question
+                p_item.category = g_item.category
                 p_item.weight = g_item.weight
+                p_item.is_required = g_item.is_required
                 p_item.expected_evidence = g_item.expected_evidence
+                p_item.order = g_item.order
                 updated += 1
                 
         await db.commit()
@@ -550,6 +524,11 @@ async def add_checklist_item(
             
         if checklist.is_global:
             raise HTTPException(status_code=403, detail="Cannot modify global checklist")
+            
+        project_result = await db.execute(select(Project).where(Project.id == checklist.project_id))
+        project = project_result.scalar_one_or_none()
+        if not project or (current_user.role != "admin" and project.owner_id != current_user.id):
+            raise HTTPException(status_code=403, detail="Not authorized to modify this checklist")
             
         new_item = ChecklistItem(
             checklist_id=checklist_id,
@@ -597,6 +576,11 @@ async def update_checklist_item(
             
         if checklist.is_global:
             raise HTTPException(status_code=403, detail="Cannot modify global checklist")
+            
+        project_result = await db.execute(select(Project).where(Project.id == checklist.project_id))
+        project = project_result.scalar_one_or_none()
+        if not project or (current_user.role != "admin" and project.owner_id != current_user.id):
+            raise HTTPException(status_code=403, detail="Not authorized to modify this checklist")
             
         item_result = await db.execute(
             select(ChecklistItem).where(
@@ -654,6 +638,11 @@ async def delete_checklist_item(
         if checklist.is_global:
             raise HTTPException(status_code=403, detail="Cannot modify global checklist")
             
+        project_result = await db.execute(select(Project).where(Project.id == checklist.project_id))
+        project = project_result.scalar_one_or_none()
+        if not project or (current_user.role != "admin" and project.owner_id != current_user.id):
+            raise HTTPException(status_code=403, detail="Not authorized to modify this checklist")
+            
         item_result = await db.execute(
             select(ChecklistItem).where(
                 ChecklistItem.id == item_id,
@@ -694,6 +683,11 @@ async def reorder_checklist_items(
         if checklist.is_global:
             raise HTTPException(status_code=403, detail="Cannot modify global checklist")
             
+        project_result = await db.execute(select(Project).where(Project.id == checklist.project_id))
+        project = project_result.scalar_one_or_none()
+        if not project or (current_user.role != "admin" and project.owner_id != current_user.id):
+            raise HTTPException(status_code=403, detail="Not authorized to modify this checklist")
+            
         # Build order map
         order_map = {req.id: req.order for req in orders}
         
@@ -710,6 +704,79 @@ async def reorder_checklist_items(
             
         await db.commit()
         return {"message": "Items reordered successfully"}
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{checklist_id}")
+async def delete_checklist(
+    checklist_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a project-specific checklist and all its items.
+    Blocked if any reviews (manual or autonomous) have been run against this checklist.
+    Global checklists cannot be deleted via this endpoint.
+    """
+    try:
+        result = await db.execute(
+            select(Checklist).where(Checklist.id == checklist_id)
+        )
+        checklist = result.scalar_one_or_none()
+
+        if not checklist:
+            raise HTTPException(status_code=404, detail="Checklist not found")
+
+        if checklist.is_global:
+            raise HTTPException(
+                status_code=403,
+                detail="Global checklists cannot be deleted here. Use the admin panel."
+            )
+
+        # Ownership check
+        project_result = await db.execute(
+            select(Project).where(Project.id == checklist.project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        if not project or (current_user.role != "admin" and project.owner_id != current_user.id):
+            raise HTTPException(status_code=403, detail="Not authorized to delete this checklist")
+
+        # Dependency check: classic review sessions
+        review_count_result = await db.execute(
+            select(func.count()).select_from(Review).where(Review.checklist_id == checklist_id)
+        )
+        review_count = review_count_result.scalar() or 0
+
+        # Dependency check: autonomous review jobs
+        job_count_result = await db.execute(
+            select(func.count()).select_from(AutonomousReviewJob).where(
+                AutonomousReviewJob.checklist_id == checklist_id
+            )
+        )
+        job_count = job_count_result.scalar() or 0
+
+        total_reviews = review_count + job_count
+        if total_reviews > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Cannot delete: this checklist has {total_reviews} review(s) on record. "
+                    "Deleting it would remove historical review data. "
+                    "Archive the checklist or contact an admin if deletion is required."
+                )
+            )
+
+        # Safe to delete — cascade removes all ChecklistItems
+        await db.delete(checklist)
+        await db.commit()
+
+        return {"message": f"Checklist '{checklist.name}' deleted successfully"}
+
     except HTTPException:
         await db.rollback()
         raise

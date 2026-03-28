@@ -5,36 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ReviewBot — Checklist Management</title>
   <style>
-    /* ── Reset & base ─────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
 
-    /* ── Header ───────────────────────────────────────────────────────── */
+    /* ── Header ───────────────────────────────────────────────────────────── */
     header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
     header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; }
     header .tagline { font-size: 13px; color: #94a3b8; }
     header nav { margin-left: auto; display: flex; gap: 8px; }
-    header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; }
+    header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; transition: all 0.15s; }
     header nav a:hover, header nav a.active { border-color: #38bdf8; color: #38bdf8; }
-    header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
     header .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
 
-    /* ── Layout ───────────────────────────────────────────────────────── */
-    main { max-width: 1400px; margin: 0 auto; padding: 28px 24px; width: 100%; flex: 1; display: grid; gap: 24px; grid-template-columns: 320px 1fr; align-items: start; }
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; width: 100%; flex: 1; }
 
-    /* ── Auth overlay ─────────────────────────────────────────────────── */
+    /* ── Auth Overlay ─────────────────────────────────────────────────────── */
     #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
     .auth-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 36px; width: 380px; }
     .auth-card h2 { color: #38bdf8; margin-bottom: 6px; }
     .auth-card p { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
 
-    /* ── Core Form / UI Components ────────────────────────────────────── */
+    /* ── Form elements ────────────────────────────────────────────────────── */
     .form-group { margin-bottom: 16px; }
     label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
     input, select, textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
     input:focus, select:focus, textarea:focus { outline: none; border-color: #38bdf8; }
     select option { background: #1e293b; }
-    
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
     .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
     .btn-primary { background: #0ea5e9; color: #fff; }
     .btn-primary:hover:not(:disabled) { background: #38bdf8; }
@@ -49,66 +49,100 @@
     .btn-block { width: 100%; }
     .btn-icon-only { background: transparent; border: none; cursor: pointer; color: #475569; padding: 4px; border-radius: 4px; font-size: 14px; }
     .btn-icon-only:hover { background: #1e293b; color: #38bdf8; }
-    
+
+    /* ── Badges ───────────────────────────────────────────────────────────── */
     .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; background: #0ea5e933; color: #7dd3fc; border: 1px solid #0ea5e9; }
     .badge-gray { background: #1e293b; color: #94a3b8; border-color: #334155; }
+    .badge-green { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
 
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
-    .card h2 { font-size: 16px; font-weight: 600; color: #f1f5f9; margin-bottom: 16px; }
+    /* ── Project selector bar ─────────────────────────────────────────────── */
+    .project-bar { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .project-bar label { margin: 0; white-space: nowrap; }
+    .project-bar select { flex: 1; min-width: 200px; max-width: 400px; margin: 0; }
+    .project-bar .project-meta { font-size: 13px; color: #64748b; margin-left: auto; }
 
-    /* ── Global Template Browser (Left side) ──────────────────────────── */
-    .template-list { display: flex; flex-direction: column; gap: 12px; }
-    .template-item { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; }
-    .template-item h4 { font-size: 14px; margin-bottom: 4px; }
-    .template-item p { font-size: 12px; color: #94a3b8; margin-bottom: 12px; }
-    
-    /* ── Project Context (Right side) ─────────────────────────────────── */
-    .project-header { margin-bottom: 24px; }
-    
-    .tabs { display: flex; border-bottom: 1px solid #334155; margin-bottom: 20px; gap: 4px; overflow-x: auto; }
-    .tab { padding: 10px 16px; cursor: pointer; color: #94a3b8; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; }
+    /* ── Empty state ──────────────────────────────────────────────────────── */
+    .empty-state { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 64px 32px; text-align: center; }
+    .empty-state-icon { font-size: 40px; margin-bottom: 16px; }
+    .empty-state h3 { font-size: 18px; font-weight: 600; color: #f1f5f9; margin-bottom: 8px; }
+    .empty-state p { font-size: 14px; color: #64748b; margin-bottom: 24px; line-height: 1.6; }
+
+    /* ── Checklist panel ──────────────────────────────────────────────────── */
+    .checklist-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+
+    /* ── Tabs toolbar ─────────────────────────────────────────────────────── */
+    .tabs-toolbar { display: flex; align-items: center; border-bottom: 1px solid #334155; padding: 0 16px; gap: 4px; overflow-x: auto; min-height: 48px; }
+    .tab { padding: 14px 16px; cursor: pointer; color: #94a3b8; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; flex-shrink: 0; }
     .tab:hover { color: #e2e8f0; }
     .tab.active { color: #38bdf8; border-bottom-color: #38bdf8; }
-    
-    .checklist-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
-    
-    /* ── Table & Inline Edit ──────────────────────────────────────────── */
-    .table-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+    .tabs-spacer { flex: 1; }
+    .btn-add-checklist { margin: 8px 0; flex-shrink: 0; }
+
+    /* ── Checklist header ─────────────────────────────────────────────────── */
+    .checklist-header { padding: 20px 24px 0; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+    .checklist-title { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+    .checklist-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Success callout (post-clone) ─────────────────────────────────────── */
+    .callout { margin: 16px 24px 0; padding: 12px 16px; border-radius: 8px; font-size: 13px; display: flex; align-items: flex-start; gap: 10px; }
+    .callout-success { background: #14532d22; border: 1px solid #166534; color: #4ade80; }
+    .callout-info { background: #1e3a5f44; border: 1px solid #1d4ed8; color: #93c5fd; }
+    .callout-close { margin-left: auto; cursor: pointer; color: inherit; opacity: 0.6; background: none; border: none; font-size: 16px; line-height: 1; padding: 0 2px; }
+    .callout-close:hover { opacity: 1; }
+
+    /* ── Table ────────────────────────────────────────────────────────────── */
+    .table-wrap { padding: 20px 24px 24px; }
+    .table-card { background: #0f172a55; border: 1px solid #334155; border-radius: 10px; overflow: hidden; }
     .table-card > table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th { background: #0f172a; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 12px 14px; text-align: left; position: sticky; top: 0; }
-    td { padding: 12px 14px; vertical-align: top; border-bottom: 1px solid #1e293b; }
+    td { padding: 12px 14px; vertical-align: top; border-bottom: 1px solid #1e293b22; }
     tr:last-child td { border-bottom: none; }
-    
     tr.drag-over { border-top: 2px solid #38bdf8; background: #0f172a88; }
-    
     .drag-handle { cursor: grab; color: #475569; font-size: 16px; text-align: center; }
     .drag-handle:active { cursor: grabbing; }
-    
     .actions-cell { display: flex; gap: 4px; }
-    
     .inline-edit-input { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; margin-bottom: 4px; }
     .inline-edit-input:focus { outline: none; border-color: #38bdf8; }
-    
     .add-row { background: #0f172a44; border-top: 2px dashed #334155; }
     .add-row td { vertical-align: middle; }
-    
-    /* ── Modals ───────────────────────────────────────────────────────── */
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 200; }
-    .modal-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px; width: 500px; max-width: 95vw; }
-    .modal-box h3 { margin-bottom: 8px; font-size: 16px; }
+
+    /* ── Modals ───────────────────────────────────────────────────────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px; width: 540px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+    .modal-box h3 { margin-bottom: 6px; font-size: 18px; font-weight: 700; }
+    .modal-subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
     .modal-desc { font-size: 13px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
-    
+    .modal-divider { border: none; border-top: 1px solid #334155; margin: 16px 0; }
+
+    /* ── Template picker rows ─────────────────────────────────────────────── */
+    .template-row { display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid #334155; border-radius: 10px; margin-bottom: 10px; transition: border-color 0.15s, background 0.15s; }
+    .template-row:hover:not(.template-row-added) { border-color: #475569; background: #0f172a55; }
+    .template-row-added { opacity: 0.6; cursor: default; }
+    .template-row-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+    .template-icon-delivery { background: #1e3a5f44; border: 1px solid #1d4ed8; }
+    .template-icon-technical { background: #3b0764aa; border: 1px solid #6d28d9; }
+    .template-row-info { flex: 1; min-width: 0; }
+    .template-row-name { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 3px; }
+    .template-row-meta { font-size: 12px; color: #64748b; }
+    .template-row-action { flex-shrink: 0; }
+
+    /* ── Tab delete button ───────────────────────────────────────────────── */
+    .tab-delete-btn { background: none; border: none; cursor: pointer; color: #475569; font-size: 15px; line-height: 1; padding: 0 2px; border-radius: 3px; display: none; }
+    .tab:hover .tab-delete-btn, .tab.active .tab-delete-btn { display: inline-flex; }
+    .tab-delete-btn:hover { color: #ef4444; background: #ef444422; }
+
+    /* ── Sync modal strategies ────────────────────────────────────────────── */
     .strategy-radio { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; cursor: pointer; }
     .strategy-radio input { width: auto; margin-top: 3px; }
     .strategy-radio strong { display: block; font-size: 13px; color: #e2e8f0; margin-bottom: 2px; }
     .strategy-radio p { font-size: 12px; color: #94a3b8; margin: 0; }
-    
-    /* ── Toast ────────────────────────────────────────────────────────── */
-    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+    /* ── Toast ────────────────────────────────────────────────────────────── */
+    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
     #toast.success { border-color: #22c55e; color: #4ade80; }
     #toast.error   { border-color: #ef4444; color: #f87171; }
-    
+
     .hidden { display: none !important; }
   </style>
 </head>
@@ -117,16 +151,16 @@
 <!-- ── Auth Overlay ───────────────────────────────────────────────────────── -->
 <div id="auth-overlay">
   <div class="auth-card">
-    <h2>🤖 ReviewBot</h2>
+    <h2>ReviewBot</h2>
     <p>Sign in to manage checklists</p>
     <div id="auth-error" class="form-group" style="color:#f87171;font-size:12px;display:none;"></div>
     <div class="form-group">
       <label>Email</label>
-      <input id="login-email" type="email" value="admin@reviewbot.com" />
+      <input id="login-email" type="email" value="admin@reviewbot.com" onkeydown="if(event.key==='Enter')login()" />
     </div>
     <div class="form-group">
       <label>Password</label>
-      <input id="login-password" type="password" value="Admin@123" />
+      <input id="login-password" type="password" value="Admin@123" onkeydown="if(event.key==='Enter')login()" />
     </div>
     <button class="btn btn-primary btn-block" onclick="login()">Sign In</button>
   </div>
@@ -134,142 +168,182 @@
 
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <header>
-  <a href="/ui" class="logo">🤖 ReviewBot</a>
-  <span class="tagline">Checklist Management</span>
+  <a href="/" class="logo">ReviewBot</a>
+  <span class="tagline">AI Review Platform</span>
   <nav>
-    <a href="/ui">Autonomous Review</a>
-    <a href="/history">Report History</a>
-    <a href="/projects-ui" class="active">Projects Checklists</a>
+    <a href="/">Home</a>
+    <a href="/ui">AI Review</a>
+    <a href="/projects-ui" class="active">Checklists</a>
+    <a href="/history">History</a>
+    <a href="/docs" target="_blank">API Docs ↗</a>
   </nav>
   <span id="header-user" style="font-size:13px;color:#64748b;margin-left:12px;"></span>
   <button class="btn-logout" onclick="logout()">Sign out</button>
 </header>
 
-<!-- ── Main Grid ──────────────────────────────────────────────────────────── -->
+<!-- ── Main ───────────────────────────────────────────────────────────────── -->
 <main>
-  
-  <!-- Left Panel: Global Templates -->
-  <aside class="card">
-    <h2>Global Templates Browser</h2>
-    <div id="global-loading" style="font-size:13px; color:#64748b;">Loading templates...</div>
-    <div id="global-templates-list" class="template-list"></div>
-  </aside>
 
-  <!-- Right Panel: Project Checklist Manager -->
-  <section>
-    
-    <!-- Project Selector Form -->
-    <div class="card project-header">
-      <h2>Active Project Context</h2>
-      <div class="form-group" style="margin-bottom:0">
-        <label>Select Project to Manage Checklists</label>
-        <select id="project-select" onchange="onProjectChange()">
-          <option value="">— Loading projects —</option>
-        </select>
-      </div>
-    </div>
-    
-    <div id="project-empty-state" class="card" style="text-align:center; padding: 48px; color:#475569;">
-      Select a project above to manage its checklists, or clone a global template from the left.
+  <!-- Project selector bar -->
+  <div class="project-bar">
+    <label>Project</label>
+    <select id="project-select" onchange="onProjectChange()">
+      <option value="">— Select a project —</option>
+    </select>
+    <span class="project-meta" id="project-meta"></span>
+  </div>
+
+  <!-- Empty: no project selected -->
+  <div id="state-no-project" class="empty-state">
+    <div class="empty-state-icon">📋</div>
+    <h3>Select a project</h3>
+    <p>Choose a project from the dropdown above to view and manage its checklists.</p>
+  </div>
+
+  <!-- Empty: project selected but no checklists -->
+  <div id="state-no-checklists" class="empty-state hidden">
+    <div class="empty-state-icon">📭</div>
+    <h3>No checklists yet</h3>
+    <p>This project has no checklists. Add one from a global template to get started.<br>
+    Items will be copied so you can customise them freely for this project.</p>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Add Checklist from Template</button>
+  </div>
+
+  <!-- Checklist panel -->
+  <div id="checklist-panel" class="checklist-panel hidden">
+
+    <!-- Tabs toolbar -->
+    <div class="tabs-toolbar">
+      <div id="checklist-tabs"></div>
+      <div class="tabs-spacer"></div>
+      <button class="btn btn-ghost btn-sm btn-add-checklist" onclick="openAddModal()">+ Add Checklist</button>
     </div>
 
-    <!-- Checklist Manager Area (Hidden initially) -->
-    <div id="project-checklists-area" style="display:none;">
-      
-      <!-- Tabs -->
-      <div class="tabs" id="checklist-tabs"></div>
-      
-      <!-- Current Checklist Content -->
-      <div id="checklist-content">
+    <!-- Callout area -->
+    <div id="callout-area"></div>
+
+    <!-- Checklist header -->
+    <div class="checklist-header">
+      <div>
+        <div class="checklist-title" id="c-name"></div>
         <div class="checklist-meta">
-          <div>
-            <h3 id="c-name" style="color:#f1f5f9;margin-bottom:4px;font-size:18px;"></h3>
-            <div style="font-size:12px;color:#94a3b8;">
-              <span id="c-type" class="badge badge-gray"></span>
-              <span id="c-items-count" style="margin-left:8px;"></span> Items
-              <span id="c-source-badge" class="badge hidden" style="margin-left:8px;"></span>
-            </div>
-          </div>
-          <div>
-            <button id="btn-sync-global" class="btn btn-primary btn-sm hidden" onclick="openSyncModal()">
-              ↻ Sync from Global Template
-            </button>
-          </div>
-        </div>
-        
-        <div class="table-card">
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 30px;"></th>
-                <th style="width: 100px;">Code</th>
-                <th style="width: 120px;">Area</th>
-                <th>Question & Evidence</th>
-                <th style="width: 80px;">Weight</th>
-                <th style="width: 80px;">Req</th>
-                <th style="width: 100px;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="items-tbody"></tbody>
-            <tbody>
-              <!-- Inline Add Row -->
-              <tr class="add-row">
-                <td></td>
-                <td><input id="add-code" class="inline-edit-input" placeholder="0.0" /></td>
-                <td><input id="add-area" class="inline-edit-input" placeholder="General" /></td>
-                <td>
-                  <input id="add-q" class="inline-edit-input" placeholder="Question?" />
-                  <input id="add-ev" class="inline-edit-input" placeholder="Expected evidence guidelines..." />
-                </td>
-                <td><input id="add-weight" type="number" step="0.5" class="inline-edit-input" value="1.0" /></td>
-                <td><select id="add-req" class="inline-edit-input"><option value="true">Yes</option><option value="false">No</option></select></td>
-                <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add Item</button></td>
-              </tr>
-            </tbody>
-          </table>
+          <span id="c-type" class="badge badge-gray"></span>
+          <span id="c-items-count" style="font-size:13px;color:#94a3b8;"></span>
         </div>
       </div>
-      
+      <div>
+        <button id="btn-sync-global" class="btn btn-ghost btn-sm hidden" onclick="openSyncModal()">
+          ↻ Sync from Global Template
+        </button>
+      </div>
     </div>
-  </section>
-  
+
+    <!-- Items table -->
+    <div class="table-wrap">
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30px;"></th>
+              <th style="width:90px;">Code</th>
+              <th style="width:130px;">Area</th>
+              <th>Question &amp; Evidence</th>
+              <th style="width:70px;">Weight</th>
+              <th style="width:60px;">Req</th>
+              <th style="width:90px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="items-tbody"></tbody>
+          <tbody>
+            <tr class="add-row">
+              <td></td>
+              <td><input id="add-code" class="inline-edit-input" placeholder="0.0" /></td>
+              <td><input id="add-area" class="inline-edit-input" placeholder="General" /></td>
+              <td>
+                <input id="add-q" class="inline-edit-input" placeholder="Question?" />
+                <input id="add-ev" class="inline-edit-input" placeholder="Expected evidence..." />
+              </td>
+              <td><input id="add-weight" type="number" step="0.5" class="inline-edit-input" value="1.0" /></td>
+              <td><select id="add-req" class="inline-edit-input"><option value="true">Yes</option><option value="false">No</option></select></td>
+              <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </main>
+
+<!-- ── Add Checklist Modal ─────────────────────────────────────────────────── -->
+<div id="add-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>Add Checklist to Project</h3>
+    <p class="modal-subtitle">Choose a global template to copy into this project. You can customise the items after adding.</p>
+    <div id="add-modal-templates">
+      <div style="text-align:center;padding:24px;color:#64748b;font-size:13px;">Loading templates…</div>
+    </div>
+    <hr class="modal-divider">
+    <div style="font-size:13px;color:#94a3b8;">
+      Need something custom?
+      <button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="addBlankChecklist()">+ Blank Checklist</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAddModal()">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Sync Modal ─────────────────────────────────────────────────────────── -->
 <div id="sync-modal" class="modal-overlay hidden">
   <div class="modal-box">
     <h3>Sync from Global Template</h3>
     <p class="modal-desc">
-      This checklist was cloned from a global template. You can synchronize it to fetch the latest additions or changes from the global template.
+      Pull the latest changes from the global template into this project's checklist. Choose how much to overwrite.
     </p>
-    
+
     <label class="strategy-radio">
       <input type="radio" name="sync-strategy" value="add_new_only" checked />
       <div>
         <strong>Add New Items Only</strong>
-        <p>Safely pulls in new checklist items by checking codes, leaving your local edits and overridden weights intact.</p>
+        <p>Pulls in items added to the global template since you last cloned. Your local edits and custom items are untouched.</p>
       </div>
     </label>
-    
+
     <label class="strategy-radio">
       <input type="radio" name="sync-strategy" value="add_and_update" />
       <div>
-        <strong>Add New & Update Existing</strong>
-        <p>Pulls in new items and overwrites question text, weight, and evidence guidelines for locally matching items.</p>
+        <strong>Add New &amp; Update Existing</strong>
+        <p>Pulls new items and overwrites question text, weight, area, and evidence for matching items.</p>
       </div>
     </label>
-    
+
     <label class="strategy-radio">
       <input type="radio" name="sync-strategy" value="full_reset" />
       <div>
-        <strong style="color:#ef4444;">Full Reset (Destructive)</strong>
-        <p>Deletes all items in this project's checklist and creates an exact clone of the current global template.</p>
+        <strong style="color:#ef4444;">Full Reset — Destructive</strong>
+        <p>Deletes ALL items in this checklist and replaces them with an exact copy of the global template. Any custom items will be lost.</p>
       </div>
     </label>
-    
+
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeSyncModal()">Cancel</button>
       <button class="btn btn-primary" onclick="executeSync()">Synchronize</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Checklist Confirmation Modal ────────────────────────────────── -->
+<div id="delete-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:420px;">
+    <h3 style="color:#f87171;">Delete Checklist</h3>
+    <p class="modal-desc" id="delete-modal-msg"></p>
+    <div style="background:#ef444411;border:1px solid #ef444444;border-radius:8px;padding:12px 14px;font-size:12px;color:#fca5a5;margin-bottom:8px;">
+      ⚠ This will permanently delete all checklist items. This cannot be undone.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+      <button id="btn-confirm-delete" class="btn btn-danger" onclick="executeDeleteChecklist()">Delete</button>
     </div>
   </div>
 </div>
@@ -285,7 +359,7 @@
   let currentChecklistId = null;
   let editingItemId = null;
   let draggedRowIndex = null;
-  
+
   // ── Auth ───────────────────────────────────────────────────────────────────
   async function login() {
     const errorEl = document.getElementById('auth-error');
@@ -293,7 +367,6 @@
     const fd = new FormData();
     fd.append('username', document.getElementById('login-email').value);
     fd.append('password', document.getElementById('login-password').value);
-    
     try {
       const res = await fetch('/api/auth/login', { method: 'POST', body: fd });
       if (!res.ok) throw new Error((await res.json()).detail || 'Login failed');
@@ -308,11 +381,7 @@
     }
   }
 
-  function logout() {
-    TOKEN = '';
-    localStorage.removeItem('rb_token');
-    location.reload();
-  }
+  function logout() { TOKEN = ''; localStorage.removeItem('rb_token'); location.reload(); }
 
   function parseTokenAndLoad() {
     try {
@@ -331,11 +400,11 @@
     const headers = { 'Authorization': `Bearer ${TOKEN}`, ...(opts.headers || {}) };
     const res = await fetch(path, { ...opts, headers });
     if (res.status === 401) { logout(); return null; }
-    if (!res.ok) { let d = {}; try { d=await res.json(); }catch(e){} throw new Error(d.detail || res.statusText); }
+    if (!res.ok) { let d = {}; try { d = await res.json(); } catch(e) {} throw new Error(d.detail || res.statusText); }
     return res.json();
   }
 
-  function toast(msg, type='') {
+  function toast(msg, type = '') {
     const el = document.getElementById('toast');
     el.textContent = msg;
     el.className = type;
@@ -350,161 +419,269 @@
         api('/api/checklists/templates/global'),
         api('/api/projects/')
       ]);
-      
       globalTemplates = globalsData.templates || [];
-      renderGlobalTemplates();
-      
       allProjects = projectsData.projects || projectsData || [];
+
       const pSel = document.getElementById('project-select');
-      pSel.innerHTML = '<option value="">— Select a Project —</option>';
+      pSel.innerHTML = '<option value="">— Select a project —</option>';
       allProjects.forEach(p => {
-        const option = document.createElement('option');
-        option.value = p.id;
-        option.textContent = p.name;
-        pSel.appendChild(option);
+        const o = document.createElement('option');
+        o.value = p.id;
+        o.textContent = p.name;
+        pSel.appendChild(o);
       });
-      
     } catch(e) { toast('Error loading data: ' + e.message, 'error'); }
   }
 
-  // ── Global Templates Browser (Left) ────────────────────────────────────────
-  function renderGlobalTemplates() {
-    const cnt = document.getElementById('global-templates-list');
-    document.getElementById('global-loading').style.display = 'none';
-    
-    if (!globalTemplates.length) {
-      cnt.innerHTML = '<div style="color:#64748b;font-size:13px;">No global templates available.</div>';
-      return;
-    }
-    
-    cnt.innerHTML = globalTemplates.map(t => `
-      <div class="template-item">
-        <h4>${t.name} (v${t.version})</h4>
-        <p>Type: ${t.type} | Items: ${t.items_count}</p>
-        <button class="btn btn-ghost btn-sm btn-block" onclick="cloneGlobalTemplate(${t.id})">
-          Clone to Active Project ➔
-        </button>
-      </div>
-    `).join('');
-  }
-
-  async function cloneGlobalTemplate(templateId) {
-    const projectId = document.getElementById('project-select').value;
-    if (!projectId) {
-      toast('Please select a target project on the right first.', 'error');
-      return;
-    }
-    
-    try {
-      const res = await api(`/api/checklists/${templateId}/clone-to-project/${projectId}`, { method: 'POST' });
-      toast(`Cloned successfully into project as "${res.name}"`, 'success');
-      // Reload project checklists
-      onProjectChange();
-    } catch(e) {
-      toast('Clone failed: ' + e.message, 'error');
-    }
-  }
-
-  // ── Project Checklist Manager (Right) ──────────────────────────────────────
+  // ── Project change ─────────────────────────────────────────────────────────
   async function onProjectChange() {
     const projectId = document.getElementById('project-select').value;
-    const emptyState = document.getElementById('project-empty-state');
-    const clArea = document.getElementById('project-checklists-area');
-    
-    if (!projectId) {
-      emptyState.style.display = 'block';
-      clArea.style.display = 'none';
-      return;
-    }
-    
-    emptyState.style.display = 'none';
-    clArea.style.display = 'block';
-    
+    showState('no-project');
+
+    if (!projectId) return;
+
     try {
-      // Pass include_items=true indirectly by fetching list, then we manually fetch the first one's items
-      // Actually `/api/projects/{id}/checklists` doesn't include full items list right now based on our index.html. Wait, index.html just loops options.
-      // We need to fetch details. Let's fetch project checklists list first.
       const data = await api(`/api/projects/${projectId}/checklists`);
-      currentProjectChecklists = data.checklists || data || [];
-      renderTabs();
-      
-      if (currentProjectChecklists.length > 0) {
-        selectTab(currentProjectChecklists[0].id);
+      currentProjectChecklists = data.checklists || [];
+
+      document.getElementById('project-meta').textContent =
+        `${currentProjectChecklists.length} checklist${currentProjectChecklists.length !== 1 ? 's' : ''}`;
+
+      if (currentProjectChecklists.length === 0) {
+        showState('no-checklists');
       } else {
-        document.getElementById('checklist-tabs').innerHTML = '';
-        document.getElementById('checklist-content').style.display = 'none';
-        emptyState.innerHTML = 'This project has no checklists yet. Please clone a global template from the left panel.';
-        emptyState.style.display = 'block';
+        showState('panel');
+        renderTabs();
+        selectTab(currentProjectChecklists[0].id);
       }
-    } catch(e) {
-      toast('Failed to load project checklists: ' + e.message, 'error');
-    }
+    } catch(e) { toast('Failed to load project checklists: ' + e.message, 'error'); }
   }
 
+  function showState(state) {
+    document.getElementById('state-no-project').classList.toggle('hidden', state !== 'no-project');
+    document.getElementById('state-no-checklists').classList.toggle('hidden', state !== 'no-checklists');
+    document.getElementById('checklist-panel').classList.toggle('hidden', state !== 'panel');
+  }
+
+  // ── Tabs ───────────────────────────────────────────────────────────────────
   function renderTabs() {
     const tc = document.getElementById('checklist-tabs');
     tc.innerHTML = currentProjectChecklists.map(c => `
-      <div class="tab ${c.id === currentChecklistId ? 'active' : ''}" 
-           onclick="selectTab(${c.id})">${c.name}</div>
+      <div class="tab ${c.id === currentChecklistId ? 'active' : ''}" style="display:flex;align-items:center;gap:6px;" onclick="selectTab(${c.id})">
+        <span>${escapeHtml(c.name)}</span>
+        <button class="tab-delete-btn" title="Delete checklist" onclick="event.stopPropagation();confirmDeleteChecklist(${c.id},'${escapeHtml(c.name).replace(/'/g,'\\\'')}')">&times;</button>
+      </div>
     `).join('');
   }
 
   async function selectTab(checklistId) {
     currentChecklistId = checklistId;
-    renderTabs(); // update active class
-    
+    renderTabs();
+    clearCallout();
     try {
-      const details = await api(`/api/checklists/${checklistId}?include_items=true`);
-      document.getElementById('checklist-content').style.display = 'block';
-      document.getElementById('c-name').textContent = details.name;
-      document.getElementById('c-type').textContent = details.type.toUpperCase();
-      document.getElementById('c-items-count').textContent = details.items_count;
-      
-      const srcBadge = document.getElementById('c-source-badge');
+      const d = await api(`/api/checklists/${checklistId}?include_items=true`);
+      document.getElementById('c-name').textContent = d.name;
+      document.getElementById('c-type').textContent = d.type.toUpperCase();
+      document.getElementById('c-items-count').textContent = `${d.items_count || 0} items`;
       const syncBtn = document.getElementById('btn-sync-global');
-      
-      // If it has a source_checklist_id or was cloned, we might need a flag. 
-      // The payload for GET /checklists/{id} currently doesn't expose source_checklist_id in the index UI code, but we just updated Checklists API in models so let's hit it.
-      // Wait, I didn't update the GET /api/checklists/{id} endpoint to return source_checklist_id. 
-      // I can check if it exists implicitly or assume yes if not global.
-      // Actually, my clone logic fills source_checklist_id but the GET response may not. 
-      // Let's assume it has it if we explicitly ask for it or let's just make the sync button available. If it errors it errors.
-      syncBtn.classList.remove('hidden');
-      
-      renderItemsTable(details.items || []);
+      d.source_checklist_id ? syncBtn.classList.remove('hidden') : syncBtn.classList.add('hidden');
+      renderItemsTable(d.items || []);
+    } catch(e) { toast('Failed to load checklist: ' + e.message, 'error'); }
+  }
+
+  // ── Add Checklist Modal ────────────────────────────────────────────────────
+  function openAddModal() {
+    renderAddModalTemplates();
+    document.getElementById('add-modal').classList.remove('hidden');
+  }
+
+  function closeAddModal() {
+    document.getElementById('add-modal').classList.add('hidden');
+  }
+
+  function renderAddModalTemplates() {
+    const container = document.getElementById('add-modal-templates');
+    if (!globalTemplates.length) {
+      container.innerHTML = '<div style="color:#64748b;font-size:13px;padding:12px 0;">No global templates available.</div>';
+      return;
+    }
+
+    // Build set of source IDs already present in this project
+    const usedSourceIds = new Set(
+      currentProjectChecklists
+        .filter(c => c.source_checklist_id)
+        .map(c => c.source_checklist_id)
+    );
+
+    container.innerHTML = globalTemplates.map(t => {
+      const alreadyAdded = usedSourceIds.has(t.id);
+      const iconClass = t.type === 'technical' ? 'template-icon-technical' : 'template-icon-delivery';
+      const iconEmoji = t.type === 'technical' ? '⚙️' : '📋';
+      const typeLabel = t.type.charAt(0).toUpperCase() + t.type.slice(1);
+      return `
+        <div class="template-row ${alreadyAdded ? 'template-row-added' : ''}">
+          <div class="template-row-icon ${iconClass}">${iconEmoji}</div>
+          <div class="template-row-info">
+            <div class="template-row-name">${t.name}</div>
+            <div class="template-row-meta">${typeLabel} · ${t.items_count} items · v${t.version}</div>
+          </div>
+          <div class="template-row-action">
+            ${alreadyAdded
+              ? `<span class="badge badge-green">✓ Already added</span>`
+              : `<button class="btn btn-primary btn-sm" onclick="cloneTemplate(${t.id}, '${escapeHtml(t.name)}')">Add to Project</button>`
+            }
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // ── Delete Checklist ───────────────────────────────────────────────────────
+  let _deleteChecklistId = null;
+
+  function confirmDeleteChecklist(checklistId, checklistName) {
+    _deleteChecklistId = checklistId;
+    document.getElementById('delete-modal-msg').innerHTML =
+      `Are you sure you want to delete <strong>${escapeHtml(checklistName)}</strong>?`;
+    document.getElementById('delete-modal').classList.remove('hidden');
+  }
+
+  function closeDeleteModal() {
+    _deleteChecklistId = null;
+    document.getElementById('delete-modal').classList.add('hidden');
+  }
+
+  async function executeDeleteChecklist() {
+    if (!_deleteChecklistId) return;
+    const btn = document.getElementById('btn-confirm-delete');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+      await api(`/api/checklists/${_deleteChecklistId}`, { method: 'DELETE' });
+      closeDeleteModal();
+      toast('Checklist deleted successfully', 'success');
+      // Reload checklists for this project
+      const projectId = document.getElementById('project-select').value;
+      const data = await api(`/api/projects/${projectId}/checklists`);
+      currentProjectChecklists = data.checklists || [];
+      document.getElementById('project-meta').textContent =
+        `${currentProjectChecklists.length} checklist${currentProjectChecklists.length !== 1 ? 's' : ''}`;
+      if (currentProjectChecklists.length === 0) {
+        showState('no-checklists');
+      } else {
+        showState('panel');
+        renderTabs();
+        // Navigate to first tab if deleted tab was active
+        const stillExists = currentProjectChecklists.find(c => c.id === currentChecklistId);
+        await selectTab(stillExists ? currentChecklistId : currentProjectChecklists[0].id);
+      }
     } catch(e) {
-      toast('Failed to load checklist details: ' + e.message, 'error');
+      closeDeleteModal();
+      // Show 409 conflict as an informative message, not generic error
+      const msg = e.message || '';
+      toast(msg || 'Delete failed', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Delete';
     }
   }
 
-  // ── Table Rendering & Inline Edit ──────────────────────────────────────────
+  async function cloneTemplate(templateId, templateName) {
+    const projectId = document.getElementById('project-select').value;
+    if (!projectId) { toast('No project selected', 'error'); return; }
+
+    // Disable the button immediately to prevent double-click
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    try {
+      const res = await api(`/api/checklists/${templateId}/clone-to-project/${projectId}`, { method: 'POST' });
+      closeAddModal();
+
+      // Reload project checklists and navigate to the new one
+      const data = await api(`/api/projects/${projectId}/checklists`);
+      currentProjectChecklists = data.checklists || [];
+      document.getElementById('project-meta').textContent =
+        `${currentProjectChecklists.length} checklist${currentProjectChecklists.length !== 1 ? 's' : ''}`;
+      showState('panel');
+      renderTabs();
+      await selectTab(res.id);
+
+      // Show success callout on the new checklist
+      showCallout(
+        `<strong>${res.item_count} items copied</strong> from "${templateName}". ` +
+        `Customise them below — add, edit, reorder, or remove as needed. ` +
+        `Use <em>Sync from Global Template</em> to pull in future updates.`,
+        'success'
+      );
+    } catch(e) {
+      toast('Failed to add checklist: ' + e.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Add to Project';
+    }
+  }
+
+  async function addBlankChecklist() {
+    const projectId = document.getElementById('project-select').value;
+    if (!projectId) { toast('No project selected', 'error'); return; }
+    const name = prompt('Checklist name:', 'Custom Checklist');
+    if (!name) return;
+    const type = prompt('Type (delivery or technical):', 'delivery');
+    if (!type) return;
+
+    try {
+      // Use the API to create a blank checklist via fetch directly
+      const fd = new FormData();
+      // There's no standalone POST /api/checklists, so we fall back to the clone endpoint
+      // by just notifying the user that blank checklists aren't yet supported via API.
+      toast('Blank checklists are not yet supported via the API — add items to an existing clone instead.', 'error');
+    } catch(e) { toast(e.message, 'error'); }
+  }
+
+  // ── Callout helpers ────────────────────────────────────────────────────────
+  function showCallout(html, type = 'info') {
+    document.getElementById('callout-area').innerHTML = `
+      <div class="callout callout-${type}">
+        <span>${html}</span>
+        <button class="callout-close" onclick="clearCallout()">✕</button>
+      </div>`;
+  }
+
+  function clearCallout() {
+    document.getElementById('callout-area').innerHTML = '';
+  }
+
+  // ── Items table ────────────────────────────────────────────────────────────
   let activeChecklistItems = [];
 
   function renderItemsTable(items) {
-    activeChecklistItems = items.sort((a,b) => a.order - b.order);
+    activeChecklistItems = items.sort((a, b) => a.order - b.order);
     const tbody = document.getElementById('items-tbody');
     tbody.innerHTML = '';
-    
     activeChecklistItems.forEach((item, index) => {
       const tr = document.createElement('tr');
       tr.draggable = true;
       tr.dataset.index = index;
       tr.dataset.id = item.id;
-      
       tr.addEventListener('dragstart', handleDragStart);
       tr.addEventListener('dragover', handleDragOver);
       tr.addEventListener('drop', handleDrop);
       tr.addEventListener('dragenter', handleDragEnter);
       tr.addEventListener('dragleave', handleDragLeave);
-      
+
       if (editingItemId === item.id) {
         tr.innerHTML = `
           <td class="drag-handle" draggable="false">⋮⋮</td>
           <td><input id="edit-code-${item.id}" class="inline-edit-input" value="${item.item_code||''}"></td>
           <td><input id="edit-area-${item.id}" class="inline-edit-input" value="${item.area||''}"></td>
           <td>
-            <input id="edit-q-${item.id}" class="inline-edit-input" value="${item.question||''}">
-            <input id="edit-ev-${item.id}" class="inline-edit-input" value="${item.expected_evidence||''}">
+            <input id="edit-q-${item.id}" class="inline-edit-input" value="${(item.question||'').replace(/"/g,'&quot;')}">
+            <input id="edit-ev-${item.id}" class="inline-edit-input" value="${(item.expected_evidence||'').replace(/"/g,'&quot;')}">
           </td>
           <td><input id="edit-weight-${item.id}" type="number" step="0.5" class="inline-edit-input" value="${item.weight}"></td>
           <td>
@@ -514,26 +691,24 @@
             </select>
           </td>
           <td class="actions-cell">
-            <button class="btn-icon-only text-green" style="color:#4ade80" onclick="saveItem(${item.id})">💾</button>
-            <button class="btn-icon-only" onclick="cancelEdit()">✕</button>
-          </td>
-        `;
+            <button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})" title="Save">💾</button>
+            <button class="btn-icon-only" onclick="cancelEdit()" title="Cancel">✕</button>
+          </td>`;
       } else {
         tr.innerHTML = `
           <td class="drag-handle">⋮⋮</td>
-          <td style="font-family:monospace; color:#94a3b8">${item.item_code||''}</td>
-          <td style="color:#94a3b8">${item.area||''}</td>
+          <td style="font-family:monospace;color:#94a3b8">${item.item_code||''}</td>
+          <td style="color:#94a3b8;font-size:12px">${item.area||''}</td>
           <td>
-            <div style="font-weight:500; margin-bottom:4px;">${item.question||''}</div>
-            <div style="font-size:11px; color:#64748b;">${item.expected_evidence||''}</div>
+            <div style="font-weight:500;margin-bottom:3px">${item.question||''}</div>
+            <div style="font-size:11px;color:#64748b">${item.expected_evidence||''}</div>
           </td>
           <td>${item.weight}</td>
           <td>${item.is_required ? 'Yes' : 'No'}</td>
           <td class="actions-cell">
-            <button class="btn-icon-only" onclick="startEdit(${item.id})">✏️</button>
-            <button class="btn-icon-only" style="color:#f87171" onclick="deleteItem(${item.id})">🗑️</button>
-          </td>
-        `;
+            <button class="btn-icon-only" onclick="startEdit(${item.id})" title="Edit">✏️</button>
+            <button class="btn-icon-only" style="color:#f87171" onclick="deleteItem(${item.id})" title="Delete">🗑️</button>
+          </td>`;
       }
       tbody.appendChild(tr);
     });
@@ -551,19 +726,14 @@
       weight: parseFloat(document.getElementById(`edit-weight-${id}`).value),
       is_required: document.getElementById(`edit-req-${id}`).value === 'true'
     };
-    
     if (!payload.question) { toast('Question is required', 'error'); return; }
-    if (payload.weight < 0 || payload.weight > 5) { toast('Invalid weight (must be 0-5)', 'error'); return; }
-
+    if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
     try {
       const res = await api(`/api/checklists/${currentChecklistId}/items/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       toast('Item updated', 'success');
       editingItemId = null;
-      // Optimistic upate missing values from response
       const idx = activeChecklistItems.findIndex(i => i.id === id);
       if (idx >= 0) activeChecklistItems[idx] = res;
       renderItemsTable(activeChecklistItems);
@@ -571,13 +741,13 @@
   }
 
   async function deleteItem(id) {
-    if (!confirm('Are you sure you want to delete this checklist item?')) return;
+    if (!confirm('Delete this item permanently?')) return;
     try {
       await api(`/api/checklists/${currentChecklistId}/items/${id}`, { method: 'DELETE' });
       toast('Item deleted', 'success');
       activeChecklistItems = activeChecklistItems.filter(i => i.id !== id);
       renderItemsTable(activeChecklistItems);
-      document.getElementById('c-items-count').textContent = activeChecklistItems.length;
+      document.getElementById('c-items-count').textContent = `${activeChecklistItems.length} items`;
     } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
   }
 
@@ -591,129 +761,71 @@
       is_required: document.getElementById('add-req').value === 'true',
       order: activeChecklistItems.length
     };
-    
     if (!payload.question) { toast('Question is required', 'error'); return; }
-    if (payload.weight < 0 || payload.weight > 5) { toast('Invalid weight (must be 0-5)', 'error'); return; }
-
+    if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
     try {
       const res = await api(`/api/checklists/${currentChecklistId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       toast('Item added', 'success');
       activeChecklistItems.push(res);
       renderItemsTable(activeChecklistItems);
-      document.getElementById('c-items-count').textContent = activeChecklistItems.length;
-      
-      // Clear inputs
+      document.getElementById('c-items-count').textContent = `${activeChecklistItems.length} items`;
       document.getElementById('add-code').value = '';
       document.getElementById('add-q').value = '';
       document.getElementById('add-ev').value = '';
     } catch(e) { toast('Add failed: ' + e.message, 'error'); }
   }
 
-  // ── Drag and Drop ──────────────────────────────────────────────────────────
+  // ── Drag and drop ──────────────────────────────────────────────────────────
   function handleDragStart(e) {
     draggedRowIndex = +e.target.dataset.index;
     e.dataTransfer.effectAllowed = 'move';
-    // Small delay to keep the ghost clear while we drag
     setTimeout(() => e.target.style.opacity = '0.5', 0);
   }
-
-  function handleDragOver(e) {
-    if (e.preventDefault) e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    return false;
-  }
-
-  function handleDragEnter(e) {
-    let targetTr = e.target.closest('tr');
-    if (targetTr && targetTr.dataset.index !== undefined) {
-      targetTr.classList.add('drag-over');
-    }
-  }
-
-  function handleDragLeave(e) {
-    let targetTr = e.target.closest('tr');
-    if (targetTr) {
-      targetTr.classList.remove('drag-over');
-    }
-  }
+  function handleDragOver(e) { if (e.preventDefault) e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
+  function handleDragEnter(e) { const t = e.target.closest('tr'); if (t && t.dataset.index !== undefined) t.classList.add('drag-over'); }
+  function handleDragLeave(e) { const t = e.target.closest('tr'); if (t) t.classList.remove('drag-over'); }
 
   async function handleDrop(e) {
     if (e.stopPropagation) e.stopPropagation();
-    
     const targetTr = e.target.closest('tr');
     if (!targetTr || targetTr.dataset.index === undefined) return false;
-    
     targetTr.classList.remove('drag-over');
-    
     const targetIndex = +targetTr.dataset.index;
-    if (draggedRowIndex === targetIndex) {
-      document.querySelector(`tr[data-index="${draggedRowIndex}"]`).style.opacity = '1';
-      return false;
-    }
-    
-    // Perform array swap logic and redraw
-    const itemToMove = activeChecklistItems[draggedRowIndex];
+    if (draggedRowIndex === targetIndex) { document.querySelector(`tr[data-index="${draggedRowIndex}"]`).style.opacity = '1'; return false; }
+    const moved = activeChecklistItems[draggedRowIndex];
     activeChecklistItems.splice(draggedRowIndex, 1);
-    activeChecklistItems.splice(targetIndex, 0, itemToMove);
-    
-    // Re-assign order properties
+    activeChecklistItems.splice(targetIndex, 0, moved);
     activeChecklistItems.forEach((item, idx) => item.order = idx);
     renderItemsTable(activeChecklistItems);
-    
-    // Map request
-    const payload = activeChecklistItems.map(i => ({ id: i.id, order: i.order }));
     try {
       await api(`/api/checklists/${currentChecklistId}/items/reorder`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(activeChecklistItems.map(i => ({ id: i.id, order: i.order })))
       });
-      // Toast optionally
-    } catch(e) {
-      toast('Failed to save sorted order: ' + e.message, 'error');
-    }
+    } catch(e) { toast('Failed to save order: ' + e.message, 'error'); }
     return false;
   }
 
   // ── Sync Modal ─────────────────────────────────────────────────────────────
-  function openSyncModal() {
-    document.getElementById('sync-modal').classList.remove('hidden');
-  }
-
-  function closeSyncModal() {
-    document.getElementById('sync-modal').classList.add('hidden');
-  }
+  function openSyncModal() { document.getElementById('sync-modal').classList.remove('hidden'); }
+  function closeSyncModal() { document.getElementById('sync-modal').classList.add('hidden'); }
 
   async function executeSync() {
     const strategy = document.querySelector('input[name="sync-strategy"]:checked').value;
-    
     try {
       const res = await api(`/api/checklists/${currentChecklistId}/sync-from-global`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ strategy })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strategy })
       });
-      
       closeSyncModal();
-      toast(`Successfully synced! Added: ${res.added}, Updated: ${res.updated}`, 'success');
-      
+      toast(`Sync complete — Added: ${res.added}, Updated: ${res.updated}`, 'success');
       if (res.flagged_removed > 0) {
-        setTimeout(() => toast(`Warning: ${res.flagged_removed} items removed upstream`, 'error'), 3000);
+        showCallout(`${res.flagged_removed} item(s) exist in this checklist but were removed from the global template. Review them and delete manually if needed.`, 'info');
       }
-      
-      // Refresh active tab
       selectTab(currentChecklistId);
-      
-    } catch(e) {
-      toast('Sync Error: ' + e.message, 'error');
-      closeSyncModal();
-    }
+    } catch(e) { toast('Sync failed: ' + e.message, 'error'); closeSyncModal(); }
   }
 </script>
-
 </body>
 </html>

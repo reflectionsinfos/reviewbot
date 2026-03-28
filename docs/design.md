@@ -684,6 +684,164 @@ paths:
 
 ---
 
+## Two-Track Action Item System Design
+
+### Overview
+
+After an autonomous review completes, the system produces an **Action Plan** from existing review data. No new DB columns are required for the MVP — all data is assembled from `AutonomousReviewResult`, `ChecklistItem`, and `Project` records already on disk.
+
+### Data Flow
+
+```
+AutonomousReviewJob
+  └─ results[]  (AutonomousReviewResult per checklist item)
+       ├─ rag_status        → determines if item appears in action plan
+       ├─ evidence          → "What was found / what is missing"
+       ├─ files_checked     → "Which files to touch" injected into prompt
+       └─ checklist_item_id ─→ ChecklistItem
+                                 ├─ expected_evidence  → "What the standard expects"
+                                 ├─ area               → used for grouping
+                                 └─ question           → action card title
+
+Project.tech_stack  → injected into prompt for framework-aware fix instructions
+```
+
+### Track 2 — Structured Action Cards (Team/Manager View)
+
+Each red/amber `AutonomousReviewResult` is transformed into an **Action Card**:
+
+```
+ActionCard {
+  item_code:        string          # e.g. "3.2"
+  area:             string          # e.g. "Security"
+  question:         string          # checklist question text
+  priority:         "High"|"Medium" # red → High, amber → Medium
+  rag_status:       string
+  what_was_found:   string          # AutonomousReviewResult.evidence
+  what_to_fix:      string          # derived from expected_evidence + evidence gap
+  expected_outcome: string          # ChecklistItem.expected_evidence
+  assigned_to:      string          # "TBD" default, user-editable
+  due_date:         string          # "TBD" default, user-editable
+  ai_prompt:        AIPrompt        # Track 1 payload for this card
+}
+```
+
+Cards are grouped in this order:
+1. **Critical Blockers** (red, High priority)
+2. **Advisories** (amber, Medium priority)
+3. **Needs Human Sign-off** (`needs_human_sign_off = true`)
+4. **Already Compliant** (green, summarised — gives team confidence)
+
+### Track 1 — AI IDE Prompts (Developer View)
+
+Each Action Card has an associated `AIPrompt` object:
+
+```
+AIPrompt {
+  generic:      string    # Default — plain instruction, usable in any AI IDE
+  cursor:       string    # Prefixed with @workspace context hint for Cursor/Copilot Chat
+  claude_code:  string    # Task-description style for Claude Code CLI
+}
+```
+
+**Prompt template structure (template-generated, no LLM cost):**
+
+```
+[CONTEXT]
+Project: {project.name} | Tech stack: {project.tech_stack}
+File(s) examined: {result.files_checked}
+
+[FINDING]
+{result.evidence}
+
+[STANDARD EXPECTED]
+{checklist_item.expected_evidence}
+
+[TASK]
+Fix the above gap. {framework-specific instruction derived from tech_stack}.
+Ensure the solution satisfies: "{checklist_item.question}"
+
+[ACCEPTANCE CRITERIA]
+{checklist_item.expected_evidence}
+```
+
+**Optional LLM enrichment** (on-demand, not default):
+- Triggered by `POST /api/autonomous-reviews/{job_id}/action-plan/enhance`
+- Uses the same configured LLM provider as the review agent
+- Enriched prompts are cached on the job record (stored in `agent_metadata` JSON) to avoid re-charging on re-fetch
+
+### New API Endpoint
+
+```
+GET /api/autonomous-reviews/{job_id}/action-plan
+
+Response:
+{
+  "job_id": int,
+  "project": string,
+  "checklist": string,
+  "generated_at": datetime,
+  "summary": {
+    "total_items": int,
+    "critical_blockers": int,
+    "advisories": int,
+    "sign_off_required": int,
+    "compliant": int
+  },
+  "critical_blockers": [ActionCard],
+  "advisories":        [ActionCard],
+  "sign_off_required": [ActionCard],
+  "compliant_summary": [{ area, item_code, question }]
+}
+
+POST /api/autonomous-reviews/{job_id}/action-plan/enhance
+  → triggers LLM enrichment of all Track 1 prompts for this job
+  → returns 202 Accepted while enrichment runs in background
+```
+
+### UI — Action Plan Tab in History Details
+
+The existing `history.html` details view gains a third tab alongside the item grid:
+
+```
+[Item Grid]  [Action Plan]  [Summary Stats]   ← tab row
+
+Action Plan tab layout:
+┌─────────────────────────────────────────────────────┐
+│  IDE Flavour: [Generic ▾]  [Export MD]  [Enhance AI] │
+├─────────────────────────────────────────────────────┤
+│  🔴 Critical Blockers (N)                            │
+│  ┌───────────────────────────────────────────┐       │
+│  │ 3.2 · Security · HIGH                     │       │
+│  │ No JWT expiry validation found            │       │
+│  │ Evidence: auth.py checked — no exp check  │       │
+│  │ Fix: Add token expiry validation          │       │
+│  │ [▶ Show AI Prompt]  [📋 Copy Prompt]       │       │
+│  └───────────────────────────────────────────┘       │
+│  ...                                                 │
+│  🟡 Advisories (N)                                   │
+│  ✅ Already Compliant (N items)  [expand]            │
+└─────────────────────────────────────────────────────┘
+```
+
+### Service Layer
+
+New file: `app/services/action_plan_generator.py`
+
+```python
+class ActionPlanGenerator:
+    def generate(job: AutonomousReviewJob, results: list[AutonomousReviewResult],
+                 checklist_items: dict[int, ChecklistItem],
+                 project: Project) -> ActionPlanResponse
+
+    def _build_prompt(result, item, project, flavour="generic") -> str
+
+    async def enhance_with_llm(job_id, results, items, project) -> None
+        # Stores enriched prompts in job.agent_metadata["action_plan_prompts"]
+```
+
+---
+
 ## AI Agent Design
 
 ### Review Agent Workflow

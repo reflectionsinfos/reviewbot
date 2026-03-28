@@ -98,13 +98,20 @@ async def serve_projects_ui(project_id: int = None):
 
 
 # ── Health / root ─────────────────────────────────────────────────────────────
-@app.get("/")
+@app.get("/", include_in_schema=False)
+async def serve_home():
+    """Serve the ReviewBot home / dashboard page"""
+    return FileResponse(os.path.join(_static_dir, "home.html"))
+
+
+@app.get("/api/status")
 async def root():
+    """JSON status endpoint (previously at /)"""
     return {
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
-        "ui": "/ui",
+        "ui": "/",
         "docs": "/docs",
     }
 

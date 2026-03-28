@@ -371,6 +371,7 @@ async def get_project_checklists(
                 "type": c.type,
                 "version": c.version,
                 "items_count": len(c.items),
+                "source_checklist_id": c.source_checklist_id,
                 "created_at": c.created_at.isoformat() if c.created_at else None
             }
             for c in checklists
@@ -429,81 +430,13 @@ async def list_templates(
 async def use_template_for_project(
     project_id: int,
     template_id: int,
-    db: AsyncSession = Depends(get_db)
 ):
-    """
-    Apply a global template to a project.
-    Creates a copy of the template checklists for the specified project.
-    """
-    # Verify project exists
-    project_result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
-    project = project_result.scalar_one_or_none()
-    
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    # Get template (must be global)
-    template_result = await db.execute(
-        select(Checklist).where(
-            Checklist.id == template_id,
-            Checklist.is_global == True
+    """Deprecated — use POST /api/checklists/{template_id}/clone-to-project/{project_id} instead."""
+    raise HTTPException(
+        status_code=410,
+        detail=(
+            "This endpoint is deprecated. Use "
+            f"POST /api/checklists/{template_id}/clone-to-project/{project_id} instead. "
+            "The new endpoint requires authentication and tracks the source template for sync."
         )
     )
-    template = template_result.scalar_one_or_none()
-    
-    if not template:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Global template with ID {template_id} not found"
-        )
-    
-    logger.info(
-        f"Applying template '{template.name}' to project '{project.name}'"
-    )
-    
-    # Create copy of template for project
-    project_checklist = Checklist(
-        name=template.name,
-        type=template.type,
-        version=template.version,
-        project_id=project_id,
-        is_global=False
-    )
-    
-    db.add(project_checklist)
-    await db.flush()  # Get the new checklist ID
-    
-    # Copy items
-    items_copied = 0
-    for item in template.items:
-        new_item = ChecklistItem(
-            checklist_id=project_checklist.id,
-            item_code=item.item_code,
-            area=item.area,
-            question=item.question,
-            category=item.category,
-            weight=item.weight,
-            is_required=item.is_required,
-            expected_evidence=item.expected_evidence,
-            order=item.order
-        )
-        db.add(new_item)
-        items_copied += 1
-    
-    await db.commit()
-    
-    logger.info(
-        f"Template applied successfully. Created checklist with {items_copied} items"
-    )
-    
-    return {
-        "message": f"Template '{template.name}' applied to project '{project.name}'",
-        "project_id": project_id,
-        "project_name": project.name,
-        "template_id": template_id,
-        "template_name": template.name,
-        "new_checklist_id": project_checklist.id,
-        "items_copied": items_copied
-    }

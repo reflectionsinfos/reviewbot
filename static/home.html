@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReviewBot — Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ─────────────────────────────────────────────────────────────── */
+    header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 50; }
+    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; }
+    header .tagline { font-size: 13px; color: #94a3b8; }
+    header nav { margin-left: auto; display: flex; gap: 8px; }
+    header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; transition: all 0.15s; }
+    header nav a:hover, header nav a.active { border-color: #38bdf8; color: #38bdf8; }
+    .nav-right { display: flex; align-items: center; gap: 10px; margin-left: 16px; }
+    #nav-user { font-size: 13px; color: #94a3b8; }
+    .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
+    .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────────── */
+    .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #38bdf8; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-block { width: 100%; }
+    .btn-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
+    .btn-ghost:hover { border-color: #38bdf8; color: #38bdf8; }
+
+    /* ── Login modal ─────────────────────────────────────────────────────────── */
+    #auth-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    #auth-modal.hidden { display: none; }
+    .auth-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 36px; width: 380px; }
+    .auth-card h2 { color: #38bdf8; margin-bottom: 6px; font-size: 20px; }
+    .auth-card .subtitle { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    input { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
+    input:focus { outline: none; border-color: #38bdf8; }
+    #login-error { color: #f87171; font-size: 13px; margin-top: 12px; min-height: 20px; }
+
+    /* ── Layout ─────────────────────────────────────────────────────────────── */
+    #main-content { display: none; flex: 1; }
+    .page-wrap { max-width: 1400px; margin: 0 auto; padding: 0 24px 48px; }
+
+    /* ── Hero band ───────────────────────────────────────────────────────────── */
+    .hero { background: linear-gradient(135deg, #1e293b 0%, #0f172a 60%, #0c1a2e 100%); border-bottom: 1px solid #334155; padding: 48px 24px; }
+    .hero-inner { max-width: 1400px; margin: 0 auto; }
+    .hero h1 { font-size: 32px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.5px; margin-bottom: 8px; }
+    .hero h1 span { color: #38bdf8; }
+    .hero p { font-size: 15px; color: #94a3b8; max-width: 560px; line-height: 1.6; }
+
+    /* ── Stats row ───────────────────────────────────────────────────────────── */
+    .stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 28px 0; }
+    .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; min-width: 140px; flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: border-color 0.15s; }
+    .stat-card:hover { border-color: #475569; }
+    .stat-card-info .stat-num { font-size: 30px; font-weight: 800; color: #f1f5f9; line-height: 1; }
+    .stat-card-info .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; }
+    .stat-card-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .stat-icon-blue { background: #1e3a5f44; border: 1px solid #1d4ed8; }
+    .stat-icon-green { background: #14532d44; border: 1px solid #166534; }
+    .stat-icon-amber { background: #78350f44; border: 1px solid #92400e; }
+    .stat-icon-purple { background: #3b0764aa; border: 1px solid #6d28d9; }
+
+    /* ── Section headings ────────────────────────────────────────────────────── */
+    .section-heading { font-size: 16px; font-weight: 700; color: #f1f5f9; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .section-heading::after { content: ''; flex: 1; height: 1px; background: #334155; margin-left: 8px; }
+
+    /* ── Feature cards grid ──────────────────────────────────────────────────── */
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 36px; }
+    .feature-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; text-decoration: none; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+    .feature-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(14,165,233,0.15); border-color: #38bdf8; }
+    .feature-card-icon { width: 44px; height: 44px; border-radius: 10px; background: #0ea5e922; border: 1px solid #0ea5e944; display: flex; align-items: center; justify-content: center; }
+    .feature-card-icon svg { width: 22px; height: 22px; color: #38bdf8; }
+    .feature-card-title { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+    .feature-card-desc { font-size: 13px; color: #94a3b8; line-height: 1.6; flex: 1; }
+    .feature-card-cta { font-size: 13px; color: #38bdf8; font-weight: 600; margin-top: 4px; }
+
+    /* ── Activity table ──────────────────────────────────────────────────────── */
+    .table-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow-x: auto; }
+    table { width: 100%; min-width: 700px; border-collapse: collapse; }
+    thead th { background: #0f172a; padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid #334155; white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid #1e293b; transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #0f172a44; }
+    tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
+
+    /* ── Badges ──────────────────────────────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .badge-green  { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
+    .badge-amber  { background: #78350f44; color: #fb923c; border: 1px solid #92400e; }
+    .badge-red    { background: #7f1d1d44; color: #f87171; border: 1px solid #991b1b; }
+    .badge-blue   { background: #1e3a5f44; color: #60a5fa; border: 1px solid #1d4ed8; }
+    .badge-gray   { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+
+    /* ── Empty / loading ─────────────────────────────────────────────────────── */
+    .empty-state { text-align: center; padding: 48px 20px; color: #475569; }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+    .loading-row td { text-align: center; padding: 32px; color: #475569; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Footer ──────────────────────────────────────────────────────────────── */
+    footer { background: #1e293b; border-top: 1px solid #334155; padding: 20px 28px; font-size: 12px; color: #475569; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    footer a { color: #64748b; text-decoration: none; transition: color 0.15s; }
+    footer a:hover { color: #38bdf8; }
+    .footer-links { display: flex; gap: 20px; }
+
+    /* ── Score display ───────────────────────────────────────────────────────── */
+    .score-green { color: #4ade80; font-weight: 700; }
+    .score-amber { color: #fb923c; font-weight: 700; }
+    .score-red   { color: #f87171; font-weight: 700; }
+    .score-na    { color: #64748b; }
+
+    /* ── Responsive ──────────────────────────────────────────────────────────── */
+    @media (max-width: 700px) {
+      header nav { display: none; }
+      .stats-row { flex-direction: column; }
+      .feature-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<header>
+  <a href="/" class="logo">ReviewBot</a>
+  <span class="tagline">AI Review Platform</span>
+  <nav>
+    <a href="/" class="active">Home</a>
+    <a href="/ui">AI Review</a>
+    <a href="/projects-ui">Checklists</a>
+    <a href="/history">History</a>
+    <a href="/docs" target="_blank">API Docs &#x2197;</a>
+  </nav>
+  <div class="nav-right">
+    <span id="nav-user"></span>
+    <button class="btn-logout" id="btn-logout" style="display:none" onclick="logout()">Logout</button>
+    <button class="btn btn-primary btn-sm" id="btn-signin" onclick="openLogin()">Sign In</button>
+  </div>
+</header>
+
+<!-- ── Login modal ────────────────────────────────────────────────────────── -->
+<div id="auth-modal">
+  <div class="auth-card">
+    <h2>Welcome back</h2>
+    <p class="subtitle">Sign in to continue</p>
+    <div class="form-group">
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="username"
+             onkeydown="if(event.key==='Enter') doLogin()" />
+    </div>
+    <div class="form-group">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"
+             onkeydown="if(event.key==='Enter') doLogin()" />
+    </div>
+    <button class="btn btn-primary btn-block" id="btn-login" onclick="doLogin()">Sign In</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── Main content (auth-gated) ──────────────────────────────────────────── -->
+<div id="main-content">
+
+  <!-- Hero band -->
+  <div class="hero">
+    <div class="hero-inner">
+      <h1>ReviewBot <span>Dashboard</span></h1>
+      <p>AI-powered technical and delivery project reviews. Evaluate projects against structured checklists, generate compliance reports, and track approval workflows.</p>
+    </div>
+  </div>
+
+  <div class="page-wrap">
+
+    <!-- Stats row -->
+    <div class="stats-row">
+
+      <div class="stat-card">
+        <div class="stat-card-info">
+          <div class="stat-num" id="stat-projects">–</div>
+          <div class="stat-label">Projects</div>
+        </div>
+        <div class="stat-card-icon stat-icon-blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7h18M3 12h18M3 17h18"/><rect x="2" y="3" width="20" height="18" rx="2"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-info">
+          <div class="stat-num" id="stat-reviews">–</div>
+          <div class="stat-label">Autonomous Reviews</div>
+        </div>
+        <div class="stat-card-icon stat-icon-purple">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-info">
+          <div class="stat-num" id="stat-pending">–</div>
+          <div class="stat-label">Pending Approval</div>
+        </div>
+        <div class="stat-card-icon stat-icon-amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-card-info">
+          <div class="stat-num" id="stat-checklists">–</div>
+          <div class="stat-label">Global Checklists</div>
+        </div>
+        <div class="stat-card-icon stat-icon-green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+          </svg>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Feature cards -->
+    <div class="section-heading">Quick Access</div>
+    <div class="feature-grid">
+
+      <a href="/ui" class="feature-card">
+        <div class="feature-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+          </svg>
+        </div>
+        <div class="feature-card-title">AI Autonomous Review</div>
+        <div class="feature-card-desc">Run AI-driven code reviews on any Git repository or local path. Evaluate your project against structured checklists automatically.</div>
+        <div class="feature-card-cta">Launch Review &#x2192;</div>
+      </a>
+
+      <a href="/projects-ui" class="feature-card">
+        <div class="feature-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/>
+          </svg>
+        </div>
+        <div class="feature-card-title">Checklist Management</div>
+        <div class="feature-card-desc">Manage project-specific review checklists. Clone global templates, customise items, and keep them in sync as standards evolve.</div>
+        <div class="feature-card-cta">Manage Checklists &#x2192;</div>
+      </a>
+
+      <a href="/history" class="feature-card">
+        <div class="feature-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+        </div>
+        <div class="feature-card-title">Report History</div>
+        <div class="feature-card-desc">Browse all past reviews, filter by status or compliance score, download PDF or Markdown reports, and track approval workflows.</div>
+        <div class="feature-card-cta">View Reports &#x2192;</div>
+      </a>
+
+      <a href="/docs" target="_blank" class="feature-card">
+        <div class="feature-card-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+          </svg>
+        </div>
+        <div class="feature-card-title">API &amp; Integrations</div>
+        <div class="feature-card-desc">Explore the full REST API, integrate ReviewBot into your CI/CD pipeline, or build custom workflows using the OpenAPI specification.</div>
+        <div class="feature-card-cta">Open API Docs &#x2197;</div>
+      </a>
+
+    </div>
+
+    <!-- Recent activity -->
+    <div class="section-heading">Recent Autonomous Reviews</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Checklist</th>
+            <th>Status</th>
+            <th>Score</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="activity-tbody">
+          <tr class="loading-row">
+            <td colspan="6"><span class="spinner"></span> Loading recent reviews…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div><!-- /page-wrap -->
+</div><!-- /main-content -->
+
+<!-- ── Footer ──────────────────────────────────────────────────────────────── -->
+<footer>
+  <span>&copy; 2025 ReviewBot &middot; AI-powered project reviews &middot; v2.0</span>
+  <div class="footer-links">
+    <a href="#">Privacy</a>
+    <a href="/docs" target="_blank">Docs</a>
+    <a href="#">GitHub</a>
+  </div>
+</footer>
+
+<script>
+  const TOKEN_KEY = 'rb_token';
+
+  function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+  async function api(path, opts = {}) {
+    const headers = { 'Authorization': `Bearer ${getToken()}`, ...(opts.headers || {}) };
+    const res = await fetch(path, { ...opts, headers });
+    if (res.status === 401) { showLogin(); throw new Error('Unauthorised'); }
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  }
+
+  /* ── Modal helpers ──────────────────────────────────────────────────────── */
+  function showLogin() {
+    document.getElementById('auth-modal').classList.remove('hidden');
+    document.getElementById('main-content').style.display = 'none';
+    document.getElementById('btn-signin').style.display = '';
+    document.getElementById('btn-logout').style.display = 'none';
+    document.getElementById('nav-user').textContent = '';
+  }
+
+  function openLogin() {
+    document.getElementById('auth-modal').classList.remove('hidden');
+  }
+
+  function closeLogin() {
+    document.getElementById('auth-modal').classList.add('hidden');
+  }
+
+  /* ── Login ──────────────────────────────────────────────────────────────── */
+  async function doLogin() {
+    const email    = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl    = document.getElementById('login-error');
+    const btn      = document.getElementById('btn-login');
+    errEl.textContent = '';
+    if (!email || !password) { errEl.textContent = 'Email and password are required.'; return; }
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try {
+      const body = new URLSearchParams({ username: email, password });
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let msg = 'Invalid credentials.';
+        try { msg = JSON.parse(text).detail || msg; } catch {}
+        throw new Error(msg);
+      }
+      const data = await res.json();
+      localStorage.setItem(TOKEN_KEY, data.access_token);
+      closeLogin();
+      await showDashboard();
+    } catch (err) {
+      errEl.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+    }
+  }
+
+  /* ── Logout ─────────────────────────────────────────────────────────────── */
+  function logout() {
+    localStorage.removeItem(TOKEN_KEY);
+    showLogin();
+  }
+
+  /* ── Show dashboard ─────────────────────────────────────────────────────── */
+  async function showDashboard() {
+    document.getElementById('auth-modal').classList.add('hidden');
+    document.getElementById('main-content').style.display = 'block';
+    document.getElementById('btn-signin').style.display = 'none';
+    document.getElementById('btn-logout').style.display = '';
+
+    // Try to decode email from JWT for display
+    try {
+      const payload = JSON.parse(atob(getToken().split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      const name = payload.sub || payload.email || '';
+      if (name) document.getElementById('nav-user').textContent = name;
+    } catch {}
+
+    await loadDashboard();
+  }
+
+  /* ── Dashboard data ─────────────────────────────────────────────────────── */
+  async function loadDashboard() {
+    // Load stats in parallel, fail silently
+    const [projects, reviews, reports, checklists] = await Promise.allSettled([
+      api('/api/projects/'),
+      api('/api/autonomous-reviews/'),
+      api('/api/reports/'),
+      api('/api/checklists/templates/global')
+    ]);
+
+    // Projects count
+    if (projects.status === 'fulfilled') {
+      const val = projects.value?.pagination?.total ?? projects.value?.total ?? (Array.isArray(projects.value) ? projects.value.length : '–');
+      document.getElementById('stat-projects').textContent = val;
+    }
+
+    // Autonomous reviews count
+    if (reviews.status === 'fulfilled') {
+      const items = reviews.value?.items ?? reviews.value?.results ?? (Array.isArray(reviews.value) ? reviews.value : []);
+      const total = reviews.value?.pagination?.total ?? reviews.value?.total ?? items.length;
+      document.getElementById('stat-reviews').textContent = total;
+    }
+
+    // Pending approval
+    if (reports.status === 'fulfilled') {
+      const items = reports.value?.items ?? reports.value?.results ?? (Array.isArray(reports.value) ? reports.value : []);
+      const pending = items.filter(r => r.approval_status === 'pending' || r.approval_status === 'pending_approval').length;
+      document.getElementById('stat-pending').textContent = pending;
+    }
+
+    // Global checklists
+    if (checklists.status === 'fulfilled') {
+      const items = checklists.value?.items ?? checklists.value?.results ?? (Array.isArray(checklists.value) ? checklists.value : []);
+      const total = checklists.value?.pagination?.total ?? checklists.value?.total ?? items.length;
+      document.getElementById('stat-checklists').textContent = total;
+    }
+
+    // Recent activity table
+    await loadRecentReviews(reviews);
+  }
+
+  async function loadRecentReviews(reviewsResult) {
+    const tbody = document.getElementById('activity-tbody');
+    let items = [];
+
+    if (reviewsResult.status === 'fulfilled') {
+      items = reviewsResult.value?.items ?? reviewsResult.value?.results ?? (Array.isArray(reviewsResult.value) ? reviewsResult.value : []);
+    } else {
+      // Try again in case it wasn't fetched earlier
+      try {
+        const data = await api('/api/autonomous-reviews/');
+        items = data?.items ?? data?.results ?? (Array.isArray(data) ? data : []);
+      } catch {}
+    }
+
+    if (items.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6">
+            <div class="empty-state">
+              <div class="icon">&#128196;</div>
+              <p>No reviews yet. <a href="/ui" style="color:#38bdf8">Launch your first AI review</a> to get started.</p>
+            </div>
+          </td>
+        </tr>`;
+      return;
+    }
+
+    const recent = items.slice(0, 5);
+    tbody.innerHTML = recent.map(r => {
+      const project   = escHtml(r.project_path || r.project_name || r.project_id || '–');
+      const checklist = escHtml(r.checklist_name || r.checklist_id || '–');
+      const status    = statusBadge(r.status);
+      const score     = scoreDisplay(r.compliance_score ?? r.score ?? null);
+      const date      = r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '–';
+      const jobId     = r.job_id || r.id || '';
+      const viewHref  = jobId ? `/history/${encodeURIComponent(jobId)}` : '/history';
+      return `<tr>
+        <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${project}">${project}</td>
+        <td>${checklist}</td>
+        <td>${status}</td>
+        <td>${score}</td>
+        <td style="color:#64748b;white-space:nowrap">${date}</td>
+        <td><a href="${viewHref}" class="btn btn-ghost btn-sm">View</a></td>
+      </tr>`;
+    }).join('');
+  }
+
+  /* ── Helpers ────────────────────────────────────────────────────────────── */
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function statusBadge(status) {
+    const map = {
+      completed: ['badge-green',  'Completed'],
+      running:   ['badge-blue',   'Running'],
+      queued:    ['badge-gray',   'Queued'],
+      pending:   ['badge-gray',   'Queued'],
+      failed:    ['badge-red',    'Failed'],
+      error:     ['badge-red',    'Error'],
+    };
+    const [cls, label] = map[(status || '').toLowerCase()] || ['badge-gray', status || '–'];
+    return `<span class="badge ${cls}">${escHtml(label)}</span>`;
+  }
+
+  function scoreDisplay(score) {
+    if (score === null || score === undefined) return '<span class="score-na">–</span>';
+    const pct = Math.round(score > 1 ? score : score * 100);
+    const cls = pct >= 75 ? 'score-green' : pct >= 50 ? 'score-amber' : 'score-red';
+    return `<span class="${cls}">${pct}%</span>`;
+  }
+
+  /* ── Init ───────────────────────────────────────────────────────────────── */
+  (async function init() {
+    if (getToken()) {
+      await showDashboard();
+    } else {
+      showLogin();
+    }
+  })();
+</script>
+</body>
+</html>
