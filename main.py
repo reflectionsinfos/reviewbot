@@ -71,36 +71,36 @@ async def ws_autonomous_review(websocket: WebSocket, job_id: int):
     except WebSocketDisconnect:
         progress_manager.disconnect(job_id, websocket)
 
-# ── Static frontend ────────────────────────────────────────────────────────────
-_static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.isdir(_static_dir):
-    app.mount("/static", StaticFiles(directory=_static_dir), name="static")
+# ── Frontend (Vanilla JS) ─────────────────────────────────────────────────────
+_frontend_dir = os.path.join(os.path.dirname(__file__), "frontend_vanilla")
+if os.path.isdir(_frontend_dir):
+    app.mount("/frontend_vanilla", StaticFiles(directory=_frontend_dir), name="frontend")
 
 
 @app.get("/ui", include_in_schema=False)
 async def serve_ui():
     """Serve the Autonomous Review frontend UI"""
-    return FileResponse(os.path.join(_static_dir, "index.html"))
+    return FileResponse(os.path.join(_frontend_dir, "index.html"))
 
 
 @app.get("/history", include_in_schema=False)
 @app.get("/history/{job_id}", include_in_schema=False)
 async def serve_history(job_id: int = None):
     """Serve the Report History UI (job_id handled client-side via JS)"""
-    return FileResponse(os.path.join(_static_dir, "history.html"))
+    return FileResponse(os.path.join(_frontend_dir, "history.html"))
 
 
 @app.get("/projects-ui", include_in_schema=False)
 @app.get("/projects-ui/{project_id}", include_in_schema=False)
 async def serve_projects_ui(project_id: int = None):
     """Serve the Projects & Checklists Management UI"""
-    return FileResponse(os.path.join(_static_dir, "project.html"))
+    return FileResponse(os.path.join(_frontend_dir, "project.html"))
 
 
 @app.get("/globals", include_in_schema=False)
 async def serve_globals():
     """Serve the Global Templates Management UI"""
-    return FileResponse(os.path.join(_static_dir, "globals.html"))
+    return FileResponse(os.path.join(_frontend_dir, "globals.html"))
 
 
 @app.get("/global", include_in_schema=False)
@@ -112,20 +112,20 @@ async def redirect_to_globals():
 @app.get("/documentation", include_in_schema=False)
 async def serve_documentation():
     """Serve the How It Works documentation page"""
-    return FileResponse(os.path.join(_static_dir, "documentation.html"))
+    return FileResponse(os.path.join(_frontend_dir, "documentation.html"))
 
 
 # ── Health / root ─────────────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 async def serve_home():
     """Serve the ReviewBot home / dashboard page"""
-    return FileResponse(os.path.join(_static_dir, "home.html"))
+    return FileResponse(os.path.join(_frontend_dir, "home.html"))
 
 
 @app.get("/dashboard", include_in_schema=False)
 async def serve_dashboard():
     """Alias for / - serves the ReviewBot dashboard page"""
-    return FileResponse(os.path.join(_static_dir, "home.html"))
+    return FileResponse(os.path.join(_frontend_dir, "home.html"))
 
 
 @app.get("/api/status")

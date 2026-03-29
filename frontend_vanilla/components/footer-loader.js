@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return;
   }
 
-  fetch('/static/components/footer.html', { credentials: 'same-origin' })
+  fetch('/frontend_vanilla/components/footer.html', { credentials: 'same-origin' })
     .then(function (response) {
       if (!response.ok) {
         throw new Error('Failed to load shared footer');

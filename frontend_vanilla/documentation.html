@@ -164,7 +164,7 @@
 
 <header>
   <a href="/" class="logo">
-    <img src="/static/images/reflectionsit_logo.jpg" alt="Reflections" onerror="this.style.display='none'" />
+    <img src="/frontend_vanilla/images/reflectionsit_logo.jpg" alt="Reflections" onerror="this.style.display='none'" />
     ReviewBot
   </a>
   <span class="tagline">AI Review Platform</span>
@@ -747,6 +747,89 @@ POST /api/autonomous-reviews/{job_id}/action-plan/enhance
     <li>Click <strong>Export MD</strong> to download the full plan as a Markdown file for your team.</li>
   </ol>
 
+  <!-- Local Review Tools -->
+  <h2 id="local-tools">Local Review Tools</h2>
+  <p>For a seamless developer experience, ReviewBot provides two local tools that allow you to run reviews directly from your machine or CI/CD pipelines without manually entering repository URLs.</p>
+
+  <div class="tool-panel" style="margin-bottom: 24px;">
+    <h3 id="vscode-ext">🛡️ VS Code Extension</h3>
+    <p>The ReviewBot VS Code extension integrates autonomous reviews directly into your IDE. It provides real-time feedback and visual decorations on your source code.</p>
+    
+    <div class="tool-grid">
+      <div>
+        <h4>Key Features</h4>
+        <ul>
+          <li><strong>Gutter Decorations</strong>: Instant R/A/G icons next to your code lines indicating compliance status.</li>
+          <li><strong>Sidebar Results</strong>: A dedicated view for tracking review progress and viewing detailed evidence.</li>
+          <li><strong>Direct Login</strong>: Uses standard JWT authentication to sync with your ReviewBot account.</li>
+          <li><strong>Context Injection</strong>: Automatically detects your open workspace and tech stack.</li>
+        </ul>
+        
+        <h4>Installation</h4>
+        <ol>
+          <li>Open the <strong>AI Review</strong> page to download the latest <code>.vsix</code> package.</li>
+          <li>In VS Code, go to the Extensions view (<code>Ctrl+Shift+X</code>).</li>
+          <li>Click the <code>...</code> menu and select <strong>Install from VSIX...</strong>.</li>
+          <li>Select the downloaded file and restart VS Code.</li>
+        </ol>
+      </div>
+      <div style="background:#0f172a; border-radius:8px; padding:10px; border:1px solid #334155;">
+        <img src="/frontend_vanilla/images/vscode-plugin/reviewbot-vscode-Review-InProgress.png" alt="VS Code Progress" style="max-width:100%; border-radius:4px; border:1px solid #334155;" />
+        <p style="font-size:12px; text-align:center; margin-top:8px; color:#64748b;">AI streaming results directly to the VS Code sidebar.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tool-panel">
+    <h3 id="cli-agent">💻 CLI Agent</h3>
+    <p>The ReviewBot CLI is a lightweight Python-based scanner designed for headless environments, CI/CD, and power users who prefer the terminal.</p>
+    
+    <h4>Installation</h4>
+    <pre><code># Extract the reviewbot-agent.zip then:
+pip install .</code></pre>
+
+    <h4>Common Commands</h4>
+    <table>
+      <thead>
+        <tr>
+          <th>Command</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code class="inline-code">reviewbot login</code></td>
+          <td>Authenticate with the server</td>
+        </tr>
+        <tr>
+          <td><code class="inline-code">reviewbot status</code></td>
+          <td>Show current login and server info</td>
+        </tr>
+        <tr>
+          <td><code class="inline-code">reviewbot review</code></td>
+          <td>Scan directory and run a review</td>
+        </tr>
+        <tr>
+          <td><code class="inline-code">reviewbot logout</code></td>
+          <td>Clear local credentials</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h4>Example Usage</h4>
+    <pre><code># Basic review with output file
+reviewbot review \
+  --project-id 5 \
+  --checklist-id 11 \
+  --source-path ./my-service \
+  --output ./report.md</code></pre>
+
+    <div class="callout callout-info">
+      <div class="callout-title">💡 CI/CD Integration</div>
+      <p style="margin: 0;">You can automate reviews in your pipeline by setting the <code>REVIEWBOT_SERVER</code> and <code>REVIEWBOT_API_KEY</code> environment variables, allowing the agent to run without an interactive login.</p>
+    </div>
+  </div>
+
   <!-- Future Enhancements -->
   <h2 id="future">Future Enhancements</h2>
   <ul>
@@ -770,7 +853,7 @@ POST /api/autonomous-reviews/{job_id}/action-plan/enhance
 </main>
 
 <div id="shared-footer-root"></div>
-<script src="/static/components/footer-loader.js"></script>
+<script src="/frontend_vanilla/components/footer-loader.js"></script>
 
 <script>
   const TOKEN_KEY = 'rb_token';

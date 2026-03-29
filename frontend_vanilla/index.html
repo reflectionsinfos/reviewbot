@@ -126,10 +126,45 @@
     .alert-error { background: #450a0a; border: 1px solid #7f1d1d; color: #f87171; }
     .alert-info  { background: #0c4a6e; border: 1px solid #0369a1; color: #7dd3fc; }
     .alert-success { background: #14532d; border: 1px solid #166534; color: #4ade80; }
+    /* ── Tool Panels (VS Code / CLI) ───────────────────────── */
+    .tool-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; }
+    .tool-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 16px; }
+    .tool-title { display: flex; align-items: center; gap: 12px; }
+    .tool-title h3 { font-size: 18px; color: #f1f5f9; }
+    .tool-icon { width: 32px; height: 32px; }
+    
+    .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+    @media (max-width: 900px) { .tool-grid { grid-template-columns: 1fr; } }
+    
+    .features-list { list-style: none; }
+    .features-list li { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 14px; color: #94a3b8; }
+    .features-list li::before { content: '✅'; font-size: 12px; }
+
+    .screenshot-carousel { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #334155; background: #0f172a; aspect-ratio: 16/10; }
+    .carousel-track { display: flex; transition: transform 0.3s ease; height: 100%; }
+    .carousel-slide { min-width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    .carousel-slide img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .carousel-nav { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
+    .carousel-dot { width: 8px; height: 8px; border-radius: 50%; background: #475569; cursor: pointer; border: none; }
+    .carousel-dot.active { background: #38bdf8; }
+
+    .code-block { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; font-family: 'Consolas', monospace; font-size: 13px; color: #e2e8f0; position: relative; margin-top: 12px; }
+    .copy-btn { position: absolute; top: 8px; right: 8px; background: #334155; color: #94a3b8; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+    .copy-btn:hover { background: #475569; color: #f1f5f9; }
+
+    .download-btn { display: inline-flex; align-items: center; gap: 8px; background: #0ea5e9; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: 0.2s; font-size: 14px; }
+    .download-btn:hover { background: #38bdf8; transform: translateY(-1px); }
+    .download-btn svg { width: 18px; height: 18px; }
+    
+    .setup-steps { margin-top: 20px; }
+    .setup-step { display: flex; gap: 12px; margin-bottom: 12px; }
+    .step-num { min-width: 24px; height: 24px; background: #334155; color: #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+    .step-text { font-size: 14px; color: #94a3b8; }
+
     .hidden { display: none !important; }
     .spin { animation: spin 1s linear infinite; display: inline-block; }
     @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+</style>
 </head>
 <body>
 
@@ -154,7 +189,7 @@
 <!-- ── Header ─────────────────────────────────────────────────────────────── -->
 <header>
   <a href="/" class="logo" style="text-decoration:none;">
-    <img src="/static/images/reflectionsit_logo.jpg" alt="Reflections" onerror="this.style.display='none'" style="height:32px;width:auto;vertical-align:middle;margin-right:10px;" />
+    <img src="/frontend_vanilla/images/reflectionsit_logo.jpg" alt="Reflections" onerror="this.style.display='none'" style="height:32px;width:auto;vertical-align:middle;margin-right:10px;" />
     ReviewBot
   </a>
   <span class="tagline">AI Review Platform</span>
@@ -201,6 +236,14 @@
         <label class="source-type-btn active" id="stype-repo">
           <input type="radio" name="source-type" value="repo" checked onchange="onSourceTypeChange(this.value)" style="display:none">
           🔗 Git Repository
+        </label>
+        <label class="source-type-btn" id="stype-vscode">
+          <input type="radio" name="source-type" value="vscode" onchange="onSourceTypeChange(this.value)" style="display:none">
+          🛡️ VS Code Extension
+        </label>
+        <label class="source-type-btn" id="stype-cli">
+          <input type="radio" name="source-type" value="cli" onchange="onSourceTypeChange(this.value)" style="display:none">
+          💻 CLI Agent
         </label>
         <label class="source-type-btn" id="stype-docs">
           <input type="radio" name="source-type" value="docs" onchange="onSourceTypeChange(this.value)" style="display:none">
@@ -256,6 +299,115 @@
       </div>
     </div>
 
+
+    <!-- VS Code Panel -->
+    <div id="source-vscode-panel" style="display:none;">
+      <div class="tool-header">
+        <div class="tool-title">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Visual_Studio_Code_1.35_icon.svg" class="tool-icon" alt="VS Code" />
+          <h3>ReviewBot VS Code Extension</h3>
+        </div>
+        <a href="/frontend_vanilla/downloads/reviewbot-vscode-0.0.1.vsix" class="download-btn" download>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Download VSIX
+        </a>
+      </div>
+      
+      <div class="tool-grid">
+        <div>
+          <ul class="features-list">
+            <li><strong>Real-time Streaming</strong>: Watch AI results appear in the sidebar as they happen.</li>
+            <li><strong>Inline Decorations</strong>: R/A/G gutter icons directly on your source code.</li>
+            <li><strong>Local Scanning</strong>: Scans your local workspace hash-first for speed and security.</li>
+            <li><strong>Markdown Reports</strong>: Automatically generates compliance docs in your project root.</li>
+          </ul>
+          
+          <div class="setup-steps">
+            <div class="setup-step">
+              <div class="step-num">1</div>
+              <div class="step-text">Download the VSIX file using the button above.</div>
+            </div>
+            <div class="setup-step">
+              <div class="step-num">2</div>
+              <div class="step-text">In VS Code: <code>Ctrl+Shift+P</code> → "Extensions: Install from VSIX..." and select the file.</div>
+            </div>
+            <div class="setup-step">
+              <div class="step-num">3</div>
+              <div class="step-text">Click the ReviewBot shield icon in the sidebar and log in.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screenshot-carousel" id="vs-carousel">
+          <div class="carousel-track" id="vs-track">
+            <div class="carousel-slide"><img src="/frontend_vanilla/images/vscode-plugin/reviewbot-vscode-New-Review.png" alt="Setup" /></div>
+            <div class="carousel-slide"><img src="/frontend_vanilla/images/vscode-plugin/reviewbot-vscode-Review-InProgress.png" alt="Progress" /></div>
+            <div class="carousel-slide"><img src="/frontend_vanilla/images/vscode-plugin/reviewbot-vscode-Review-Complete.png" alt="Complete" /></div>
+          </div>
+          <div class="carousel-nav">
+            <button class="carousel-dot active" onclick="moveCarousel(0)"></button>
+            <button class="carousel-dot" onclick="moveCarousel(1)"></button>
+            <button class="carousel-dot" onclick="moveCarousel(2)"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLI Panel -->
+    <div id="source-cli-panel" style="display:none;">
+      <div class="tool-header">
+        <div class="tool-title">
+          <div class="tool-icon" style="background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#38bdf8;font-weight:bold;font-family:monospace;">$_</div>
+          <h3>ReviewBot CLI Agent</h3>
+        </div>
+        <a href="/frontend_vanilla/downloads/reviewbot-agent.zip" class="download-btn" download>
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          Download Agent (.zip)
+        </a>
+      </div>
+
+      <div class="tool-grid">
+        <div>
+          <p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">The CLI agent is a versatile Python package designed for headless environments and local automation. Ideal for power users and CI/CD pipelines.</p>
+          <ul class="features-list">
+            <li><strong>Single Command Review</strong>: Run full audits with one line of bash/powershell.</li>
+            <li><strong>Secure Uploads</strong>: Only sends what's needed, respects your <code>.gitignore</code>.</li>
+            <li><strong>Live RAG Summary</strong>: Colour-coded findings printed directly to your terminal.</li>
+          </ul>
+          
+          <div class="setup-steps">
+            <div class="setup-step">
+              <div class="step-num">1</div>
+              <div class="step-text">Download and extract the <code>reviewbot-agent.zip</code>.</div>
+            </div>
+            <div class="setup-step">
+              <div class="step-num">2</div>
+              <div class="step-text">Open terminal in the folder and run installation:</div>
+            </div>
+          </div>
+          <div class="code-block" id="install-cmd">
+            <button class="copy-btn" onclick="copyCode('install-cmd')">Copy</button>
+            <code>pip install .</code>
+          </div>
+        </div>
+
+        <div>
+          <label style="margin-bottom:8px; display:block; font-size:12px; color:#94a3b8; font-weight:600;">QUICK START COMMANDS</label>
+          <div class="code-block" id="quickstart-cmd">
+            <button class="copy-btn" onclick="copyCode('quickstart-cmd')">Copy</button>
+            <code># 1. Login to server
+reviewbot login --server http://localhost:8000
+
+# 2. Run review
+reviewbot review --project-id 1 --checklist-id 1 --source-path ./src</code>
+          </div>
+          
+          <div class="alert alert-info" style="margin-top:20px;">
+            💡 <strong>Tip:</strong> Use the <code>--output my-report.md</code> flag to save results locally.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Documents panel (coming soon) -->
     <div id="source-docs-panel" style="display:none;">
@@ -340,7 +492,7 @@
 </main>
 
 <div id="shared-footer-root"></div>
-<script src="/static/components/footer-loader.js"></script>
+<script src="/frontend_vanilla/components/footer-loader.js"></script>
 <script>
 // ── State ──────────────────────────────────────────────────────────────────────
 let token = localStorage.getItem('rb_token') || '';
@@ -528,20 +680,43 @@ function toggleToken() {
 
 
 function onSourceTypeChange(type) {
-  ['repo', 'docs', 'quiz'].forEach(t => {
+  ['repo', 'docs', 'quiz', 'vscode', 'cli'].forEach(t => {
     const el = document.getElementById(`source-${t}-panel`);
     const btn = document.getElementById(`stype-${t}`);
     if (el) el.style.display = t === type ? 'block' : 'none';
     if (btn) btn.classList.toggle('active', t === type);
   });
+
+  const startRow = document.querySelector('.start-row');
   const startBtn = document.getElementById('start-btn');
-  if (type === 'docs' || type === 'quiz') {
+  
+  if (type === 'vscode' || type === 'cli') {
+    startRow.style.display = 'none';
+  } else if (type === 'docs' || type === 'quiz') {
+    startRow.style.display = 'flex';
     startBtn.disabled = true;
-    startBtn.textContent = '▶ Coming Soon';
+    startBtn.innerHTML = '▶ Coming Soon';
   } else {
+    startRow.style.display = 'flex';
     startBtn.disabled = false;
-    startBtn.textContent = '▶ Start Autonomous Review';
+    startBtn.innerHTML = '▶ Start Autonomous Review';
   }
+}
+
+function moveCarousel(idx) {
+  const track = document.getElementById('vs-track');
+  track.style.transform = `translateX(-${idx * 100}%)`;
+  const dots = document.querySelectorAll('#vs-carousel .carousel-dot');
+  dots.forEach((d, i) => d.classList.toggle('active', i === idx));
+}
+
+function copyCode(id) {
+  const text = document.querySelector(`#${id} code`).innerText.trim();
+  navigator.clipboard.writeText(text);
+  const btn = document.querySelector(`#${id} .copy-btn`);
+  const oldText = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(() => btn.textContent = oldText, 2000);
 }
 
 function getSourcePath() {
