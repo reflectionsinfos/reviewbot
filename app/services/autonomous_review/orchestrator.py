@@ -249,10 +249,19 @@ async def _execute_review(job_id: int, db) -> None:
     # ── Finalise ──────────────────────────────────────────────────────────────
     job.status = "completed"
     job.completed_at = datetime.utcnow()
-    await db.commit()
-
+    
+    # Update summary counts (New)
+    job.green_count = counters.get("green", 0)
+    job.amber_count = counters.get("amber", 0)
+    job.red_count = counters.get("red", 0)
+    job.skipped_count = counters.get("skipped", 0)
+    job.na_count = counters.get("na", 0)
+    
     auto_total = counters["green"] + counters["amber"] + counters["red"]
     compliance = round(counters["green"] / auto_total * 100, 1) if auto_total else 0.0
+    job.compliance_score = compliance
+    
+    await db.commit()
 
     await progress_manager.broadcast(job_id, {
         "type": "completed",

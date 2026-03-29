@@ -57,6 +57,13 @@ class JobStatusResponse(BaseModel):
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
     created_at: datetime
+    # Summary metrics (New)
+    green_count: int = 0
+    amber_count: int = 0
+    red_count: int = 0
+    skipped_count: int = 0
+    na_count: int = 0
+    compliance_score: float = 0.0
 
 
 class OverrideRequest(BaseModel):
@@ -93,6 +100,13 @@ def _job_to_status(job: AutonomousReviewJob) -> dict:
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "created_at": job.created_at.isoformat(),
+        # Summary metrics (New)
+        "green_count": job.green_count or 0,
+        "amber_count": job.amber_count or 0,
+        "red_count": job.red_count or 0,
+        "skipped_count": job.skipped_count or 0,
+        "na_count": job.na_count or 0,
+        "compliance_score": job.compliance_score or 0.0,
     }
 
 

@@ -277,6 +277,14 @@ class AutonomousReviewJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     agent_metadata = Column(JSON, nullable=True)  # hostname, IP, OS, agent version, etc.
+    
+    # Summary metrics (New)
+    green_count = Column(Integer, default=0)
+    amber_count = Column(Integer, default=0)
+    red_count = Column(Integer, default=0)
+    skipped_count = Column(Integer, default=0)
+    na_count = Column(Integer, default=0)
+    compliance_score = Column(Float, default=0.0)
 
     # Relationships
     project = relationship("Project")

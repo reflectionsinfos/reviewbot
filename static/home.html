@@ -265,14 +265,18 @@
             <th>Project</th>
             <th>Checklist</th>
             <th>Status</th>
-            <th>Score</th>
-            <th>Reviewed Date</th>
+            <th style="text-align:center">Compliant</th>
+            <th style="text-align:center">Amber</th>
+            <th style="text-align:center">Critical</th>
+            <th style="text-align:center">Human</th>
+            <th style="text-align:center">Score</th>
+            <th>Date</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="activity-tbody">
           <tr class="loading-row">
-            <td colspan="6"><span class="spinner"></span> Loading recent reviews…</td>
+            <td colspan="10"><span class="spinner"></span> Loading recent reviews…</td>
           </tr>
         </tbody>
       </table>
@@ -467,19 +471,20 @@
     let items = [];
 
     if (reviewsResult.status === 'fulfilled') {
-      items = reviewsResult.value?.items ?? reviewsResult.value?.results ?? (Array.isArray(reviewsResult.value) ? reviewsResult.value : []);
+      const val = reviewsResult.value;
+      items = val?.items ?? val?.results ?? (Array.isArray(val) ? val : []);
     } else {
       // Try again in case it wasn't fetched earlier
       try {
         const data = await api('/api/autonomous-reviews/');
-        items = data?.items ?? data?.results ?? (Array.isArray(data) ? data : []);
+        items = Array.isArray(data) ? data : (data?.items ?? data?.results ?? []);
       } catch {}
     }
 
     if (items.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="6">
+          <td colspan="10">
             <div class="empty-state">
               <div class="icon">&#128196;</div>
               <p>No reviews yet. <a href="/ui" style="color:#38bdf8">Launch your first AI review</a> to get started.</p>
@@ -502,9 +507,8 @@
     if (projectIds.length > 0) {
       try {
         const projectsData = await api('/api/projects/');
-        if (projectsData?.projects) {
-          projectsData.projects.forEach(p => { projectsMap[p.id] = p.name; });
-        }
+        const pList = projectsData?.projects ?? (Array.isArray(projectsData) ? projectsData : []);
+        pList.forEach(p => { projectsMap[p.id] = p.name; });
       } catch {}
     }
     
@@ -519,30 +523,40 @@
     // Fetch report scores (reports are linked by autonomous_review_job_id)
     try {
       const reportsData = await api('/api/reports/');
-      if (reportsData?.reports) {
-        reportsData.reports.forEach(r => {
-          if (r.autonomous_review_job_id) {
-            reportsMap[r.autonomous_review_job_id] = r.compliance_score;
-          }
-        });
-      }
+      const rList = reportsData?.reports ?? (Array.isArray(reportsData) ? reportsData : []);
+      rList.forEach(r => {
+        if (r.autonomous_review_job_id) {
+          reportsMap[r.autonomous_review_job_id] = r.compliance_score;
+        }
+      });
     } catch {}
 
-    const recent = items.slice(0, 5);
+    const recent = items.slice(0, 10);
     tbody.innerHTML = recent.map(r => {
       const projectName = projectsMap[r.project_id] || `Project ${r.project_id}`;
       const checklistName = checklistsMap[r.checklist_id] || `Checklist ${r.checklist_id}`;
       const status = statusBadge(r.status);
-      const score = scoreDisplay(reportsMap[r.id] ?? r.compliance_score ?? r.score ?? null);
-      const date = r.completed_at || r.created_at ? new Date(r.completed_at || r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '–';
+      
+      const green = r.green_count ?? 0;
+      const amber = r.amber_count ?? 0;
+      const red = r.red_count ?? 0;
+      const human = r.skipped_count ?? 0;
+      
+      const score = scoreDisplay(r.compliance_score ?? reportsMap[r.id] ?? null);
+      const date = r.completed_at || r.created_at ? new Date(r.completed_at || r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) : '–';
       const jobId = r.job_id || r.id || '';
       const editHref = jobId ? `/history/${encodeURIComponent(jobId)}` : '/history';
+      
       return `<tr>
-        <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(projectName)}">${escHtml(projectName)}</td>
+        <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(projectName)}">${escHtml(projectName)}</td>
         <td>${escHtml(checklistName)}</td>
         <td>${status}</td>
-        <td>${score}</td>
-        <td style="color:#64748b;white-space:nowrap">${date}</td>
+        <td style="text-align:center"><span class="badge badge-green" style="background:#14532d22;min-width:24px;justify-content:center">${green}</span></td>
+        <td style="text-align:center"><span class="badge badge-amber" style="background:#78350f22;min-width:24px;justify-content:center">${amber}</span></td>
+        <td style="text-align:center"><span class="badge badge-red" style="background:#7f1d1d22;min-width:24px;justify-content:center">${red}</span></td>
+        <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:24px;justify-content:center">${human}</span></td>
+        <td style="text-align:center">${score}</td>
+        <td style="color:#64748b;font-size:12px;white-space:nowrap">${date}</td>
         <td><a href="${editHref}" class="btn btn-ghost btn-sm">Edit</a></td>
       </tr>`;
     }).join('');
@@ -550,7 +564,7 @@
 
   /* ── Helpers ────────────────────────────────────────────────────────────── */
   function escHtml(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   function statusBadge(status) {

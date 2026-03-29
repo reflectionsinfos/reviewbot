@@ -67,6 +67,19 @@ async def init_db():
             # 008 — area_codes on checklists (JSON mapping: area name → code)
             """ALTER TABLE checklists
                ADD COLUMN IF NOT EXISTS area_codes JSONB""",
+            # 009 — summary scores on autonomous_review_jobs
+            """ALTER TABLE autonomous_review_jobs
+               ADD COLUMN IF NOT EXISTS green_count INTEGER DEFAULT 0""",
+            """ALTER TABLE autonomous_review_jobs
+               ADD COLUMN IF NOT EXISTS amber_count INTEGER DEFAULT 0""",
+            """ALTER TABLE autonomous_review_jobs
+               ADD COLUMN IF NOT EXISTS red_count INTEGER DEFAULT 0""",
+            """ALTER TABLE autonomous_review_jobs
+               ADD COLUMN IF NOT EXISTS skipped_count INTEGER DEFAULT 0""",
+            """ALTER TABLE autonomous_review_jobs
+               ADD COLUMN IF NOT EXISTS na_count INTEGER DEFAULT 0""",
+            """ALTER TABLE autonomous_review_jobs
+               ADD COLUMN IF NOT EXISTS compliance_score FLOAT DEFAULT 0.0""",
         ]
         for sql in migrations:
             try:
