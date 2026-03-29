@@ -53,6 +53,7 @@ class ReviewTable {
                                 <th>Project</th>
                                 <th>Checklist</th>
                                 <th>Status</th>
+                                <th style="text-align:center">Total</th>
                                 <th style="text-align:center">Compliant</th>
                                 <th style="text-align:center">Amber</th>
                                 <th style="text-align:center">Critical</th>
@@ -63,7 +64,7 @@ class ReviewTable {
                             </tr>
                         </thead>
                         <tbody class="rt-body">
-                            <tr><td colspan="10" class="rt-loading"><span class="spinner"></span> Loading reviews...</td></tr>
+                            <tr><td colspan="11" class="rt-loading"><span class="spinner"></span> Loading reviews...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -137,9 +138,9 @@ class ReviewTable {
     updateTableState() {
         const tbody = this.container.querySelector('.rt-body');
         if (this.state.loading) {
-            tbody.innerHTML = `<tr><td colspan="10" class="rt-loading"><span class="spinner"></span> Loading reviews...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11" class="rt-loading"><span class="spinner"></span> Loading reviews...</td></tr>`;
         } else if (this.state.error) {
-            tbody.innerHTML = `<tr><td colspan="10" class="rt-error">Error: ${this.state.error}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11" class="rt-error">Error: ${this.state.error}</td></tr>`;
         }
     }
 
@@ -147,7 +148,7 @@ class ReviewTable {
         const tbody = this.container.querySelector('.rt-body');
         
         if (this.state.items.length === 0 && !this.state.loading) {
-            tbody.innerHTML = `<tr><td colspan="10" class="empty-state"><div class="icon">&#128196;</div><p>No reviews found.</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="11" class="empty-state"><div class="icon">&#128196;</div><p>No reviews found.</p></td></tr>`;
             if (this.options.paginate) this.container.querySelector('.rt-pagination').style.display = 'none';
             return;
         }
@@ -169,6 +170,7 @@ class ReviewTable {
                 <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${this.esc(item.project_name)}">${this.esc(item.project_name)}</td>
                 <td>${this.esc(item.checklist_name)}</td>
                 <td>${status}</td>
+                <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:32px;justify-content:center;color:#e2e8f0;font-family:monospace">${item.total_items || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-green" style="background:#14532d22;min-width:24px;justify-content:center">${item.green_count || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-amber" style="background:#78350f22;min-width:24px;justify-content:center">${item.amber_count || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-red" style="background:#7f1d1d22;min-width:24px;justify-content:center">${item.red_count || 0}</span></td>

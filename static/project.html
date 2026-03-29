@@ -16,8 +16,6 @@
     header nav { margin-left: auto; display: flex; gap: 8px; align-items: center; }
     header nav a { color: #94a3b8; text-decoration: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; border: 1px solid #334155; transition: all 0.15s; }
     header nav a:hover, header nav a.active { border-color: #38bdf8; color: #38bdf8; }
-    header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.15s; }
-    header .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
 
     /* ── User Dropdown ──────────────────────────────────────────────────────── */
     .nav-right { display: flex; align-items: center; }
@@ -35,7 +33,6 @@
     .user-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #94a3b8; text-decoration: none; font-size: 13px; transition: all 0.15s; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
     .user-dropdown-item:hover { background: #0f172a; color: #38bdf8; }
     .user-dropdown-item svg { width: 16px; height: 16px; }
-    .user-dropdown-divider { border: none; border-top: 1px solid #334155; margin: 4px 0; }
 
     /* ── Layout ───────────────────────────────────────────────────────────── */
     main { max-width: 1300px; margin: 0 auto; padding: 28px 24px 120px; width: 100%; flex: 1; }
@@ -60,8 +57,6 @@
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
     .btn-ghost:hover { border-color: #38bdf8; color: #38bdf8; }
-    .btn-danger-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
-    .btn-danger-ghost:hover { border-color: #ef4444; color: #ef4444; }
     .btn-danger { background: #ef4444; color: #fff; }
     .btn-danger:hover { background: #f87171; }
     .btn-sm { padding: 4px 10px; font-size: 11px; }
@@ -93,9 +88,11 @@
 
     /* ── Tabs toolbar ─────────────────────────────────────────────────────── */
     .tabs-toolbar { display: flex; align-items: center; border-bottom: 1px solid #334155; padding: 0 16px; gap: 4px; overflow-x: auto; min-height: 48px; }
-    .tab { padding: 14px 16px; cursor: pointer; color: #94a3b8; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; flex-shrink: 0; }
+    .tab { padding: 14px 16px; cursor: pointer; color: #94a3b8; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; flex-shrink: 0; position: relative; }
     .tab:hover { color: #e2e8f0; }
     .tab.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+    .tab .tab-delete-btn { opacity: 0; position: absolute; top: 2px; right: 2px; background: #ef4444; color: #fff; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.2s; }
+    .tab:hover .tab-delete-btn { opacity: 1; }
     .tabs-spacer { flex: 1; }
     .btn-add-checklist { margin: 8px 0; flex-shrink: 0; }
 
@@ -104,12 +101,11 @@
     .checklist-title { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
     .checklist-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-    /* ── Success callout (post-clone) ─────────────────────────────────────── */
+    /* ── Callout area (post-clone) ────────────────────────────────────────── */
     .callout { margin: 16px 24px 0; padding: 12px 16px; border-radius: 8px; font-size: 13px; display: flex; align-items: flex-start; gap: 10px; }
     .callout-success { background: #14532d22; border: 1px solid #166534; color: #4ade80; }
     .callout-info { background: #1e3a5f44; border: 1px solid #1d4ed8; color: #93c5fd; }
     .callout-close { margin-left: auto; cursor: pointer; color: inherit; opacity: 0.6; background: none; border: none; font-size: 16px; line-height: 1; padding: 0 2px; }
-    .callout-close:hover { opacity: 1; }
 
     /* ── Table ────────────────────────────────────────────────────────────── */
     .table-wrap { padding: 20px 24px 24px; }
@@ -128,7 +124,6 @@
     .col-info-icon { position: relative; cursor: help; color: #38bdf8; font-size: 11px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 3px; }
     .col-info-icon .col-tooltip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; font-weight: 400; line-height: 1.4; padding: 7px 10px; border-radius: 6px; white-space: normal; width: 180px; text-align: center; text-transform: none; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
     .col-info-icon:hover .col-tooltip { display: block; }
-    .add-row td { vertical-align: middle; }
 
     /* ── Modals ───────────────────────────────────────────────────────────── */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 200; }
@@ -139,41 +134,29 @@
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
     .modal-divider { border: none; border-top: 1px solid #334155; margin: 16px 0; }
 
-    #shared-footer-root .shared-footer {
-      position: fixed !important;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 110;
-    }
-
-    /* ── Template picker rows ─────────────────────────────────────────────── */
-    .template-row { display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid #334155; border-radius: 10px; margin-bottom: 10px; transition: border-color 0.15s, background 0.15s; }
-    .template-row:hover:not(.template-row-added) { border-color: #475569; background: #0f172a55; }
-    .template-row-added { opacity: 0.6; cursor: default; }
-    .template-row-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
-    .template-icon-delivery { background: #1e3a5f44; border: 1px solid #1d4ed8; }
-    .template-icon-technical { background: #3b0764aa; border: 1px solid #6d28d9; }
-    .template-row-info { flex: 1; min-width: 0; }
-    .template-row-name { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 3px; }
+    /* ── Template Selection Rows (in Modal) ───────────────────────────────── */
+    .template-row { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid #334155; border-radius: 8px; margin-bottom: 10px; transition: all 0.15s; }
+    .template-row:hover { border-color: #475569; background: #0f172a44; }
+    .template-row-added { border-color: #166534; background: #14532d11; }
+    .template-row-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .template-icon-technical { background: #3b076444; color: #c084fc; border: 1px solid #6d28d944; }
+    .template-icon-delivery { background: #1e3a5f44; color: #7dd3fc; border: 1px solid #1d4ed844; }
+    .template-row-info { flex: 1; }
+    .template-row-name { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 2px; }
     .template-row-meta { font-size: 12px; color: #64748b; }
     .template-row-action { flex-shrink: 0; }
 
-    /* ── Tab delete button ───────────────────────────────────────────────── */
-    .tab-delete-btn { background: none; border: none; cursor: pointer; color: #475569; font-size: 15px; line-height: 1; padding: 0 2px; border-radius: 3px; display: none; }
-    .tab:hover .tab-delete-btn, .tab.active .tab-delete-btn { display: inline-flex; }
-    .tab-delete-btn:hover { color: #ef4444; background: #ef444422; }
-
-    /* ── Sync modal strategies ────────────────────────────────────────────── */
-    .strategy-radio { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; cursor: pointer; }
-    .strategy-radio input { width: auto; margin-top: 3px; }
+    /* ── Strategy options (Sync Modal) ─────────────────────────────────────── */
+    .strategy-radio { display: flex; gap: 12px; padding: 12px; border: 1px solid #334155; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
+    .strategy-radio:hover { background: #0f172a88; border-color: #475569; }
+    .strategy-radio input { margin-top: 3px; }
     .strategy-radio strong { display: block; font-size: 13px; color: #e2e8f0; margin-bottom: 2px; }
-    .strategy-radio p { font-size: 12px; color: #94a3b8; margin: 0; }
+    .strategy-radio p { font-size: 12px; color: #64748b; line-height: 1.4; }
 
     /* ── Toast ────────────────────────────────────────────────────────────── */
-    #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+    #toast { position: fixed; bottom: 84px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
     #toast.success { border-color: #22c55e; color: #4ade80; }
-    #toast.error   { border-color: #ef4444; color: #f87171; }
+    #toast.error { border-color: #ef4444; color: #f87171; }
 
     .hidden { display: none !important; }
   </style>
@@ -181,7 +164,7 @@
 <body>
 
 <!-- ── Auth Overlay ───────────────────────────────────────────────────────── -->
-<div id="auth-overlay">
+<div id="auth-overlay" style="display:none;">
   <div class="auth-card">
     <h2>ReviewBot</h2>
     <p>Sign in to manage checklists</p>
@@ -209,7 +192,6 @@
     <a href="/ui">AI Review</a>
     <a href="/projects-ui" class="active">Projects</a>
     <a href="/globals">Global Templates</a>
-    <a href="/history">History</a>
     <a href="/documentation">How It Works</a>
     <a href="/docs" target="_blank">API Docs ↗</a>
   </nav>
@@ -268,7 +250,7 @@
 
     <!-- Tabs toolbar -->
     <div class="tabs-toolbar">
-      <div id="checklist-tabs"></div>
+      <div id="checklist-tabs" style="display:flex;gap:4px;"></div>
       <div class="tabs-spacer"></div>
       <button class="btn btn-ghost btn-sm btn-add-checklist" onclick="openAddModal()">+ Add Checklist</button>
     </div>
@@ -313,7 +295,7 @@
           <tbody>
             <tr class="add-row">
               <td></td>
-              <td><input id="add-code" class="inline-edit-input" placeholder="SEC-001" title="Leave blank for auto-generated code (e.g., SEC-001, TECH-002). Format: AREA-NNN" /></td>
+              <td><input id="add-code" class="inline-edit-input" placeholder="SEC-001" title="Leave blank for auto-generated code" /></td>
               <td><input id="add-area" class="inline-edit-input" placeholder="General" /></td>
               <td><input id="add-q" class="inline-edit-input" placeholder="Question?" /></td>
               <td><input id="add-ev" class="inline-edit-input" placeholder="Expected evidence..." /></td>
@@ -376,7 +358,7 @@
       <input type="radio" name="sync-strategy" value="full_reset" />
       <div>
         <strong style="color:#ef4444;">Full Reset — Destructive</strong>
-        <p>Deletes ALL items in this checklist and replaces them with an exact copy of the global template. Any custom items will be lost.</p>
+        <p>Deletes ALL items in this checklist and replaces them with an exact copy of the global template.</p>
       </div>
     </label>
 
@@ -415,22 +397,17 @@
     
     <div class="form-group">
       <label>Domain (optional)</label>
-      <input id="cp-domain" type="text" placeholder="e.g. Fintech, Healthcare" maxlength="100" />
+      <input id="cp-domain" type="text" placeholder="e.g. Fintech" maxlength="100" />
     </div>
     
     <div class="form-group">
       <label>Description (optional)</label>
-      <textarea id="cp-description" rows="2" maxlength="2000" placeholder="Brief description of the project..."></textarea>
+      <textarea id="cp-description" rows="2" maxlength="2000" placeholder="Brief description..."></textarea>
     </div>
     
     <div class="form-group">
-      <label style="display:flex;align-items:center;gap:8px;">
-        Add Checklists
-        <span class="badge badge-gray" style="font-size:10px;">optional</span>
-      </label>
-      <div id="cp-templates-list" style="display:flex;flex-direction:column;gap:10px;max-height:300px;overflow-y:auto;">
-        <!-- Dynamically rendered template checkboxes -->
-      </div>
+      <label>Add Checklists <span class="badge badge-gray" style="font-size:10px;">optional</span></label>
+      <div id="cp-templates-list" style="display:flex;flex-direction:column;gap:10px;max-height:300px;overflow-y:auto;"></div>
     </div>
     
     <div id="cp-error" style="display:none;color:#f87171;font-size:13px;margin-bottom:12px;"></div>
@@ -500,19 +477,15 @@
     location.reload();
   }
 
-  /* ── User Dropdown ──────────────────────────────────────────────────────── */
   function toggleUserDropdown() {
     const menu = document.getElementById('user-dropdown-menu');
     menu.classList.toggle('hidden');
   }
 
-  // Close dropdown when clicking outside
   document.addEventListener('click', function(e) {
     const dropdown = document.querySelector('.user-dropdown');
     const menu = document.getElementById('user-dropdown-menu');
-    if (dropdown && !dropdown.contains(e.target)) {
-      menu.classList.add('hidden');
-    }
+    if (dropdown && !dropdown.contains(e.target)) menu.classList.add('hidden');
   });
 
   function updateUserMenu(userEmail, userName, userRole) {
@@ -520,7 +493,6 @@
     const avatar = document.getElementById('user-avatar');
     avatar.className = 'user-avatar ' + (isBot ? 'user-avatar-bot' : 'user-avatar-human');
     avatar.textContent = isBot ? '🤖' : '🧑';
-    
     const displayName = userName || userEmail?.split('@')[0] || 'User';
     document.getElementById('user-dropdown-name').textContent = displayName;
     document.getElementById('user-menu-name').textContent = displayName;
@@ -530,23 +502,16 @@
   function parseTokenAndLoad() {
     try {
       const payload = JSON.parse(atob(TOKEN.split('.')[1]));
-      const email = payload.sub || '';
-      const name = payload.full_name || '';
-      const role = payload.role || 'user';
-      updateUserMenu(email, name, role);
+      updateUserMenu(payload.sub, payload.full_name, payload.role);
     } catch {}
     loadInitialData();
   }
 
   if (TOKEN) {
-    if (isTokenExpired(TOKEN)) {
-      TOKEN = '';
-      localStorage.removeItem('rb_token');
-      // auth overlay stays visible — user must re-login
-    } else {
-      document.getElementById('auth-overlay').style.display = 'none';
-      parseTokenAndLoad();
-    }
+    if (isTokenExpired(TOKEN)) { TOKEN = ''; localStorage.removeItem('rb_token'); document.getElementById('auth-overlay').style.display = 'flex'; }
+    else { document.getElementById('auth-overlay').style.display = 'none'; parseTokenAndLoad(); }
+  } else {
+    document.getElementById('auth-overlay').style.display = 'flex';
   }
 
   async function api(path, opts = {}) {
@@ -561,7 +526,6 @@
       return res.json();
     } catch(e) {
       clearTimeout(timer);
-      if (e.name === 'AbortError') throw new Error('Request timed out — the server may still be starting up. Please wait and try again.');
       throw e;
     }
   }
@@ -574,17 +538,18 @@
     setTimeout(() => { el.style.display = 'none'; }, 3500);
   }
 
+  function escapeHtml(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
   // ── Initialization ─────────────────────────────────────────────────────────
   async function loadInitialData() {
-    // Show a loading placeholder so the user knows something is happening
-    document.getElementById('state-no-project').innerHTML =
-      '<div class="empty-state-icon">⏳</div><h3>Loading…</h3><p>Connecting to server</p>';
+    document.getElementById('state-no-project').innerHTML = '<div class="empty-state-icon">⏳</div><h3>Loading…</h3><p>Connecting to server</p>';
     try {
       const [globalsData, projectsData] = await Promise.all([
         api('/api/checklists/templates/global'),
         api('/api/projects/')
       ]);
-      // api() returns null on 401 — logout() has already been called; abort here
       if (!globalsData || !projectsData) return;
       globalTemplates = globalsData.templates || [];
       allProjects = projectsData.projects || projectsData || [];
@@ -597,186 +562,23 @@
         o.textContent = p.name;
         pSel.appendChild(o);
       });
-      // Restore the default empty-state message now that data is loaded
-      document.getElementById('state-no-project').innerHTML =
-        '<div class="empty-state-icon">📋</div><h3>Select a project</h3>' +
-        '<p>Choose a project from the dropdown above to view and manage its checklists.</p>';
+      document.getElementById('state-no-project').innerHTML = '<div class="empty-state-icon">📋</div><h3>Select a project</h3><p>Choose a project from the dropdown above to view and manage its checklists.</p>';
     } catch(e) {
-      document.getElementById('state-no-project').innerHTML =
-        `<div class="empty-state-icon">⚠️</div><h3>Failed to load</h3>` +
-        `<p style="color:#f87171;">${e.message}</p>` +
-        `<button class="btn btn-ghost" onclick="loadInitialData()" style="margin-top:12px;">Retry</button>`;
+      document.getElementById('state-no-project').innerHTML = `<div class="empty-state-icon">⚠️</div><h3>Failed to load</h3><p style="color:#f87171;">${e.message}</p><button class="btn btn-ghost" onclick="loadInitialData()" style="margin-top:12px;">Retry</button>`;
     }
   }
 
-  // ── Create Project Modal ───────────────────────────────────────────────────
-  function openCreateProjectModal() {
-    // Reset all fields
-    document.getElementById('cp-name').value = '';
-    document.getElementById('cp-domain').value = '';
-    document.getElementById('cp-description').value = '';
-    document.getElementById('cp-error').style.display = 'none';
-    
-    // Render global template checkboxes
-    const container = document.getElementById('cp-templates-list');
-    if (!globalTemplates || globalTemplates.length === 0) {
-      container.innerHTML = '<div style="color:#64748b;font-size:13px;padding:12px 0;">No global templates available.</div>';
-    } else {
-      container.innerHTML = globalTemplates.map(t => {
-        const iconClass = t.type === 'technical' ? 'template-icon-technical' : 'template-icon-delivery';
-        const iconEmoji = t.type === 'technical' ? '⚙️' : '📋';
-        const typeLabel = t.type.charAt(0).toUpperCase() + t.type.slice(1);
-        return `
-          <div class="template-row" style="padding:12px;cursor:default;">
-            <div style="display:flex;align-items:center;gap:12px;">
-              <input type="checkbox" id="cp-chk-${t.id}" onchange="toggleChecklistNameInput(${t.id})" />
-              <div class="template-row-icon ${iconClass}" style="width:32px;height:32px;font-size:16px;">${iconEmoji}</div>
-              <div style="flex:1;">
-                <div class="template-row-name" style="font-size:13px;">${escapeHtml(t.name)}</div>
-                <div class="template-row-meta" style="font-size:11px;">${typeLabel} · ${t.items_count} items</div>
-              </div>
-            </div>
-            <div id="cp-chkname-wrap-${t.id}" class="hidden" style="margin-top:10px;padding-left:44px;">
-              <label style="font-size:11px;margin-bottom:4px;">Name:</label>
-              <input id="cp-chkname-${t.id}" type="text" value="${escapeHtml(t.name)}" 
-                style="width:100%;background:#0f172a;border:1px solid #38bdf8;color:#e2e8f0;padding:7px 10px;border-radius:7px;font-size:13px;"
-                placeholder="Custom name for this checklist" />
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-    
-    // Show the modal
-    document.getElementById('create-project-modal').classList.remove('hidden');
-    
-    // Add Escape key listener
-    document.getElementById('create-project-modal').focus();
-  }
-
-  function closeCreateProjectModal() {
-    document.getElementById('create-project-modal').classList.add('hidden');
-  }
-
-  function toggleChecklistNameInput(templateId) {
-    const checkbox = document.getElementById(`cp-chk-${templateId}`);
-    const nameWrap = document.getElementById(`cp-chkname-wrap-${templateId}`);
-    if (checkbox.checked) {
-      nameWrap.classList.remove('hidden');
-    } else {
-      nameWrap.classList.add('hidden');
-    }
-  }
-
-  async function submitCreateProject() {
-    const errorEl = document.getElementById('cp-error');
-    const btn = document.getElementById('btn-create-project');
-    
-    errorEl.style.display = 'none';
-    
-    // Validate: name is required
-    const name = document.getElementById('cp-name').value.trim();
-    if (!name) {
-      errorEl.textContent = 'Project name is required';
-      errorEl.style.display = 'block';
-      return;
-    }
-    
-    const domain = document.getElementById('cp-domain').value.trim() || null;
-    const description = document.getElementById('cp-description').value.trim() || null;
-    
-    // Collect checked checklist_ids and checklist_names
-    const checklistIds = [];
-    const checklistNames = {};
-    
-    globalTemplates.forEach(t => {
-      const checkbox = document.getElementById(`cp-chk-${t.id}`);
-      if (checkbox && checkbox.checked) {
-        checklistIds.push(t.id);
-        const nameInput = document.getElementById(`cp-chkname-${t.id}`);
-        if (nameInput) {
-          const customName = nameInput.value.trim();
-          if (customName && customName !== t.name) {
-            checklistNames[String(t.id)] = customName;
-          }
-        }
-      }
-    });
-    
-    // Disable the Create button
-    btn.disabled = true;
-    btn.textContent = 'Creating…';
-    
-    try {
-      const body = {
-        name: name,
-        domain: domain,
-        description: description,
-        checklist_ids: checklistIds,
-        checklist_names: Object.keys(checklistNames).length > 0 ? checklistNames : undefined
-      };
-      
-      const res = await api('/api/projects/create-with-checklists', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      
-      // Close modal
-      closeCreateProjectModal();
-      
-      // Toast success
-      toast('Project created!', 'success');
-      
-      // Reload data
-      await loadInitialData();
-      
-      // Auto-select the new project in the dropdown
-      const pSel = document.getElementById('project-select');
-      pSel.value = String(res.project_id);
-      pSel.dispatchEvent(new Event('change'));
-      
-    } catch(e) {
-      errorEl.textContent = 'Failed to create project: ' + e.message;
-      errorEl.style.display = 'block';
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Create Project';
-    }
-  }
-
-  // Add Escape key listener for modal
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-      const modal = document.getElementById('create-project-modal');
-      if (!modal.classList.contains('hidden')) {
-        closeCreateProjectModal();
-      }
-    }
-  });
-
-  // ── Project change ─────────────────────────────────────────────────────────
   async function onProjectChange() {
     const projectId = document.getElementById('project-select').value;
     showState('no-project');
-
     if (!projectId) return;
-
     try {
       const data = await api(`/api/projects/${projectId}/checklists`);
       currentProjectChecklists = data.checklists || [];
-
-      document.getElementById('project-meta').textContent =
-        `${currentProjectChecklists.length} checklist${currentProjectChecklists.length !== 1 ? 's' : ''}`;
-
-      if (currentProjectChecklists.length === 0) {
-        showState('no-checklists');
-      } else {
-        showState('panel');
-        renderTabs();
-        selectTab(currentProjectChecklists[0].id);
-      }
-    } catch(e) { toast('Failed to load project checklists: ' + e.message, 'error'); }
+      document.getElementById('project-meta').textContent = `${currentProjectChecklists.length} checklist${currentProjectChecklists.length !== 1 ? 's' : ''}`;
+      if (currentProjectChecklists.length === 0) showState('no-checklists');
+      else { showState('panel'); renderTabs(); selectTab(currentProjectChecklists[0].id); }
+    } catch(e) { toast('Failed to load project: ' + e.message, 'error'); }
   }
 
   function showState(state) {
@@ -785,15 +587,13 @@
     document.getElementById('checklist-panel').classList.toggle('hidden', state !== 'panel');
   }
 
-  // ── Tabs ───────────────────────────────────────────────────────────────────
   function renderTabs() {
     const tc = document.getElementById('checklist-tabs');
     tc.innerHTML = currentProjectChecklists.map(c => `
-      <div class="tab ${c.id === currentChecklistId ? 'active' : ''}" style="display:flex;align-items:center;gap:6px;" onclick="selectTab(${c.id})">
+      <div class="tab ${c.id === currentChecklistId ? 'active' : ''}" onclick="selectTab(${c.id})">
         <span>${escapeHtml(c.name)}</span>
-        <button class="tab-delete-btn" title="Delete checklist" onclick="event.stopPropagation();confirmDeleteChecklist(${c.id},'${escapeHtml(c.name).replace(/'/g,'\\\'')}')">&times;</button>
-      </div>
-    `).join('');
+        <button class="tab-delete-btn" title="Delete" onclick="event.stopPropagation();confirmDeleteChecklist(${c.id},'${escapeHtml(c.name).replace(/'/g,'\\\'')}')">&times;</button>
+      </div>`).join('');
   }
 
   async function selectTab(checklistId) {
@@ -809,209 +609,8 @@
       const syncBtn = document.getElementById('btn-sync-global');
       d.source_checklist_id ? syncBtn.classList.remove('hidden') : syncBtn.classList.add('hidden');
       renderItemsTable(d.items || []);
-    } catch(e) { toast('Failed to load checklist: ' + e.message, 'error'); }
+    } catch(e) { toast('Failed to load: ' + e.message, 'error'); }
   }
-
-  // ── Add Checklist Modal ────────────────────────────────────────────────────
-  function openAddModal() {
-    renderAddModalTemplates();
-    document.getElementById('add-modal').classList.remove('hidden');
-  }
-
-  function closeAddModal() {
-    document.getElementById('add-modal').classList.add('hidden');
-  }
-
-  function renderAddModalTemplates() {
-    const container = document.getElementById('add-modal-templates');
-    if (!globalTemplates.length) {
-      container.innerHTML = '<div style="color:#64748b;font-size:13px;padding:12px 0;">No global templates available.</div>';
-      return;
-    }
-
-    // Build set of source IDs already present in this project
-    const usedSourceIds = new Set(
-      currentProjectChecklists
-        .filter(c => c.source_checklist_id)
-        .map(c => c.source_checklist_id)
-    );
-
-    container.innerHTML = globalTemplates.map(t => {
-      const alreadyAdded = usedSourceIds.has(t.id);
-      const iconClass = t.type === 'technical' ? 'template-icon-technical' : 'template-icon-delivery';
-      const iconEmoji = t.type === 'technical' ? '⚙️' : '📋';
-      const typeLabel = t.type.charAt(0).toUpperCase() + t.type.slice(1);
-      return `
-        <div class="template-row ${alreadyAdded ? 'template-row-added' : ''}" id="trow-${t.id}">
-          <div class="template-row-icon ${iconClass}">${iconEmoji}</div>
-          <div class="template-row-info">
-            <div class="template-row-name">${escapeHtml(t.name)}</div>
-            <div class="template-row-meta">${typeLabel} · ${t.items_count} items · v${t.version}</div>
-          </div>
-          <div class="template-row-action">
-            ${alreadyAdded
-              ? `<span class="badge badge-green">✓ Already added</span>`
-              : `<button class="btn btn-primary btn-sm" onclick="expandNameInput(${t.id}, '${escapeHtml(t.name).replace(/'/g,"\\'")}')">Add to Project</button>`
-            }
-          </div>
-        </div>
-        <div id="trow-name-${t.id}" class="hidden" style="padding:0 0 12px 56px;">
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input id="trow-input-${t.id}" type="text" value="${escapeHtml(t.name)}"
-              style="flex:1;background:#0f172a;border:1px solid #38bdf8;color:#e2e8f0;padding:7px 10px;border-radius:7px;font-size:13px;"
-              onkeydown="if(event.key==='Enter')cloneTemplate(${t.id});if(event.key==='Escape')collapseNameInput(${t.id})"
-              placeholder="Enter a name for this checklist" />
-            <button class="btn btn-primary btn-sm" id="trow-confirm-${t.id}" onclick="cloneTemplate(${t.id})">Confirm</button>
-            <button class="btn btn-ghost btn-sm" onclick="collapseNameInput(${t.id})">Cancel</button>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
-
-  // ── Delete Checklist ───────────────────────────────────────────────────────
-  let _deleteChecklistId = null;
-
-  function confirmDeleteChecklist(checklistId, checklistName) {
-    _deleteChecklistId = checklistId;
-    document.getElementById('delete-modal-msg').innerHTML =
-      `Are you sure you want to delete <strong>${escapeHtml(checklistName)}</strong>?`;
-    document.getElementById('delete-modal').classList.remove('hidden');
-  }
-
-  function closeDeleteModal() {
-    _deleteChecklistId = null;
-    document.getElementById('delete-modal').classList.add('hidden');
-  }
-
-  async function executeDeleteChecklist() {
-    if (!_deleteChecklistId) return;
-    const btn = document.getElementById('btn-confirm-delete');
-    btn.disabled = true;
-    btn.textContent = 'Deleting…';
-    try {
-      await api(`/api/checklists/${_deleteChecklistId}`, { method: 'DELETE' });
-      closeDeleteModal();
-      toast('Checklist deleted successfully', 'success');
-      // Reload checklists for this project
-      const projectId = document.getElementById('project-select').value;
-      const data = await api(`/api/projects/${projectId}/checklists`);
-      currentProjectChecklists = data.checklists || [];
-      document.getElementById('project-meta').textContent =
-        `${currentProjectChecklists.length} checklist${currentProjectChecklists.length !== 1 ? 's' : ''}`;
-      if (currentProjectChecklists.length === 0) {
-        showState('no-checklists');
-      } else {
-        showState('panel');
-        renderTabs();
-        // Navigate to first tab if deleted tab was active
-        const stillExists = currentProjectChecklists.find(c => c.id === currentChecklistId);
-        await selectTab(stillExists ? currentChecklistId : currentProjectChecklists[0].id);
-      }
-    } catch(e) {
-      closeDeleteModal();
-      // Show 409 conflict as an informative message, not generic error
-      const msg = e.message || '';
-      toast(msg || 'Delete failed', 'error');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Delete';
-    }
-  }
-
-  function expandNameInput(templateId, defaultName) {
-    // Collapse any other open name inputs first
-    document.querySelectorAll('[id^="trow-name-"]').forEach(el => el.classList.add('hidden'));
-    const nameRow = document.getElementById(`trow-name-${templateId}`);
-    if (nameRow) {
-      nameRow.classList.remove('hidden');
-      const input = document.getElementById(`trow-input-${templateId}`);
-      if (input) { input.value = defaultName; input.focus(); input.select(); }
-    }
-  }
-
-  function collapseNameInput(templateId) {
-    const nameRow = document.getElementById(`trow-name-${templateId}`);
-    if (nameRow) nameRow.classList.add('hidden');
-  }
-
-  async function cloneTemplate(templateId) {
-    const projectId = document.getElementById('project-select').value;
-    if (!projectId) { toast('No project selected', 'error'); return; }
-
-    const input = document.getElementById(`trow-input-${templateId}`);
-    const customName = input ? input.value.trim() : '';
-    if (!customName) { toast('Please enter a name for the checklist', 'error'); if (input) input.focus(); return; }
-
-    const btn = document.getElementById(`trow-confirm-${templateId}`);
-    if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
-
-    try {
-      const res = await api(`/api/checklists/${templateId}/clone-to-project/${projectId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ custom_name: customName })
-      });
-      closeAddModal();
-
-      // Reload project checklists and navigate to the new one
-      const data = await api(`/api/projects/${projectId}/checklists`);
-      currentProjectChecklists = data.checklists || [];
-      document.getElementById('project-meta').textContent =
-        `${currentProjectChecklists.length} checklist${currentProjectChecklists.length !== 1 ? 's' : ''}`;
-      showState('panel');
-      renderTabs();
-      await selectTab(res.id);
-
-      // Show success callout on the new checklist
-      showCallout(
-        `<strong>${res.item_count} items copied</strong> into "${escapeHtml(res.name)}". ` +
-        `Customise them below — add, edit, reorder, or remove as needed. ` +
-        `Use <em>Sync from Global Template</em> to pull in future updates.`,
-        'success'
-      );
-    } catch(e) {
-      toast('Failed to add checklist: ' + e.message, 'error');
-      if (btn) { btn.disabled = false; btn.textContent = 'Confirm'; }
-    }
-  }
-
-  async function addBlankChecklist() {
-    const projectId = document.getElementById('project-select').value;
-    if (!projectId) { toast('No project selected', 'error'); return; }
-    const name = prompt('Checklist name:', 'Custom Checklist');
-    if (!name) return;
-    const type = prompt('Type (delivery or technical):', 'delivery');
-    if (!type) return;
-
-    try {
-      // Use the API to create a blank checklist via fetch directly
-      const fd = new FormData();
-      // There's no standalone POST /api/checklists, so we fall back to the clone endpoint
-      // by just notifying the user that blank checklists aren't yet supported via API.
-      toast('Blank checklists are not yet supported via the API — add items to an existing clone instead.', 'error');
-    } catch(e) { toast(e.message, 'error'); }
-  }
-
-  // ── Callout helpers ────────────────────────────────────────────────────────
-  function showCallout(html, type = 'info') {
-    document.getElementById('callout-area').innerHTML = `
-      <div class="callout callout-${type}">
-        <span>${html}</span>
-        <button class="callout-close" onclick="clearCallout()">✕</button>
-      </div>`;
-  }
-
-  function clearCallout() {
-    document.getElementById('callout-area').innerHTML = '';
-  }
-
-  // ── Items table ────────────────────────────────────────────────────────────
-  let activeChecklistItems = [];
 
   function renderItemsTable(items) {
     activeChecklistItems = items.sort((a, b) => a.order - b.order);
@@ -1021,65 +620,36 @@
       const tr = document.createElement('tr');
       tr.draggable = true;
       tr.dataset.index = index;
-      tr.dataset.id = item.id;
       tr.addEventListener('dragstart', handleDragStart);
       tr.addEventListener('dragover', handleDragOver);
       tr.addEventListener('drop', handleDrop);
       tr.addEventListener('dragenter', handleDragEnter);
       tr.addEventListener('dragleave', handleDragLeave);
-
       if (editingItemId === item.id) {
-        tr.innerHTML = `
-          <td class="drag-handle" draggable="false">⋮⋮</td>
+        tr.innerHTML = `<td class="drag-handle">≡</td>
           <td><input id="edit-code-${item.id}" class="inline-edit-input" value="${item.item_code||''}"></td>
           <td><input id="edit-area-${item.id}" class="inline-edit-input" value="${item.area||''}"></td>
-          <td><input id="edit-q-${item.id}" class="inline-edit-input" value="${(item.question||'').replace(/"/g,'&quot;')}"></td>
-          <td><input id="edit-ev-${item.id}" class="inline-edit-input" value="${(item.expected_evidence||'').replace(/"/g,'&quot;')}"></td>
+          <td><input id="edit-q-${item.id}" class="inline-edit-input" value="${escapeHtml(item.question)}"></td>
+          <td><input id="edit-ev-${item.id}" class="inline-edit-input" value="${escapeHtml(item.expected_evidence)}"></td>
           <td><input id="edit-weight-${item.id}" type="number" step="0.5" class="inline-edit-input" value="${item.weight}"></td>
-          <td>
-            <select id="edit-req-${item.id}" class="inline-edit-input" style="width:68px;">
-              <option value="true" ${item.is_review_mandatory ? 'selected' : ''}>Yes</option>
-              <option value="false" ${!item.is_review_mandatory ? 'selected' : ''}>No</option>
-            </select>
-          </td>
-          <td class="actions-cell">
-            <button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})" title="Save">💾</button>
-            <button class="btn-icon-only" onclick="cancelEdit()" title="Cancel">✕</button>
-          </td>`;
+          <td><select id="edit-req-${item.id}" class="inline-edit-input"><option value="true" ${item.is_review_mandatory?'selected':''}>Yes</option><option value="false" ${!item.is_review_mandatory?'selected':''}>No</option></select></td>
+          <td class="actions-cell"><button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})">💾</button><button class="btn-icon-only" onclick="cancelEdit()">✕</button></td>`;
       } else {
-        tr.innerHTML = `
-          <td class="drag-handle">⋮⋮</td>
+        tr.innerHTML = `<td class="drag-handle">≡</td>
           <td style="font-family:monospace;color:#94a3b8">${item.item_code||''}</td>
           <td style="color:#94a3b8;font-size:12px">${item.area||''}</td>
-          <td style="font-weight:500;">${item.question||''}</td>
-          <td style="font-size:11px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(item.expected_evidence||'').replace(/"/g,'&quot;')}">${item.expected_evidence||''}</td>
+          <td>${item.question}</td>
+          <td style="font-size:11px;color:#64748b;">${item.expected_evidence||''}</td>
           <td>${item.weight}</td>
-          <td style="text-align:center;">${item.is_review_mandatory ? 'Yes' : 'No'}</td>
-          <td class="actions-cell">
-            <button class="btn-icon-only" onclick="startEdit(${item.id})" title="Edit">✏️</button>
-            <button class="btn-icon-only" style="color:#f87171" onclick="deleteItem(${item.id})" title="Delete">🗑️</button>
-          </td>`;
+          <td style="text-align:center;">${item.is_review_mandatory?'Yes':'No'}</td>
+          <td class="actions-cell"><button class="btn-icon-only" onclick="startEdit(${item.id})">✏️</button><button class="btn-icon-only" style="color:#f87171" onclick="deleteItem(${item.id})">🗑️</button></td>`;
       }
       tbody.appendChild(tr);
     });
   }
 
-  function getStrategyBadge(strategy) {
-    if (!strategy || strategy === 'auto') return '';
-    const badges = {
-      'file_presence': '<span class="badge badge-gray" style="font-size:9px;">File</span>',
-      'pattern_scan': '<span class="badge badge-gray" style="font-size:9px;">Pattern</span>',
-      'llm_analysis': '<span class="badge badge-blue" style="font-size:9px;">LLM</span>',
-      'metadata_check': '<span class="badge badge-gray" style="font-size:9px;">Meta</span>',
-      'human_required': '<span class="badge badge-purple" style="font-size:9px;">Human</span>',
-      'ai_and_human': '<span class="badge badge-blue" style="font-size:9px;">AI+H</span>',
-    };
-    return badges[strategy] || '';
-  }
-
   function startEdit(id) { editingItemId = id; renderItemsTable(activeChecklistItems); }
   function cancelEdit() { editingItemId = null; renderItemsTable(activeChecklistItems); }
-
   async function saveItem(id) {
     const payload = {
       item_code: document.getElementById(`edit-code-${id}`).value,
@@ -1089,34 +659,23 @@
       weight: parseFloat(document.getElementById(`edit-weight-${id}`).value),
       is_review_mandatory: document.getElementById(`edit-req-${id}`).value === 'true'
     };
-    if (!payload.question) { toast('Question is required', 'error'); return; }
-    if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
     try {
-      const res = await api(`/api/checklists/${currentChecklistId}/items/${id}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-      });
-      if (!res) return;
-      toast('Item updated', 'success');
-      editingItemId = null;
-      await selectTab(currentChecklistId);
-    } catch(e) { toast('Update failed: ' + e.message, 'error'); }
+      await api(`/api/checklists/${currentChecklistId}/items/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      toast('Updated', 'success'); editingItemId = null; selectTab(currentChecklistId);
+    } catch(e) { toast('Failed: ' + e.message, 'error'); }
   }
 
   async function deleteItem(id) {
-    if (!confirm('Delete this item permanently?')) return;
+    if (!confirm('Delete permanently?')) return;
     try {
       await api(`/api/checklists/${currentChecklistId}/items/${id}`, { method: 'DELETE' });
-      toast('Item deleted', 'success');
-      activeChecklistItems = activeChecklistItems.filter(i => i.id !== id);
-      renderItemsTable(activeChecklistItems);
-      document.getElementById('c-items-count').textContent = `${activeChecklistItems.length} items`;
-    } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+      toast('Deleted', 'success'); selectTab(currentChecklistId);
+    } catch(e) { toast('Failed: ' + e.message, 'error'); }
   }
 
   async function addItem() {
-    const codeVal = document.getElementById('add-code').value.trim();
     const payload = {
-      item_code: codeVal || null,
+      item_code: document.getElementById('add-code').value || null,
       area: document.getElementById('add-area').value,
       question: document.getElementById('add-q').value,
       expected_evidence: document.getElementById('add-ev').value,
@@ -1124,72 +683,74 @@
       is_review_mandatory: document.getElementById('add-req').value === 'true',
       order: activeChecklistItems.length
     };
-    if (!payload.question) { toast('Question is required', 'error'); return; }
-    if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
+    if (!payload.question) { toast('Question required', 'error'); return; }
     try {
-      const res = await api(`/api/checklists/${currentChecklistId}/items`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-      });
-      toast('Item added', 'success');
-      activeChecklistItems.push(res);
-      renderItemsTable(activeChecklistItems);
-      document.getElementById('c-items-count').textContent = `${activeChecklistItems.length} items`;
-      document.getElementById('add-code').value = '';
-      document.getElementById('add-q').value = '';
-      document.getElementById('add-ev').value = '';
-    } catch(e) { toast('Add failed: ' + e.message, 'error'); }
+      await api(`/api/checklists/${currentChecklistId}/items`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      toast('Added', 'success');
+      document.getElementById('add-code').value = ''; document.getElementById('add-q').value = ''; document.getElementById('add-ev').value = '';
+      selectTab(currentChecklistId);
+    } catch(e) { toast('Failed: ' + e.message, 'error'); }
   }
 
-  // ── Drag and drop ──────────────────────────────────────────────────────────
-  function handleDragStart(e) {
-    draggedRowIndex = +e.target.dataset.index;
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => e.target.style.opacity = '0.5', 0);
+  function openCreateProjectModal() { document.getElementById('cp-name').value=''; document.getElementById('create-project-modal').classList.remove('hidden'); }
+  function closeCreateProjectModal() { document.getElementById('create-project-modal').classList.add('hidden'); }
+  async function submitCreateProject() {
+    const name = document.getElementById('cp-name').value.trim();
+    if (!name) return;
+    try {
+      const res = await api('/api/projects/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
+      toast('Project created', 'success'); closeCreateProjectModal(); await loadInitialData();
+      document.getElementById('project-select').value = res.id; onProjectChange();
+    } catch(e) { toast('Failed: ' + e.message, 'error'); }
   }
-  function handleDragOver(e) { if (e.preventDefault) e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
-  function handleDragEnter(e) { const t = e.target.closest('tr'); if (t && t.dataset.index !== undefined) t.classList.add('drag-over'); }
-  function handleDragLeave(e) { const t = e.target.closest('tr'); if (t) t.classList.remove('drag-over'); }
 
+  function openAddModal() { renderAddModalTemplates(); document.getElementById('add-modal').classList.remove('hidden'); }
+  function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
+  function renderAddModalTemplates() {
+    const container = document.getElementById('add-modal-templates');
+    container.innerHTML = globalTemplates.map(t => `
+      <div class="template-row">
+        <div class="template-row-info">
+          <div class="template-row-name">${escapeHtml(t.name)}</div>
+          <div class="template-row-meta">${t.type} · ${t.items_count} items</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="cloneTemplate(${t.id})">Add</button>
+      </div>`).join('');
+  }
+  async function cloneTemplate(tid) {
+    const pid = document.getElementById('project-select').value;
+    try {
+      await api(`/api/checklists/${tid}/clone-to-project/${pid}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ custom_name: '' }) });
+      toast('Added', 'success'); closeAddModal(); onProjectChange();
+    } catch(e) { toast('Failed: ' + e.message, 'error'); }
+  }
+
+  function handleDragStart(e) { draggedRowIndex = +e.target.dataset.index; e.dataTransfer.effectAllowed = 'move'; }
+  function handleDragOver(e) { if (e.preventDefault) e.preventDefault(); return false; }
+  function handleDragEnter(e) { e.target.closest('tr')?.classList.add('drag-over'); }
+  function handleDragLeave(e) { e.target.closest('tr')?.classList.remove('drag-over'); }
   async function handleDrop(e) {
-    if (e.stopPropagation) e.stopPropagation();
-    const targetTr = e.target.closest('tr');
-    if (!targetTr || targetTr.dataset.index === undefined) return false;
-    targetTr.classList.remove('drag-over');
-    const targetIndex = +targetTr.dataset.index;
-    if (draggedRowIndex === targetIndex) { document.querySelector(`tr[data-index="${draggedRowIndex}"]`).style.opacity = '1'; return false; }
-    const moved = activeChecklistItems[draggedRowIndex];
-    activeChecklistItems.splice(draggedRowIndex, 1);
-    activeChecklistItems.splice(targetIndex, 0, moved);
-    activeChecklistItems.forEach((item, idx) => item.order = idx);
-    renderItemsTable(activeChecklistItems);
+    const targetIndex = +e.target.closest('tr').dataset.index;
+    if (draggedRowIndex === targetIndex) return;
+    const items = [...activeChecklistItems];
+    const [moved] = items.splice(draggedRowIndex, 1);
+    items.splice(targetIndex, 0, moved);
     try {
-      await api(`/api/checklists/${currentChecklistId}/items/reorder`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(activeChecklistItems.map(i => ({ id: i.id, order: i.order })))
-      });
-    } catch(e) { toast('Failed to save order: ' + e.message, 'error'); }
-    return false;
+      await api(`/api/checklists/${currentChecklistId}/items/reorder`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(items.map((it, idx) => ({ id: it.id, order: idx }))) });
+      selectTab(currentChecklistId);
+    } catch(e) { toast('Reorder failed: ' + e.message, 'error'); }
   }
 
-  // ── Sync Modal ─────────────────────────────────────────────────────────────
   function openSyncModal() { document.getElementById('sync-modal').classList.remove('hidden'); }
   function closeSyncModal() { document.getElementById('sync-modal').classList.add('hidden'); }
-
   async function executeSync() {
     const strategy = document.querySelector('input[name="sync-strategy"]:checked').value;
     try {
-      const res = await api(`/api/checklists/${currentChecklistId}/sync-from-global`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strategy })
-      });
-      closeSyncModal();
-      toast(`Sync complete — Added: ${res.added}, Updated: ${res.updated}`, 'success');
-      if (res.flagged_removed > 0) {
-        showCallout(`${res.flagged_removed} item(s) exist in this checklist but were removed from the global template. Review them and delete manually if needed.`, 'info');
-      }
-      selectTab(currentChecklistId);
-    } catch(e) { toast('Sync failed: ' + e.message, 'error'); closeSyncModal(); }
+      await api(`/api/checklists/${currentChecklistId}/sync-from-global`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ strategy }) });
+      toast('Synced', 'success'); closeSyncModal(); selectTab(currentChecklistId);
+    } catch(e) { toast('Sync failed', 'error'); }
   }
+  function clearCallout() { document.getElementById('callout-area').innerHTML = '';}
 </script>
 </body>
 </html>
-
