@@ -125,6 +125,9 @@
     .inline-edit-input { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; margin-bottom: 4px; }
     .inline-edit-input:focus { outline: none; border-color: #38bdf8; }
     .add-row { background: #0f172a44; border-top: 2px dashed #334155; }
+    .col-info-icon { position: relative; cursor: help; color: #38bdf8; font-size: 11px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 3px; }
+    .col-info-icon .col-tooltip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; font-weight: 400; line-height: 1.5; padding: 7px 10px; border-radius: 6px; white-space: nowrap; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+    .col-info-icon:hover .col-tooltip { display: block; }
     .add-row td { vertical-align: middle; }
 
     /* ── Modals ───────────────────────────────────────────────────────────── */
@@ -300,10 +303,9 @@
               <th style="width:90px;">Code</th>
               <th style="width:130px;">Area</th>
               <th>Question</th>
-              <th>Evidence</th>
+              <th style="width:100px;">Evidence</th>
               <th style="width:70px;">Weight</th>
-              <th style="width:170px;">Is Review Mandatory</th>
-              <th style="width:90px;">Strategy</th>
+              <th style="width:80px;">Review?<span class="col-info-icon">ⓘ<span class="col-tooltip">Must this item be reviewed before the review<br>can be marked complete? Does not affect<br>RAG status or compliance score.</span></span></th>
               <th style="width:90px;">Actions</th>
             </tr>
           </thead>
@@ -317,7 +319,6 @@
               <td><input id="add-ev" class="inline-edit-input" placeholder="Expected evidence..." /></td>
               <td><input id="add-weight" type="number" step="0.5" class="inline-edit-input" value="1.0" /></td>
               <td><select id="add-req" class="inline-edit-input" style="width:68px;"><option value="true">Yes</option><option value="false">No</option></select></td>
-              <td></td>
               <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
             </tr>
           </tbody>
@@ -1028,7 +1029,6 @@
       tr.addEventListener('dragleave', handleDragLeave);
 
       if (editingItemId === item.id) {
-        const strategy = item.strategy || 'auto';
         tr.innerHTML = `
           <td class="drag-handle" draggable="false">⋮⋮</td>
           <td><input id="edit-code-${item.id}" class="inline-edit-input" value="${item.item_code||''}"></td>
@@ -1042,32 +1042,19 @@
               <option value="false" ${!item.is_review_mandatory ? 'selected' : ''}>No</option>
             </select>
           </td>
-          <td>
-            <select id="edit-strategy-${item.id}" class="inline-edit-input" style="width:90px;font-size:11px;" title="Review strategy">
-              <option value="auto" ${strategy === 'auto' ? 'selected' : ''}>Auto</option>
-              <option value="file_presence" ${strategy === 'file_presence' ? 'selected' : ''}>File</option>
-              <option value="pattern_scan" ${strategy === 'pattern_scan' ? 'selected' : ''}>Pattern</option>
-              <option value="llm_analysis" ${strategy === 'llm_analysis' ? 'selected' : ''}>LLM</option>
-              <option value="metadata_check" ${strategy === 'metadata_check' ? 'selected' : ''}>Metadata</option>
-              <option value="human_required" ${strategy === 'human_required' ? 'selected' : ''}>Human</option>
-              <option value="ai_and_human" ${strategy === 'ai_and_human' ? 'selected' : ''}>AI+Human</option>
-            </select>
-          </td>
           <td class="actions-cell">
             <button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})" title="Save">💾</button>
             <button class="btn-icon-only" onclick="cancelEdit()" title="Cancel">✕</button>
           </td>`;
       } else {
-        const strategyBadge = getStrategyBadge(item.strategy);
         tr.innerHTML = `
           <td class="drag-handle">⋮⋮</td>
           <td style="font-family:monospace;color:#94a3b8">${item.item_code||''}</td>
           <td style="color:#94a3b8;font-size:12px">${item.area||''}</td>
           <td style="font-weight:500;">${item.question||''}</td>
-          <td style="font-size:11px;color:#64748b">${item.expected_evidence||''}</td>
+          <td style="font-size:11px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(item.expected_evidence||'').replace(/"/g,'&quot;')}">${item.expected_evidence||''}</td>
           <td>${item.weight}</td>
-          <td>${item.is_review_mandatory ? 'Yes' : 'No'}</td>
-          <td>${strategyBadge}</td>
+          <td style="text-align:center;">${item.is_review_mandatory ? 'Yes' : 'No'}</td>
           <td class="actions-cell">
             <button class="btn-icon-only" onclick="startEdit(${item.id})" title="Edit">✏️</button>
             <button class="btn-icon-only" style="color:#f87171" onclick="deleteItem(${item.id})" title="Delete">🗑️</button>
@@ -1109,27 +1096,6 @@
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
       if (!res) return;
-
-      const strategy = document.getElementById(`edit-strategy-${id}`).value;
-      if (strategy === 'auto') {
-        const deleteRes = await fetch(`/api/routing-rules/items/${id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${TOKEN}` }
-        });
-        if (deleteRes.status === 401) { logout(); return; }
-        if (!deleteRes.ok && deleteRes.status !== 404) {
-          const err = await deleteRes.json().catch(() => ({}));
-          throw new Error(err.detail || 'Failed to reset strategy');
-        }
-      } else {
-        const ruleRes = await api(`/api/routing-rules/items/${id}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ strategy })
-        });
-        if (!ruleRes) return;
-      }
-
       toast('Item updated', 'success');
       editingItemId = null;
       await selectTab(currentChecklistId);

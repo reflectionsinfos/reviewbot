@@ -6,9 +6,13 @@ GET    /api/autonomous-reviews/{job_id}  – job status + results
 GET    /api/autonomous-reviews/{job_id}/report – full report
 DELETE /api/autonomous-reviews/{job_id}  – cancel / delete job
 POST   /api/autonomous-reviews/{job_id}/results/{result_id}/override – override RAG status
+GET    /api/autonomous-reviews/{job_id}/action-plan – generate action plan
+POST   /api/autonomous-reviews/{job_id}/action-plan/enhance – LLM-enhance prompts
 WS     /ws/autonomous-reviews/{job_id}   – real-time progress stream
 """
+import json
 import os
+from dataclasses import asdict
 from datetime import datetime
 from typing import Optional, List
 
@@ -24,6 +28,8 @@ from app.models import (
     AutonomousReviewJob, AutonomousReviewResult, AutonomousReviewOverride,
     Project, Checklist, ChecklistItem, User,
 )
+from app.api.routes.auth import get_current_user
+from app.services.action_plan_generator import ActionPlanGenerator
 from app.services.autonomous_review.orchestrator import run_autonomous_review
 from app.services.autonomous_review.progress import progress_manager
 
@@ -446,6 +452,172 @@ async def get_overrides(
             for o in overrides
         ],
     }
+
+
+# ── GET /{job_id}/action-plan — Generate action plan ────────────────────────
+
+@router.get("/{job_id}/action-plan")
+async def get_action_plan(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate an action plan from autonomous review results."""
+    job_result = await db.execute(
+        select(AutonomousReviewJob)
+        .options(
+            selectinload(AutonomousReviewJob.checklist),
+            selectinload(AutonomousReviewJob.project),
+        )
+        .where(AutonomousReviewJob.id == job_id)
+    )
+    job = job_result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Review job not found")
+
+    if job.status != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Action plan can only be generated for completed jobs. Current status: {job.status}",
+        )
+
+    results_result = await db.execute(
+        select(AutonomousReviewResult)
+        .where(AutonomousReviewResult.job_id == job_id)
+    )
+    results = results_result.scalars().all()
+
+    checklist_items_result = await db.execute(
+        select(ChecklistItem).where(ChecklistItem.checklist_id == job.checklist_id)
+    )
+    checklist_items_dict = {item.id: item for item in checklist_items_result.scalars().all()}
+
+    if not job.project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    checklist_name = job.checklist.name if job.checklist else "Unknown"
+
+    generator = ActionPlanGenerator()
+    plan = generator.generate(
+        job=job,
+        results=results,
+        checklist_items=checklist_items_dict,
+        project=job.project,
+        checklist_name=checklist_name,
+    )
+
+    return asdict(plan)
+
+
+# ── POST /{job_id}/action-plan/enhance — LLM-enhance prompts ────────────────
+
+@router.post("/{job_id}/action-plan/enhance")
+async def enhance_action_plan(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Enhance action plan prompts with LLM-generated codebase-specific context."""
+    job_result = await db.execute(
+        select(AutonomousReviewJob)
+        .options(selectinload(AutonomousReviewJob.project))
+        .where(AutonomousReviewJob.id == job_id)
+    )
+    job = job_result.scalar_one_or_none()
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Review job not found")
+
+    if job.status != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Action plan can only be enhanced for completed jobs. Current status: {job.status}",
+        )
+
+    if job.agent_metadata and "action_plan_prompts" in job.agent_metadata:
+        return {"status": "already_enhanced"}
+
+    results_result = await db.execute(
+        select(AutonomousReviewResult)
+        .options(selectinload(AutonomousReviewResult.checklist_item))
+        .where(
+            AutonomousReviewResult.job_id == job_id,
+            AutonomousReviewResult.rag_status.in_(["red", "amber"]),
+        )
+    )
+    results = results_result.scalars().all()
+
+    if not results:
+        return {"status": "enhanced", "prompts_generated": 0}
+
+    try:
+        from app.services.connectors.llm import get_llm_client
+        llm_client = get_llm_client()
+    except Exception:
+        return {"status": "enhanced", "prompts_generated": 0, "warning": "LLM not configured"}
+
+    enhanced_prompts: dict = {}
+    prompts_generated = 0
+
+    for result in results:
+        item = result.checklist_item
+        if not item:
+            continue
+
+        tech_stack = (
+            ", ".join(job.project.tech_stack)
+            if job.project and job.project.tech_stack
+            else "Not specified"
+        )
+        files_checked = (
+            ", ".join(result.files_checked[:10]) if result.files_checked else "None specified"
+        )
+
+        enhancement_prompt = (
+            f"ORIGINAL GAP:\n{item.question}\n\n"
+            f"AI FINDING:\n{result.evidence}\n\n"
+            f"EXPECTED EVIDENCE:\n{item.expected_evidence or 'Not specified'}\n\n"
+            f"FILES CHECKED:\n{files_checked}\n\n"
+            f"PROJECT CONTEXT:\n"
+            f"- Name: {job.project.name if job.project else 'Unknown'}\n"
+            f"- Tech Stack: {tech_stack}\n"
+            f"- Source Path: {job.source_path}\n\n"
+            "TASK: Generate a more specific, codebase-aware instruction for fixing this gap.\n"
+            "Include: specific files to modify, code patterns to use, acceptance criteria.\n\n"
+            'Respond in JSON: {"specific_instruction":"...","files_to_modify":[...],"acceptance_criteria":[...]}'
+        )
+
+        try:
+            response = await llm_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a code review assistant. Return only valid JSON."},
+                    {"role": "user", "content": enhancement_prompt},
+                ],
+                temperature=0.3,
+                max_tokens=500,
+            )
+            enhanced_content = json.loads(response.choices[0].message.content.strip())
+            enhanced_prompts[str(result.id)] = {
+                "generic": f"Fix: {item.question}",
+                "cursor": f"@workspace Fix: {item.question}",
+                "claude_code": f"Task: Fix: {item.question}",
+                "enhanced": enhanced_content,
+            }
+            prompts_generated += 1
+        except Exception:
+            continue
+
+    try:
+        if job.agent_metadata is None:
+            job.agent_metadata = {}
+        job.agent_metadata["action_plan_prompts"] = enhanced_prompts
+        await db.commit()
+        return {"status": "enhanced", "prompts_generated": prompts_generated}
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to save enhanced prompts: {exc}")
 
 
 # WebSocket endpoint is registered directly on the app in main.py

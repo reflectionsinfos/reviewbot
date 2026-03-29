@@ -237,6 +237,11 @@
       <strong>5. Report Generated</strong><br/>
       <span style="color: #64748b;">Compliance score, gaps, recommendations, action items</span>
     </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box" style="border-color: #a78bfa;">
+      <strong>6. Action Plan Generated</strong><br/>
+      <span style="color: #64748b;">Prioritised action cards (Critical / Advisory / Sign-off), AI prompts per finding (Generic / Cursor / Claude Code)</span>
+    </div>
   </div>
 
   <!-- Review Strategies -->
@@ -507,19 +512,256 @@ POST /api/routing-rules
     <p style="margin: 0;">A mandatory item must be reviewed before the review can be completed. It does not have to be green. Compliance still depends on the final outcome of reviewed items.</p>
   </div>
 
+  <!-- Action Plan -->
+  <h2 id="action-plan">Action Plan — From Findings to Fixes</h2>
+  <p>Once an autonomous review completes, ReviewBot can generate a structured <strong>Action Plan</strong> — a prioritised list of remediation tasks derived directly from the review findings. Each task includes not just <em>what</em> failed, but <em>what to do about it</em>, and an AI-ready prompt you can paste straight into your IDE assistant.</p>
+
+  <div class="callout callout-info">
+    <div class="callout-title">💡 Why an Action Plan?</div>
+    <p style="margin: 0 0 10px;">A compliance report tells you <em>what</em> is wrong. An action plan tells you <em>exactly what to do next</em>. Without it, developers still have to interpret raw findings, decide priority, and manually write prompts for their AI tools. ReviewBot eliminates that translation work — the gap between "found" and "fixed" is reduced to a single copy-paste.</p>
+  </div>
+
+  <h3>The Problem It Solves</h3>
+  <p>After a review, a team typically has three friction points before remediation can begin:</p>
+  <ol>
+    <li><strong>Prioritisation</strong> — Which findings are blockers vs. nice-to-haves?</li>
+    <li><strong>Interpretation</strong> — The AI evidence is verbose; what is the concrete task?</li>
+    <li><strong>AI IDE setup</strong> — Developers need to manually craft prompts for Cursor, GitHub Copilot Chat, or Claude Code to fix each issue.</li>
+  </ol>
+  <p>The Action Plan addresses all three in a single step, automatically, as soon as the review job completes.</p>
+
+  <h3>Core Logic</h3>
+  <p>The <code class="inline-code">ActionPlanGenerator</code> service runs entirely server-side and requires no additional LLM calls for the base plan. It processes the stored review results using deterministic rules:</p>
+
+  <div class="diagram">
+    <div class="diagram-box">
+      <strong>1. Load completed review results</strong><br/>
+      <span style="color: #64748b;">AutonomousReviewResult rows for the job — rag_status, evidence, files_checked, needs_human_sign_off</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>2. Categorise by RAG status</strong><br/>
+      <span style="color: #64748b;">red → Critical Blocker &nbsp;|&nbsp; amber → Advisory &nbsp;|&nbsp; needs_human_sign_off=true → Sign-off Required &nbsp;|&nbsp; green → Compliant</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>3. Derive remediation instruction</strong><br/>
+      <span style="color: #64748b;">If expected_evidence set → "Implement: {expected_evidence}" &nbsp;|&nbsp; else → "Address: {question}"</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>4. Build AI prompts (3 flavours)</strong><br/>
+      <span style="color: #64748b;">Generic &nbsp;|&nbsp; Cursor / Copilot Chat (@workspace prefix) &nbsp;|&nbsp; Claude Code (Task: prefix)</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>5. Return structured ActionPlanResponse</strong><br/>
+      <span style="color: #64748b;">JSON with critical_blockers, advisories, sign_off_required, compliant_summary, summary stats</span>
+    </div>
+  </div>
+
+  <h3>Action Card Structure</h3>
+  <p>Each finding becomes an <strong>Action Card</strong> with the following fields:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Source</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code class="inline-code">priority</code></td>
+        <td>Derived from rag_status</td>
+        <td>High (red) or Medium (amber) — drives developer triage</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">what_was_found</code></td>
+        <td>AutonomousReviewResult.evidence</td>
+        <td>Verbatim AI finding — what the analyzer observed in the codebase</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">what_to_fix</code></td>
+        <td>Derived from ChecklistItem.expected_evidence</td>
+        <td>Single imperative sentence — exactly what the developer must implement</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">expected_outcome</code></td>
+        <td>ChecklistItem.expected_evidence</td>
+        <td>The acceptance criterion — what "done" looks like for this item</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">ai_prompt</code></td>
+        <td>Generated by ActionPlanGenerator</td>
+        <td>Ready-to-use prompt in 3 IDE flavours (see below)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>AI Prompt Flavours</h3>
+  <p>Each Action Card contains three variants of the same prompt, tuned for different AI developer tools:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Flavour</th>
+        <th>Prefix</th>
+        <th>Target Tool</th>
+        <th>Extra Instruction</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Generic</strong></td>
+        <td>None</td>
+        <td>Any AI assistant (ChatGPT, Gemini, etc.)</td>
+        <td>Plain context + task + acceptance criteria</td>
+      </tr>
+      <tr>
+        <td><strong>Cursor / Copilot</strong></td>
+        <td><code class="inline-code">@workspace</code></td>
+        <td>Cursor IDE, GitHub Copilot Chat</td>
+        <td>"Search the workspace for related files before making changes"</td>
+      </tr>
+      <tr>
+        <td><strong>Claude Code</strong></td>
+        <td><code class="inline-code">Task:</code></td>
+        <td>Claude Code CLI</td>
+        <td>"Run tests after making changes"</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Every prompt contains four structured blocks — <strong>CONTEXT</strong> (project name, tech stack, files examined), <strong>FINDING</strong> (what the AI found), <strong>STANDARD EXPECTED</strong> (the checklist requirement), and <strong>TASK</strong> + <strong>ACCEPTANCE CRITERIA</strong> — ensuring the developer assistant has complete context without the developer writing a single word.</p>
+
+  <div class="callout">
+    <div class="callout-title">📋 Example Prompt (Generic flavour)</div>
+    <pre style="margin: 0;"><code>CONTEXT:
+Project: Hatch Pay
+Tech Stack: Python, FastAPI, PostgreSQL, Docker
+Files Checked:
+  - src/auth/middleware.py
+  - src/api/routes/auth.py
+
+FINDING:
+No rate limiting found on authentication endpoints.
+Login and token refresh routes accept unlimited requests.
+
+STANDARD EXPECTED:
+Rate limiting must be applied to all authentication endpoints
+(max 5 requests/min per IP for login).
+
+TASK:
+Fix the above gap. Ensure the solution satisfies:
+'Are authentication endpoints protected by rate limiting?'
+
+ACCEPTANCE CRITERIA:
+Rate limiting must be applied to all authentication endpoints
+(max 5 requests/min per IP for login).</code></pre>
+  </div>
+
+  <h3>Sign-off Required Category</h3>
+  <p>Items where <code class="inline-code">needs_human_sign_off = true</code> are collected into a separate <strong>Sign-off Required</strong> bucket, regardless of their RAG status. This handles findings where the AI ran successfully but the business stakes are high enough that a human must confirm the result before marking it resolved — for example, data retention policies, compliance attestations, or architectural sign-off.</p>
+
+  <h3>LLM Enhancement (Optional)</h3>
+  <p>The base Action Plan requires no LLM calls and is instant. For deeper, codebase-specific prompts, users can trigger the <strong>Enhance with AI</strong> button in the History view:</p>
+
+  <div class="diagram">
+    <div class="diagram-box">
+      <strong>POST /api/autonomous-reviews/{job_id}/action-plan/enhance</strong><br/>
+      <span style="color: #64748b;">Triggers LLM enrichment for all red and amber results</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>LLM receives:</strong> question + evidence + expected_evidence + files_checked + project tech stack<br/>
+      <span style="color: #64748b;">System prompt: "You are a senior engineer writing actionable remediation prompts for AI IDEs..."</span>
+    </div>
+    <div class="diagram-arrow">↓</div>
+    <div class="diagram-box">
+      <strong>Returns enhanced JSON</strong><br/>
+      <span style="color: #64748b;">specific_instruction, files_to_modify, acceptance_criteria — stored in job.agent_metadata["action_plan_prompts"]</span>
+    </div>
+  </div>
+
+  <p>Enhancement is <strong>idempotent</strong> — calling enhance twice returns the cached result without a second LLM call. Enhanced prompts are stored on the job record so they persist across sessions.</p>
+
+  <h3>Advantages Over Manual Remediation Planning</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Without Action Plan</th>
+        <th>With Action Plan</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Developer reads verbose AI evidence and interprets what needs to change</td>
+        <td>Single imperative sentence: "Implement: {expected_evidence}"</td>
+      </tr>
+      <tr>
+        <td>Team manually sorts findings by severity in a spreadsheet</td>
+        <td>Pre-sorted into Critical Blockers / Advisories / Sign-off Required</td>
+      </tr>
+      <tr>
+        <td>Developer writes a custom prompt for their AI IDE from scratch</td>
+        <td>Three flavoured prompts ready to copy-paste (Generic / Cursor / Claude Code)</td>
+      </tr>
+      <tr>
+        <td>Context (tech stack, files examined) must be re-stated in every prompt</td>
+        <td>Context auto-injected from review metadata — zero manual effort</td>
+      </tr>
+      <tr>
+        <td>Human sign-off items mixed in with automated findings</td>
+        <td>Clearly separated bucket with explicit human action required</td>
+      </tr>
+      <tr>
+        <td>No exportable artefact for project management</td>
+        <td>One-click Markdown export for tickets, Confluence, GitHub issues</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>API Endpoints</h3>
+  <pre><code>GET  /api/autonomous-reviews/{job_id}/action-plan
+     → Returns full ActionPlanResponse (instant, no LLM)
+     → 400 if job not in "completed" status
+     → 404 if job not found
+
+POST /api/autonomous-reviews/{job_id}/action-plan/enhance
+     → Triggers LLM enrichment for red/amber items
+     → 200 {"status":"already_enhanced"} if run before (idempotent)
+     → 200 {"status":"enhanced","prompts_generated":N} on success</code></pre>
+
+  <h3>How to Use It</h3>
+  <ol>
+    <li>Complete an autonomous review (status must be <code class="inline-code">completed</code>).</li>
+    <li>Open <strong>History</strong> and click the job row.</li>
+    <li>Switch to the <strong>Action Plan</strong> tab.</li>
+    <li>Choose your IDE flavour from the dropdown (<em>Generic</em>, <em>Cursor/Copilot</em>, or <em>Claude Code</em>) — persisted in localStorage.</li>
+    <li>Expand any card, click <strong>Show AI Prompt</strong>, then <strong>Copy</strong>.</li>
+    <li>Paste directly into your AI IDE assistant.</li>
+    <li>Optionally click <strong>Enhance with AI</strong> for deeper, file-aware prompts.</li>
+    <li>Click <strong>Export MD</strong> to download the full plan as a Markdown file for your team.</li>
+  </ol>
+
   <!-- Future Enhancements -->
   <h2 id="future">Future Enhancements</h2>
   <ul>
     <li><strong>Role-Based Reviews</strong> — Assign checklist items to personas (PM, Tech Lead, DevOps, Security)</li>
-    <li><strong>Strategy Breakdown Reports</strong> — Show count of AI vs Human reviewed items</li>
     <li><strong>LLM Model Tracking</strong> — Record which LLM model reviewed each item</li>
     <li><strong>Reviewer Attribution</strong> — Track human reviewer name and role</li>
+    <li><strong>Action Plan to Jira/GitHub Issues</strong> — One-click creation of tickets from action cards</li>
+    <li><strong>Action Plan Assignment</strong> — Assign action cards to team members with due dates</li>
   </ul>
 
   <div class="callout related-docs">
     <div class="callout-title">📚 Related Documentation</div>
     <ul class="related-docs-list">
-      <li><a href="/docs" target="_blank">API Reference</a></li>
+      <li><a href="/docs" target="_blank">API Reference — all endpoints including Action Plan</a></li>
+      <li><a href="/history" target="_blank">History — open a completed review and try the Action Plan tab</a></li>
       <li><a href="https://github.com/reflectionsinfos/reviewbot" target="_blank">GitHub Repository</a></li>
       <li><a href="https://www.reflectionsglobal.com/contact-us" target="_blank">Contact Support</a></li>
     </ul>
