@@ -386,8 +386,8 @@
 
     <!-- Tab navigation -->
     <div id="details-tabs" style="display:flex;gap:0;border-bottom:1px solid #334155;margin-bottom:16px;">
-      <button class="dtab active" onclick="switchDetailsTab('items')">Review Items</button>
-      <button class="dtab" onclick="switchDetailsTab('action-plan')">Action Plan</button>
+      <button class="dtab active" data-tab="items" onclick="switchDetailsTab('items', this)">Review Items</button>
+      <button class="dtab" data-tab="action-plan" onclick="switchDetailsTab('action-plan', this)">Action Plan</button>
     </div>
     <div id="tab-items">
       <div class="items-container" id="det-items"></div>
@@ -405,11 +405,11 @@
     <p>Sign in to view report history</p>
     <div class="form-group">
       <label>Email</label>
-      <input id="login-email" type="email" value="admin@reviewbot.ai" />
+      <input id="login-email" type="email" value="admin@reviewbot.com" />
     </div>
     <div class="form-group">
       <label>Password</label>
-      <input id="login-password" type="password" value="admin123" />
+      <input id="login-password" type="password" value="Admin@123" />
     </div>
     <div id="auth-error" style="color:#f87171;font-size:12px;margin-bottom:10px;display:none;"></div>
     <button class="btn btn-primary btn-block" onclick="login()">Sign In</button>
@@ -499,7 +499,8 @@
       localStorage.setItem('rb_token', TOKEN);
       _logoutInProgress = false;
       document.getElementById('auth-overlay').style.display = 'none';
-      document.getElementById('user-label').textContent = email;
+      document.getElementById('auth-error').style.display = 'none';
+      updateUserMenu(email, data.full_name || '', data.role || 'user');
       loadHistory();
     } catch (e) {
       const el = document.getElementById('auth-error');
@@ -734,6 +735,9 @@
   async function viewDetails(reportId, jobId, pushState = true) {
     currentReportId = reportId;
     currentJobId = jobId;
+    window._currentJobId = jobId;
+    window._actionPlanData = null;
+    switchDetailsTab('items');
     document.getElementById('history-section').style.display = 'none';
     document.getElementById('details-section').style.display = 'block';
 
@@ -1093,7 +1097,7 @@
 
   async function loadActionPlan(jobId) {
     try {
-      const data = await api(`/api/autonomous-reviews/${jobId}/action-plan`);
+      const data = await apiFetch(`/api/autonomous-reviews/${jobId}/action-plan`);
       window._actionPlanData = data;
       renderActionPlan();
     } catch (e) {
@@ -1301,7 +1305,7 @@
     btn.disabled = true;
     
     try {
-      const result = await api(`/api/autonomous-reviews/${jobId}/action-plan/enhance`, { method: 'POST' });
+      const result = await apiFetch(`/api/autonomous-reviews/${jobId}/action-plan/enhance`, { method: 'POST' });
       if (result.status === 'already_enhanced') {
         showToast('Already enhanced');
       } else {
@@ -1316,10 +1320,11 @@
     }
   }
 
-  function switchDetailsTab(tab) {
+  function switchDetailsTab(tab, triggerEl = null) {
     // Update tab buttons
     document.querySelectorAll('.dtab').forEach(t => t.classList.remove('active'));
-    event.target.classList.add('active');
+    const activeBtn = triggerEl || document.querySelector(`.dtab[data-tab="${tab}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
     
     // Show/hide content
     const itemsTab = document.getElementById('tab-items');
@@ -1338,18 +1343,6 @@
       }
     }
   }
-
-  // Override showDetails to set current job ID and reset to items tab
-  const originalShowDetails = window.showDetails || showDetails;
-  window.showDetails = function(jobId, reportId, fromHistory) {
-    window._currentJobId = jobId;
-    window._actionPlanData = null;
-    switchDetailsTab('items');
-    // Find and click the items tab button
-    const itemsTabBtn = document.querySelector('.dtab.active');
-    if (itemsTabBtn) itemsTabBtn.click();
-    originalShowDetails(jobId, reportId, fromHistory);
-  };
 
   // ── Init ───────────────────────────────────────────────────────────────────
   if (TOKEN) {

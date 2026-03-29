@@ -108,7 +108,7 @@
     .inline-input { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
     .inline-input:focus { outline: none; border-color: #38bdf8; }
     .col-info-icon { position: relative; cursor: help; color: #38bdf8; font-size: 11px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 3px; }
-    .col-info-icon .col-tooltip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; font-weight: 400; line-height: 1.5; padding: 7px 10px; border-radius: 6px; white-space: nowrap; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+    .col-info-icon .col-tooltip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; font-weight: 400; line-height: 1.4; padding: 7px 10px; border-radius: 6px; white-space: normal; width: 180px; text-align: center; text-transform: none; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
     .col-info-icon:hover .col-tooltip { display: block; }
     .inline-textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
     .add-row { background: #0f172a44; border-top: 2px dashed #334155; }
@@ -249,7 +249,7 @@
                   <th>Question</th>
                   <th style="width:100px;">Evidence</th>
                   <th style="width:70px;">Weight</th>
-                  <th style="width:80px;">Review?<span class="col-info-icon">ⓘ<span class="col-tooltip">Must this item be reviewed before the review<br>can be marked complete? Does not affect<br>RAG status or compliance score.</span></span></th>
+                  <th style="width:80px;">Review?<span class="col-info-icon">ⓘ<span class="col-tooltip">IS REVIEW MANDATORY?</span></span></th>
                   <th style="width:90px;">Actions</th>
                 </tr>
               </thead>
