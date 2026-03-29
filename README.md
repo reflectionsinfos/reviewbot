@@ -6,7 +6,7 @@ An AI-powered platform for conducting structured technical and delivery project 
 
 ## Features
 
-- **Autonomous Code Review** — Point ReviewBot at a local folder; it scans files and evaluates each checklist item automatically with real-time WebSocket progress
+- **Autonomous Code Review** — Scan a Git repository against a checklist automatically; streams results live via WebSocket
 - **Conversational Review** — LangGraph-based agent asks checklist questions one by one; supports text and voice responses
 - **Multi-LLM Support** — OpenAI, Anthropic, Google, Groq, Qwen, Azure OpenAI (switch via `ACTIVE_LLM_PROVIDER`)
 - **RAG Compliance Scoring** — Automatic Red/Amber/Green status per item with compliance percentage
@@ -22,7 +22,7 @@ An AI-powered platform for conducting structured technical and delivery project 
 |-------|-----------|
 | Web Framework | FastAPI + Uvicorn (async) |
 | AI/LLM | LangChain + LangGraph + configurable LLM provider |
-| Database | PostgreSQL 15 (Docker) / SQLite (local dev) |
+| Database | PostgreSQL 15 (Cloud SQL / Docker) |
 | ORM | SQLAlchemy 2.0 (async) + Alembic |
 | Vector Store | ChromaDB |
 | Voice | OpenAI Whisper (STT) + TTS |
@@ -184,18 +184,17 @@ git add scripts/seed_data.sql && git commit -m "chore: regenerate seed data"
 
 ## Autonomous Code Review
 
-The autonomous review feature scans a source folder against a checklist — no human Q&A needed.
+The autonomous review feature scans a source codebase against a checklist — no human Q&A needed.
 
 ### How it works
 
-1. User selects project + checklist + source path in the UI (or via API)
-2. ReviewBot scans up to 2,000 files (skipping `node_modules`, `.git`, `target`, `venv`, etc.)
+1. User selects project + checklist + Git Repository URL in the UI (or via API)
+2. ReviewBot scans the repository (skipping `node_modules`, `.git`, `target`, `venv`, etc.)
 3. Each checklist item is routed to an analysis strategy:
    - **file_presence** — checks if expected files/dirs exist (architecture docs, CI config, README, etc.)
    - **pattern_scan** — regex scans for code patterns (secrets, HTTPS, test counts, error handling)
-   - **llm_analysis** — top 3 relevant files sent to LLM for contextual evaluation
+   - **llm_analysis** — relevant files sent to LLM for contextual evaluation
    - **metadata_check** — inspects dependency scanning config, coverage thresholds
-   - **human_required** — financial/people/governance items flagged for manual evidence
 4. Results stream live via WebSocket
 5. Final report available at `GET /api/autonomous-reviews/{job_id}/report`
 
@@ -211,68 +210,6 @@ The autonomous review feature scans a source folder against a checklist — no h
 
 ---
 
-## Microservices & Large Codebases
-
-### Current Support Status
-
-| Scenario | Supported | Notes |
-|----------|-----------|-------|
-| Single service / module | ✅ Full support | Best results — full context within one service |
-| Monolithic project | ✅ Full support | Works as long as total files < 2,000 |
-| Microservices — one service at a time | ✅ Supported | Point source path at individual service folder |
-| Microservices — entire fleet in one job | ❌ Not yet | File limit hit; no per-service result axis |
-
-### Scanning a microservices project (one service at a time)
-
-ReviewBot runs inside Docker. To scan code on your Windows host, the `C:\projects` folder is mounted into the container as `/host-projects` (read-only).
-
-**Source path format in the UI:**
-```
-/host-projects/<relative-path-from-C:\projects>
-```
-
-**Examples:**
-```
-# Single microservice
-/host-projects/hatch-pay/backend/hatch-pay-auth-management-service
-
-# Another service
-/host-projects/hatch-pay/backend/hatch-pay-payment-adapter-service
-
-# Monolithic project
-/host-projects/my-monolith/src
-```
-
-**Recommended workflow for microservices fleet:**
-1. Create one ReviewBot project per microservice (or one per team)
-2. Run a separate autonomous review job per service
-3. Each job produces its own RAG report for that service
-4. Compare results across jobs manually (fleet-level reporting is on the roadmap)
-
-### Path mount configuration
-
-`docker-compose.yml` mounts `C:\projects` → `/host-projects` (already configured):
-```yaml
-volumes:
-  - C:\projects:/host-projects:ro
-```
-
-If your projects are in a different drive or folder, edit `docker-compose.yml` and restart:
-```bash
-docker-compose up -d --force-recreate app
-```
-
-### Roadmap: Full microservices fleet support
-
-See [docs/MICROSERVICES_REVIEW_PLAN.md](docs/MICROSERVICES_REVIEW_PLAN.md) for the full plan.
-
-| Phase | What | Status |
-|-------|------|--------|
-| Phase 1 | Docker volume mount for host path access | ✅ Done |
-| Phase 2 | Multi-service job mode (per-service result axis) | Planned |
-| Phase 3 | Java/Spring Boot LLM context quality | Planned |
-| Phase 4 | Microservices-specific checklist rules | Planned |
-| Phase 5 | Fleet heat-map UI (services × checklist areas) | Planned |
 
 ---
 
@@ -470,17 +407,6 @@ docker-compose exec app alembic downgrade -1
 
 ---
 
-## Local Python Dev (without Docker)
-
-```bash
-pip install -r requirements.txt
-
-# Use SQLite — no PostgreSQL needed
-# Edit .env:
-DATABASE_URL=sqlite+aiosqlite:///./reviews.db
-
-uvicorn main:app --reload --port 8000
-```
 
 ---
 
@@ -499,20 +425,6 @@ python scripts/migrate_xlsx_to_db.py
 PostgreSQL 15 requires `scram-sha-256`. Old volumes created with `password_encryption = 'md5'` fail.
 Fix: `docker-compose down -v` to reset the volume, then restart.
 
-**`Source path does not exist: C:\projects\...`**
-The app runs inside Docker and cannot see Windows host paths directly.
-Use the `/host-projects/` prefix which maps to your `C:\projects\` folder:
-```
-# Wrong
-C:\projects\hatch-pay\backend\hatch-pay-auth-management-service
-
-# Correct
-/host-projects/hatch-pay/backend/hatch-pay-auth-management-service
-```
-If the mount isn't working, restart the app container:
-```bash
-docker-compose up -d --force-recreate app
-```
 
 **Port already in use**
 ```bash

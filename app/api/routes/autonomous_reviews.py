@@ -138,16 +138,14 @@ async def start_autonomous_review(
     if not checklist.items:
         raise HTTPException(400, "Checklist has no items to review")
 
-    # Validate source path (optional - path may be a Docker volume mount)
-    # Only validate if REVIEWBOT_VALIDATE_SOURCE_PATH env var is set to "true"
-    import os
-    validate_source = os.getenv("REVIEWBOT_VALIDATE_SOURCE_PATH", "false").lower() == "true"
-    
-    if validate_source:
-        if not os.path.exists(req.source_path):
-            raise HTTPException(400, f"Source path does not exist: {req.source_path}")
-        if not os.path.isdir(req.source_path):
-            raise HTTPException(400, f"Source path is not a directory: {req.source_path}")
+    # Validate source path: Local folder scanning is disabled for security/cloud-run.
+    # Only allow repository-based scans (__repo__ marker).
+    if not req.source_path.startswith("__repo__::"):
+        raise HTTPException(
+            400, 
+            "Local folder scanning is deprecated. Please use the ReviewBot Agent to upload "
+            "codebase metadata, or provide a Git Repository URL."
+        )
 
     # Create job
     job = AutonomousReviewJob(

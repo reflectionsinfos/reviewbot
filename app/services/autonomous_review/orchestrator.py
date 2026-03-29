@@ -69,29 +69,6 @@ async def run_autonomous_review(job_id: int) -> None:
             })
 
 
-def _resolve_source_path(path: str) -> str:
-    """
-    Normalise source paths entered by users so common mistakes work:
-      C:\\projects\\foo     → /host-projects/foo
-      C:/projects/foo      → /host-projects/foo
-      /projects/foo        → /host-projects/foo  (missing the 'host-' prefix)
-    All other paths are returned as-is.
-    """
-    import re
-    p = path.replace("\\", "/")
-    # Windows drive letter: C:/projects/... or C:/anything/...
-    m = re.match(r"^[A-Za-z]:/(.*)", p)
-    if m:
-        rest = m.group(1)
-        # Map the top-level "projects" folder to the Docker mount point
-        rest = re.sub(r"^projects/", "host-projects/", rest)
-        return "/" + rest
-    # /projects/... → /host-projects/...
-    if p.startswith("/projects/"):
-        return "/host-" + p[1:]
-    return path
-
-
 async def _execute_review(job_id: int, db) -> None:
     # ── Load job ──────────────────────────────────────────────────────────────
     result = await db.execute(

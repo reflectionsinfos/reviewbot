@@ -10,9 +10,7 @@ AI-powered project review platform that conducts structured technical and delive
 |-------|-----------|
 | Web Framework | FastAPI + Uvicorn (async) |
 | AI/LLM | LangChain + LangGraph + OpenAI GPT-4o |
-| Database | SQLAlchemy 2.0 (async) + Alembic migrations |
-| DB (dev) | SQLite via aiosqlite |
-| DB (prod) | PostgreSQL 15 via asyncpg |
+| Database | PostgreSQL 15 via asyncpg (Cloud SQL / Docker) |
 | Vector Store | ChromaDB |
 | Voice | OpenAI Whisper (STT) + TTS |
 | Auth | JWT (python-jose) + bcrypt (passlib) |
@@ -79,7 +77,7 @@ ELEVENLABS_API_KEY=
 ## Running the App
 
 ```bash
-# Development (local)
+# Development (requires a running PostgreSQL instance)
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 

@@ -200,17 +200,13 @@
           <input type="radio" name="source-type" value="repo" checked onchange="onSourceTypeChange(this.value)" style="display:none">
           🔗 Git Repository
         </label>
-        <label class="source-type-btn" id="stype-local">
-          <input type="radio" name="source-type" value="local" onchange="onSourceTypeChange(this.value)" style="display:none">
-          📁 Local Path
-        </label>
         <label class="source-type-btn" id="stype-docs">
           <input type="radio" name="source-type" value="docs" onchange="onSourceTypeChange(this.value)" style="display:none">
-          📄 Documents
+          📄 Review Docs
         </label>
         <label class="source-type-btn" id="stype-quiz">
           <input type="radio" name="source-type" value="quiz" onchange="onSourceTypeChange(this.value)" style="display:none">
-          🧠 Knowledge QUIZ
+          🧠 Become Domain Expert with AI
         </label>
       </div>
     </div>
@@ -258,34 +254,20 @@
       </div>
     </div>
 
-    <!-- Local path input -->
-    <div id="source-local-panel" style="display:none;">
-      <div class="form-group">
-        <label>Local Folder Path <span style="font-size:11px;color:#64748b;">(Docker volume-mounted path on server)</span></label>
-        <input id="source-path" type="text" placeholder="/host-projects/myapp" oninput="previewNormalizedPath(this)" />
-        <div style="font-size:11px;margin-top:4px;color:#f59e0b;">
-          ⚠ Docker mount: <code>C:\projects</code> → <code>/host-projects</code>.
-          Always use <code>/host-projects/your-folder</code> — <em>not</em> <code>/projects/</code>.
-        </div>
-        <div id="path-preview" style="font-size:11px;margin-top:3px;color:#34d399;display:none;">
-          ✔ Will use: <code id="path-preview-val"></code>
-        </div>
-      </div>
-    </div>
 
     <!-- Documents panel (coming soon) -->
     <div id="source-docs-panel" style="display:none;">
       <div style="background:#1e293b;border:1px dashed #334155;border-radius:8px;padding:20px;text-align:center;color:#475569;font-size:13px;">
-        📄 Document Review — <strong style="color:#38bdf8">Coming in Phase 2</strong><br/>
-        <span style="font-size:12px;margin-top:4px;display:block;">Upload architecture docs, HLD/LLD, process docs for AI-powered gap analysis.</span>
+        📄 Review Docs — <strong style="color:#38bdf8">Coming in Phase 2</strong><br/>
+        <span style="font-size:12px;margin-top:4px;display:block;">Upload architecture docs, HLD/LLD, or process documentation for AI-powered compliance and gap analysis.</span>
       </div>
     </div>
 
     <!-- QUIZ panel (coming soon) -->
     <div id="source-quiz-panel" style="display:none;">
       <div style="background:#1e293b;border:1px dashed #334155;border-radius:8px;padding:20px;text-align:center;color:#475569;font-size:13px;">
-        🧠 Knowledge QUIZ — <strong style="color:#38bdf8">Coming in Phase 3</strong><br/>
-        <span style="font-size:12px;margin-top:4px;display:block;">Quiz team members on domain knowledge via text or voice. Identify knowledge gaps per role.</span>
+        🧠 Become Domain Expert with AI — <strong style="color:#38bdf8">Coming in Phase 3</strong><br/>
+        <span style="font-size:12px;margin-top:4px;display:block;">Elevate team domain mastery through AI-driven interactive sessions. Identify and bridge knowledge gaps per role with precision.</span>
       </div>
     </div>
 
@@ -542,56 +524,26 @@ function toggleToken() {
   else document.getElementById('pat-guide').style.display = 'none';
 }
 
+
 function onSourceTypeChange(type) {
-  ['repo', 'local', 'docs', 'quiz'].forEach(t => {
-    document.getElementById(`source-${t}-panel`).style.display = t === type ? 'block' : 'none';
-    document.getElementById(`stype-${t}`).classList.toggle('active', t === type);
+  ['repo', 'docs', 'quiz'].forEach(t => {
+    const el = document.getElementById(`source-${t}-panel`);
+    const btn = document.getElementById(`stype-${t}`);
+    if (el) el.style.display = t === type ? 'block' : 'none';
+    if (btn) btn.classList.toggle('active', t === type);
   });
-  const btn = document.getElementById('start-btn');
+  const startBtn = document.getElementById('start-btn');
   if (type === 'docs' || type === 'quiz') {
-    btn.disabled = true;
-    btn.textContent = '▶ Coming Soon';
+    startBtn.disabled = true;
+    startBtn.textContent = '▶ Coming Soon';
   } else {
-    btn.disabled = false;
-    btn.textContent = '▶ Start Autonomous Review';
-  }
-}
-
-function normalizeLocalPath(raw) {
-  // Windows path: C:\projects\foo  →  /host-projects/foo
-  let p = raw.trim().replace(/\\/g, '/');
-  const winMatch = p.match(/^[A-Za-z]:\/(.*)/);
-  if (winMatch) {
-    const rest = winMatch[1];
-    // C:/projects/... → /host-projects/...
-    p = rest.replace(/^projects\//, '/host-projects/');
-    if (!p.startsWith('/')) p = '/' + p;
-    return p;
-  }
-  // /projects/... → /host-projects/...  (missing the "host-" prefix)
-  if (p.startsWith('/projects/')) {
-    p = '/host-' + p.slice(1);
-  }
-  return p;
-}
-
-function previewNormalizedPath(input) {
-  const norm = normalizeLocalPath(input.value);
-  const preview = document.getElementById('path-preview');
-  const val = document.getElementById('path-preview-val');
-  if (norm && norm !== input.value.trim()) {
-    val.textContent = norm;
-    preview.style.display = 'block';
-  } else {
-    preview.style.display = 'none';
+    startBtn.disabled = false;
+    startBtn.textContent = '▶ Start Autonomous Review';
   }
 }
 
 function getSourcePath() {
   const type = document.querySelector('input[name="source-type"]:checked')?.value || 'repo';
-  if (type === 'local') {
-    return normalizeLocalPath(document.getElementById('source-path').value);
-  }
   if (type === 'repo') {
     const url    = document.getElementById('repo-url').value.trim();
     const branch = document.getElementById('repo-branch').value.trim() || 'main';
@@ -620,10 +572,6 @@ async function startReview() {
   }
   if (sourceType === 'repo' && !document.getElementById('repo-url').value.trim()) {
     showConfigError('Please enter a repository URL.');
-    return;
-  }
-  if (sourceType === 'local' && !sourcePath) {
-    showConfigError('Please enter the local folder path.');
     return;
   }
 
