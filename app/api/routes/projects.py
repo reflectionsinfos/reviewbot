@@ -15,7 +15,6 @@ from pydantic import BaseModel
 
 from app.db.session import get_db
 from app.models import Project, Checklist, ChecklistItem, User
-from app.services.checklist_parser import parse_excel_checklist
 from app.api.routes.auth import get_current_user
 
 router = APIRouter()
@@ -340,7 +339,9 @@ async def upload_checklist(
 
     try:
         logger.info(f"Uploading checklist for project {project_id}: {file.filename}")
-        
+
+        from app.services.checklist_parser import parse_excel_checklist
+
         # Parse the Excel file
         parsed_data = await parse_excel_checklist(tmp_path)
         

@@ -1,5 +1,6 @@
 import pytest
 import pytest_asyncio
+import os
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from httpx import AsyncClient, ASGITransport
@@ -22,12 +23,16 @@ def _patched_hashpw(password, salt):
 _bcrypt.hashpw = _patched_hashpw
 # ──────────────────────────────────────────────────────────────────────────
 
+TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+# Force the application to boot against SQLite during tests before importing main.
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ.setdefault("DEBUG", "false")
+
 from main import app
 from app.db.session import get_db
 from app.models import Base, User, Project, Checklist, ChecklistItem
 from app.api.routes.auth import get_password_hash, create_access_token
-
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 engine = create_async_engine(TEST_DATABASE_URL, pool_pre_ping=True)
 TestingSessionLocal = async_sessionmaker(

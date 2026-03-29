@@ -1,10 +1,12 @@
 """
 Strategy Router
-Maps each checklist item (area + question) to the best analysis strategy
-and provides configuration for the chosen analyzer.
+Maps checklist items to analysis strategies and provides the configuration
+for the chosen analyzer.
 
-Uses LLM-based semantic classification for strategy decision,
-with fallback to hardcoded rules for known patterns.
+Current operating model:
+- default every checklist item to LLM analysis
+- let reviewers override specific items to human_required or ai_and_human
+- keep legacy deterministic strategies available only when explicitly selected
 """
 from __future__ import annotations
 import re
@@ -536,33 +538,22 @@ class StrategyRouter:
 
     async def classify_batch(self, items: list) -> dict[int, StrategyConfig]:
         """
-        Classify multiple items using LLM-based strategy decision.
-        Falls back to rule-based classification if LLM fails.
-        
-        Returns: {item_id: StrategyConfig}
+        Resolve strategies for multiple items.
+
+        The product now runs LLM analysis by default for all checklist items.
+        Reviewer overrides remain the primary way to change behaviour.
         """
         if not items:
             return {}
-        
-        # 1. Try LLM batch classification
-        llm_strategies = await classify_strategies_with_llm(items)
-        
-        # 2. Build StrategyConfig for each item
-        results = {}
+
+        results: dict[int, StrategyConfig] = {}
         for item in items:
-            # DB rules take highest priority
             if item.id in self._db_rules:
                 results[item.id] = self._db_rules[item.id]
                 continue
-            
-            # Use LLM strategy if available
-            if item.id in llm_strategies:
-                strategy = llm_strategies[item.id]
-                results[item.id] = self._build_config_for_strategy(strategy, item)
-            else:
-                # Fallback to rule-based
-                results[item.id] = self._auto_route(item)
-        
+
+            results[item.id] = self._auto_route(item)
+
         return results
 
     def _build_config_for_strategy(self, strategy: str, item) -> StrategyConfig:
@@ -630,33 +621,9 @@ class StrategyRouter:
         return self._auto_route(item)
 
     def _auto_route(self, item) -> StrategyConfig:
-        """Hard-coded routing logic — fallback if LLM classification fails."""
+        """Default to LLM analysis unless a reviewer override says otherwise."""
         area = (item.area or "").strip()
         question = (item.question or "").strip()
-
-        # 1. Hard-coded human-required check (fast path for obvious cases)
-        human = _is_human_required(area, question)
-        if human:
-            return human
-
-        combined = f"{area} {question}"
-
-        # 2. Pattern scan
-        for compiled_patterns, config in _PATTERN_RULES_COMPILED:
-            if any(p.search(combined) for p in compiled_patterns):
-                return config
-
-        # 3. File presence
-        for compiled_patterns, config in _FILE_RULES_COMPILED:
-            if any(p.search(combined) for p in compiled_patterns):
-                return config
-
-        # 4. Metadata check
-        for compiled_patterns, config in _META_RULES_COMPILED:
-            if any(p.search(combined) for p in compiled_patterns):
-                return config
-
-        # 5. Default → LLM analysis
         keywords = _extract_keywords(area, question)
         return StrategyConfig(
             strategy="llm_analysis",

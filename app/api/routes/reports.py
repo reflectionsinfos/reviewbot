@@ -63,6 +63,8 @@ async def list_reports(
 @router.get("/history")
 async def get_report_history(
     project_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
     db: AsyncSession = Depends(get_db)
 ):
     """List autonomous review job history for the Report History page"""
@@ -80,24 +82,22 @@ async def get_report_history(
     if project_id:
         query = query.where(AutonomousReviewJob.project_id == project_id)
 
+    # Count total for pagination
+    count_query = select(func.count(AutonomousReviewJob.id))
+    if project_id:
+        count_query = count_query.where(AutonomousReviewJob.project_id == project_id)
+    
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Apply pagination
+    query = query.offset(skip).limit(limit)
+
     result = await db.execute(query)
     jobs = result.scalars().all()
 
-    def eff(r) -> str:
-        if r.overrides:
-            return sorted(r.overrides, key=lambda o: o.overridden_at)[-1].new_rag_status
-        return r.rag_status
-
     reports = []
     for job in jobs:
-        green  = sum(1 for r in job.results if eff(r) == "green")
-        amber  = sum(1 for r in job.results if eff(r) == "amber")
-        red    = sum(1 for r in job.results if eff(r) == "red")
-        skipped = sum(1 for r in job.results if eff(r) in ("skipped", "na"))
-        overrides = sum(len(r.overrides) for r in job.results)
-        auto = green + amber + red
-        score = round(green / auto * 100, 1) if auto else 0.0
-
         reports.append({
             "id": job.id,
             "job_id": job.id,
@@ -105,19 +105,24 @@ async def get_report_history(
             "checklist_name": job.checklist.name if job.checklist else "—",
             "source_path": job.source_path,
             "status": job.status,
-            "compliance_score": score,
-            "green_count": green,
-            "amber_count": amber,
-            "red_count": red,
-            "skipped_count": skipped,
-            "override_count": overrides,
+            "compliance_score": job.compliance_score,
+            "green_count": job.green_count,
+            "amber_count": job.amber_count,
+            "red_count": job.red_count,
+            "skipped_count": job.skipped_count,
+            "override_count": sum(len(r.overrides) for r in job.results),
             "total_items": job.total_items,
             "generated_at": job.completed_at.isoformat() if job.completed_at else (
                 job.created_at.isoformat() if job.created_at else None
             ),
         })
 
-    return {"reports": reports}
+    return {
+        "reports": reports,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
 
 
 @router.get("/{report_id}")

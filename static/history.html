@@ -298,14 +298,14 @@
   <div class="nav-right">
     <div class="user-dropdown">
       <button class="user-dropdown-btn" onclick="toggleUserDropdown()">
-        <div class="user-avatar user-avatar-human" id="user-avatar">🧑</div>
+        <div class="user-avatar" id="user-avatar">AD</div>
         <span id="user-dropdown-name">User</span>
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </button>
       <div class="user-dropdown-menu hidden" id="user-dropdown-menu">
         <div class="user-dropdown-header">
           <div class="user-dropdown-name" id="user-menu-name">User Name</div>
-          <div class="user-dropdown-role" id="user-menu-role">User</div>
+          <div class="user-dropdown-role" id="user-menu-role">USER</div>
         </div>
         <button class="user-dropdown-item" onclick="logout()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -315,42 +315,16 @@
     </div>
   </div>
 </header>
+<script src="/static/components/ReviewTable.js"></script>
 
 <main>
   <!-- ── History list ─────────────────────────────────────────────────────── -->
   <div id="history-section">
     <div class="toolbar">
       <h1>Report History</h1>
-      <div class="filter-group">
-        <input id="search-input" type="text" placeholder="Search project or checklist…" oninput="applyFilter()" />
-        <select id="rag-filter" onchange="applyFilter()">
-          <option value="">All scores</option>
-          <option value="green">≥ 75% (Green)</option>
-          <option value="amber">50–74% (Amber)</option>
-          <option value="red">&lt; 50% (Red)</option>
-        </select>
-        <button class="btn btn-primary btn-sm" onclick="loadHistory()">↻ Refresh</button>
-      </div>
     </div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Checklist</th>
-            <th>Source Path</th>
-            <th>Generated</th>
-            <th>Score</th>
-            <th>RAG Breakdown</th>
-            <th>Overrides</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="history-body">
-          <tr class="loading-row"><td colspan="8"><span class="spinner"></span> Loading…</td></tr>
-        </tbody>
-      </table>
+    <div id="history-grid-container" style="background:#1e293b; border:1px solid #334155; border-radius:12px;">
+      <!-- ReviewTable will render here -->
     </div>
   </div>
 
@@ -589,18 +563,11 @@
   // ── History list ───────────────────────────────────────────────────────────
   async function loadHistory() {
     if (!TOKEN) return;
-    document.getElementById('history-body').innerHTML =
-      '<tr class="loading-row"><td colspan="8"><span class="spinner"></span> Loading…</td></tr>';
-
-    try {
-      const data = await apiFetch('/api/reports/history');
-      if (!data) return; // logout already called
-      allReports = data.reports || data || [];
-      renderHistory(allReports);
-    } catch (e) {
-      document.getElementById('history-body').innerHTML =
-        `<tr class="loading-row"><td colspan="8" style="color:#f87171;">Failed to load: ${e.message} ` +
-        `<button onclick="loadHistory()" style="margin-left:8px;background:transparent;border:1px solid #475569;color:#94a3b8;padding:3px 10px;border-radius:6px;cursor:pointer;">Retry</button></td></tr>`;
+    
+    if (!window.reviewTable) {
+        window.reviewTable = new ReviewTable('#history-grid-container', { limit: 20, paginate: true });
+    } else {
+        window.reviewTable.refresh();
     }
   }
 

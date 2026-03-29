@@ -1,14 +1,13 @@
 """
-Services Module
+Services package.
+
+Keep this module side-effect free so importing submodules does not eagerly pull
+in optional providers or heavyweight integrations.
 """
-from app.services.checklist_parser import ChecklistParser
-from app.services.report_generator import ReportGenerator
-from app.services.voice_interface import VoiceInterface
-from app.services.checklist_optimizer import ChecklistOptimizer
 
 __all__ = [
-    "ChecklistParser",
-    "ReportGenerator",
-    "VoiceInterface",
-    "ChecklistOptimizer"
+    "checklist_parser",
+    "report_generator",
+    "voice_interface",
+    "checklist_optimizer",
 ]

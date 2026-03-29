@@ -2,6 +2,7 @@
 Application Configuration
 """
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import Optional
 
 
@@ -49,6 +50,19 @@ class Settings(BaseSettings):
     DATA_DIR: str = "./data"
     TEMPLATES_DIR: str = "./data/templates"
     PROJECTS_DATA_DIR: str = "./data/projects"
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def normalize_debug(cls, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "on", "debug", "dev", "development"}:
+                return True
+            if lowered in {"false", "0", "no", "off", "release", "prod", "production"}:
+                return False
+        return value
     
     class Config:
         env_file = ".env"

@@ -181,6 +181,7 @@
     </div>
   </div>
 </header>
+<script src="/static/components/ReviewTable.js"></script>
 
 <!-- ── Login modal ────────────────────────────────────────────────────────── -->
 <div id="auth-modal">
@@ -258,28 +259,8 @@
 
     <!-- Recent activity -->
     <div class="section-heading">Recent Autonomous Reviews</div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Checklist</th>
-            <th>Status</th>
-            <th style="text-align:center">Compliant</th>
-            <th style="text-align:center">Amber</th>
-            <th style="text-align:center">Critical</th>
-            <th style="text-align:center">Human</th>
-            <th style="text-align:center">Score</th>
-            <th>Date</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="activity-tbody">
-          <tr class="loading-row">
-            <td colspan="10"><span class="spinner"></span> Loading recent reviews…</td>
-          </tr>
-        </tbody>
-      </table>
+    <div id="reviews-grid-container">
+      <!-- ReviewTable will render here -->
     </div>
 
   </div><!-- /page-wrap -->
@@ -462,130 +443,15 @@
       document.getElementById('stat-checklists').textContent = total;
     }
 
-    // Recent activity table
-    await loadRecentReviews(reviews);
-  }
-
-  async function loadRecentReviews(reviewsResult) {
-    const tbody = document.getElementById('activity-tbody');
-    let items = [];
-
-    if (reviewsResult.status === 'fulfilled') {
-      const val = reviewsResult.value;
-      items = val?.items ?? val?.results ?? (Array.isArray(val) ? val : []);
+    // Recent activity grid (Unified Component)
+    if (!window.reviewTable) {
+        window.reviewTable = new ReviewTable('#reviews-grid-container', { limit: 10, paginate: true });
     } else {
-      // Try again in case it wasn't fetched earlier
-      try {
-        const data = await api('/api/autonomous-reviews/');
-        items = Array.isArray(data) ? data : (data?.items ?? data?.results ?? []);
-      } catch {}
+        window.reviewTable.refresh();
     }
-
-    if (items.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="10">
-            <div class="empty-state">
-              <div class="icon">&#128196;</div>
-              <p>No reviews yet. <a href="/ui" style="color:#38bdf8">Launch your first AI review</a> to get started.</p>
-            </div>
-          </td>
-        </tr>`;
-      return;
-    }
-
-    // Fetch project and checklist names for display
-    const projectsMap = {};
-    const checklistsMap = {};
-    const reportsMap = {};
-    
-    // Collect unique project IDs and checklist IDs
-    const projectIds = [...new Set(items.map(r => r.project_id).filter(Boolean))];
-    const checklistIds = [...new Set(items.map(r => r.checklist_id).filter(Boolean))];
-    
-    // Fetch project names
-    if (projectIds.length > 0) {
-      try {
-        const projectsData = await api('/api/projects/');
-        const pList = projectsData?.projects ?? (Array.isArray(projectsData) ? projectsData : []);
-        pList.forEach(p => { projectsMap[p.id] = p.name; });
-      } catch {}
-    }
-    
-    // Fetch checklist names
-    if (checklistIds.length > 0) {
-      try {
-        const promises = checklistIds.map(id => api(`/api/checklists/${id}`).then(d => { checklistsMap[id] = d?.name; }).catch(() => {}));
-        await Promise.all(promises);
-      } catch {}
-    }
-    
-    // Fetch report scores (reports are linked by autonomous_review_job_id)
-    try {
-      const reportsData = await api('/api/reports/');
-      const rList = reportsData?.reports ?? (Array.isArray(reportsData) ? reportsData : []);
-      rList.forEach(r => {
-        if (r.autonomous_review_job_id) {
-          reportsMap[r.autonomous_review_job_id] = r.compliance_score;
-        }
-      });
-    } catch {}
-
-    const recent = items.slice(0, 10);
-    tbody.innerHTML = recent.map(r => {
-      const projectName = projectsMap[r.project_id] || `Project ${r.project_id}`;
-      const checklistName = checklistsMap[r.checklist_id] || `Checklist ${r.checklist_id}`;
-      const status = statusBadge(r.status);
-      
-      const green = r.green_count ?? 0;
-      const amber = r.amber_count ?? 0;
-      const red = r.red_count ?? 0;
-      const human = r.skipped_count ?? 0;
-      
-      const score = scoreDisplay(r.compliance_score ?? reportsMap[r.id] ?? null);
-      const date = r.completed_at || r.created_at ? new Date(r.completed_at || r.created_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) : '–';
-      const jobId = r.job_id || r.id || '';
-      const editHref = jobId ? `/history/${encodeURIComponent(jobId)}` : '/history';
-      
-      return `<tr>
-        <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(projectName)}">${escHtml(projectName)}</td>
-        <td>${escHtml(checklistName)}</td>
-        <td>${status}</td>
-        <td style="text-align:center"><span class="badge badge-green" style="background:#14532d22;min-width:24px;justify-content:center">${green}</span></td>
-        <td style="text-align:center"><span class="badge badge-amber" style="background:#78350f22;min-width:24px;justify-content:center">${amber}</span></td>
-        <td style="text-align:center"><span class="badge badge-red" style="background:#7f1d1d22;min-width:24px;justify-content:center">${red}</span></td>
-        <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:24px;justify-content:center">${human}</span></td>
-        <td style="text-align:center">${score}</td>
-        <td style="color:#64748b;font-size:12px;white-space:nowrap">${date}</td>
-        <td><a href="${editHref}" class="btn btn-ghost btn-sm">Edit</a></td>
-      </tr>`;
-    }).join('');
   }
 
-  /* ── Helpers ────────────────────────────────────────────────────────────── */
-  function escHtml(str) {
-    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  function statusBadge(status) {
-    const map = {
-      completed: ['badge-green',  'Completed'],
-      running:   ['badge-blue',   'Running'],
-      queued:    ['badge-gray',   'Queued'],
-      pending:   ['badge-gray',   'Queued'],
-      failed:    ['badge-red',    'Failed'],
-      error:     ['badge-red',    'Error'],
-    };
-    const [cls, label] = map[(status || '').toLowerCase()] || ['badge-gray', status || '–'];
-    return `<span class="badge ${cls}">${escHtml(label)}</span>`;
-  }
-
-  function scoreDisplay(score) {
-    if (score === null || score === undefined) return '<span class="score-na">–</span>';
-    const pct = Math.round(score > 1 ? score : score * 100);
-    const cls = pct >= 75 ? 'score-green' : pct >= 50 ? 'score-amber' : 'score-red';
-    return `<span class="${cls}">${pct}%</span>`;
-  }
+  /* ── Removed old loadRecentReviews logic (now in ReviewTable component) ── */
 
   /* ── Init ───────────────────────────────────────────────────────────────── */
   window.addEventListener('DOMContentLoaded', async function() {

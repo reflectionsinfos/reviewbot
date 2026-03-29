@@ -10,14 +10,12 @@ GET    /api/autonomous-reviews/{job_id}/action-plan – generate action plan
 POST   /api/autonomous-reviews/{job_id}/action-plan/enhance – LLM-enhance prompts
 WS     /ws/autonomous-reviews/{job_id}   – real-time progress stream
 """
-import json
 import os
 from dataclasses import asdict
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -31,6 +29,11 @@ from app.models import (
 from app.api.routes.auth import get_current_user
 from app.services.action_plan_generator import ActionPlanGenerator
 from app.services.autonomous_review.orchestrator import run_autonomous_review
+from app.services.autonomous_review.connectors.llm import (
+    get_llm_client,
+    pick_model,
+    provider_is_configured,
+)
 from app.services.autonomous_review.progress import progress_manager
 
 router = APIRouter()
@@ -420,10 +423,48 @@ async def override_review_result(
     db.add(override)
     await db.commit()
     await db.refresh(override)
+
+    # RECALCULATE JOB SUMMARY (New)
+    # ---------------------------
+    # Load all results for this job with their overrides
+    results_q = (
+        select(AutonomousReviewResult)
+        .where(AutonomousReviewResult.job_id == job_id)
+        .options(selectinload(AutonomousReviewResult.overrides))
+    )
+    res_result = await db.execute(results_q)
+    all_results = res_result.scalars().all()
+
+    def get_status(r):
+        if r.overrides:
+            return sorted(r.overrides, key=lambda o: o.overridden_at)[-1].new_rag_status
+        return r.rag_status
+
+    # Status counts (Unified: green, amber, red, and "human required")
+    green   = sum(1 for r in all_results if get_status(r) == "green")
+    amber   = sum(1 for r in all_results if get_status(r) == "amber")
+    red     = sum(1 for r in all_results if get_status(r) == "red")
+    
+    # "Human Required" includes skipped, na, and human_required
+    skipped = sum(1 for r in all_results if get_status(r) in ("skipped", "na", "human_required"))
+    na      = sum(1 for r in all_results if get_status(r) == "na")
+
+    # Score calculation (based on automated items only)
+    auto_total = green + amber + red
+    score = round(green / auto_total * 100, 1) if auto_total else 0.0
+
+    # Persistence
+    job.green_count = green
+    job.amber_count = amber
+    job.red_count = red
+    job.skipped_count = skipped
+    job.na_count = na
+    job.compliance_score = score
+    await db.commit()
     
     return OverrideResponse(
         status="success",
-        message="Override recorded successfully",
+        message="Override recorded and job summary updated",
         override_id=override.id,
         new_rag_status=override.new_rag_status,
     )
@@ -498,7 +539,9 @@ async def get_action_plan(
 
     results_result = await db.execute(
         select(AutonomousReviewResult)
+        .options(selectinload(AutonomousReviewResult.checklist_item))
         .where(AutonomousReviewResult.job_id == job_id)
+        .order_by(AutonomousReviewResult.id)
     )
     results = results_result.scalars().all()
 
@@ -513,12 +556,16 @@ async def get_action_plan(
     checklist_name = job.checklist.name if job.checklist else "Unknown"
 
     generator = ActionPlanGenerator()
+    stored_prompts = {}
+    if isinstance(job.agent_metadata, dict):
+        stored_prompts = job.agent_metadata.get("action_plan_prompts") or {}
     plan = generator.generate(
         job=job,
         results=results,
         checklist_items=checklist_items_dict,
         project=job.project,
         checklist_name=checklist_name,
+        enhanced_prompts=stored_prompts,
     )
 
     return asdict(plan)
@@ -550,7 +597,8 @@ async def enhance_action_plan(
         )
 
     if job.agent_metadata and "action_plan_prompts" in job.agent_metadata:
-        return {"status": "already_enhanced"}
+        cached = job.agent_metadata.get("action_plan_prompts") or {}
+        return {"status": "already_enhanced", "prompts_generated": len(cached)}
 
     results_result = await db.execute(
         select(AutonomousReviewResult)
@@ -565,11 +613,14 @@ async def enhance_action_plan(
     if not results:
         return {"status": "enhanced", "prompts_generated": 0}
 
-    try:
-        from app.services.connectors.llm import get_llm_client
-        llm_client = get_llm_client()
-    except Exception:
-        return {"status": "enhanced", "prompts_generated": 0, "warning": "LLM not configured"}
+    if not provider_is_configured():
+        raise HTTPException(
+            status_code=400,
+            detail="No LLM provider configured. Set ACTIVE_LLM_PROVIDER and the corresponding API key.",
+        )
+
+    llm_client = get_llm_client()
+    generator = ActionPlanGenerator()
 
     enhanced_prompts: dict = {}
     prompts_generated = 0
@@ -579,45 +630,47 @@ async def enhance_action_plan(
         if not item:
             continue
 
-        tech_stack = (
-            ", ".join(job.project.tech_stack)
-            if job.project and job.project.tech_stack
-            else "Not specified"
-        )
-        files_checked = (
-            ", ".join(result.files_checked[:10]) if result.files_checked else "None specified"
-        )
-
+        base_prompt = generator._build_prompt(result, item, job.project).generic
         enhancement_prompt = (
-            f"ORIGINAL GAP:\n{item.question}\n\n"
-            f"AI FINDING:\n{result.evidence}\n\n"
-            f"EXPECTED EVIDENCE:\n{item.expected_evidence or 'Not specified'}\n\n"
-            f"FILES CHECKED:\n{files_checked}\n\n"
-            f"PROJECT CONTEXT:\n"
-            f"- Name: {job.project.name if job.project else 'Unknown'}\n"
-            f"- Tech Stack: {tech_stack}\n"
-            f"- Source Path: {job.source_path}\n\n"
-            "TASK: Generate a more specific, codebase-aware instruction for fixing this gap.\n"
-            "Include: specific files to modify, code patterns to use, acceptance criteria.\n\n"
-            'Respond in JSON: {"specific_instruction":"...","files_to_modify":[...],"acceptance_criteria":[...]}'
+            "Improve the remediation prompt below so it becomes highly actionable for an engineer "
+            "working in this exact repository.\n\n"
+            "Requirements:\n"
+            "- Reference concrete files, folders, or artifact types when the context supports it.\n"
+            "- Tell the engineer whether to implement code, update configuration, add pipeline controls, "
+            "or document an external/client-owned boundary.\n"
+            "- Include repository-specific validation steps.\n"
+            "- Keep it concise but specific.\n"
+            "- Return only the upgraded prompt text, with no commentary.\n\n"
+            f"{base_prompt}"
         )
 
         try:
             response = await llm_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=pick_model(),
                 messages=[
-                    {"role": "system", "content": "You are a code review assistant. Return only valid JSON."},
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a senior software engineer writing remediation prompts for AI coding tools. "
+                            "Return only the final prompt text."
+                        ),
+                    },
                     {"role": "user", "content": enhancement_prompt},
                 ],
-                temperature=0.3,
-                max_tokens=500,
+                temperature=0.2,
+                max_tokens=700,
             )
-            enhanced_content = json.loads(response.choices[0].message.content.strip())
+            enhanced_text = (response.choices[0].message.content or "").strip()
+            if not enhanced_text:
+                continue
             enhanced_prompts[str(result.id)] = {
-                "generic": f"Fix: {item.question}",
-                "cursor": f"@workspace Fix: {item.question}",
-                "claude_code": f"Task: Fix: {item.question}",
-                "enhanced": enhanced_content,
+                "generic": enhanced_text,
+                "cursor": "@workspace\n"
+                + enhanced_text
+                + "\n\nSearch the workspace for the most relevant implementation points before making changes.",
+                "claude_code": "Task:\n"
+                + enhanced_text
+                + "\n\nAfter making changes, run the relevant tests or verification commands and summarize the outcome.",
             }
             prompts_generated += 1
         except Exception:
