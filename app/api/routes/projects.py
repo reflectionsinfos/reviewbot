@@ -252,7 +252,7 @@ async def create_project_with_checklists(
                     question=item.question,
                     category=item.category,
                     weight=item.weight,
-                    is_required=item.is_required,
+                    is_review_mandatory=item.is_review_mandatory,
                     expected_evidence=item.expected_evidence,
                     suggested_for_domains=item.suggested_for_domains,
                     order=item.order
@@ -377,7 +377,7 @@ async def upload_checklist(
                     question=item_data.get("question"),
                     category=item_data.get("category", checklist_type),
                     weight=item_data.get("weight", 1.0),
-                    is_required=item_data.get("is_required", True),
+                    is_review_mandatory=item_data.get("is_review_mandatory", item_data.get("is_required", True)),
                     expected_evidence=item_data.get("expected_evidence"),
                     order=idx
                 )
@@ -538,7 +538,7 @@ async def get_project_checklists(
                     "question": item.question,
                     "category": item.category,
                     "weight": item.weight,
-                    "is_required": item.is_required
+                    "is_review_mandatory": item.is_review_mandatory
                 }
                 for item in checklist.items
             ]

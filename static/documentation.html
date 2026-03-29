@@ -477,6 +477,36 @@ POST /api/routing-rules
 
   <p>Database rules take priority over automatic classification, allowing fine-tuned control for edge cases.</p>
 
+  <h2 id="checklist-fields">Checklist Item Metadata</h2>
+  <p>Each checklist item includes workflow metadata that affects scoring and review completion.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Field</th>
+        <th>Meaning</th>
+        <th>Current Intent</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code class="inline-code">weight</code></td>
+        <td>Relative importance of the checklist item in weighted scoring.</td>
+        <td>Higher weight means the item contributes more to the compliance score.</td>
+      </tr>
+      <tr>
+        <td><code class="inline-code">is_review_mandatory</code></td>
+        <td>Whether the item is mandatory for review completion.</td>
+        <td>If <code class="inline-code">true</code>, the review should not be considered complete until the item has been reviewed and any required human sign-off is done.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout note">
+    <div class="callout-title">Review Completion vs Compliance</div>
+    <p style="margin: 0;">A mandatory item must be reviewed before the review can be completed. It does not have to be green. Compliance still depends on the final outcome of reviewed items.</p>
+  </div>
+
   <!-- Future Enhancements -->
   <h2 id="future">Future Enhancements</h2>
   <ul>

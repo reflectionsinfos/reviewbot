@@ -60,7 +60,7 @@ async def set_routing_rule(
     if not item:
         raise HTTPException(404, f"Checklist item {item_id} not found")
 
-    valid_strategies = {"human_required", "ai_and_human", "llm_analysis", "file_presence", "pattern_scan"}
+    valid_strategies = {"human_required", "ai_and_human", "llm_analysis", "file_presence", "pattern_scan", "metadata_check"}
     if body.strategy not in valid_strategies:
         raise HTTPException(400, f"strategy must be one of: {', '.join(valid_strategies)}")
 

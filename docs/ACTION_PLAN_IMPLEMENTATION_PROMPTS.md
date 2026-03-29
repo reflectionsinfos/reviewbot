@@ -28,7 +28,7 @@ After an autonomous code review completes, results are stored across these model
 
 - ChecklistItem
     id, checklist_id, item_code, area, question, category,
-    weight, is_required, expected_evidence, order
+    weight, is_review_mandatory, expected_evidence, order
 
 - Project
     id, name, domain, tech_stack (JSON list of str)
@@ -484,3 +484,4 @@ For each red/amber AutonomousReviewResult in the job:
 - Type hints on all functions
 - Max LLM concurrency: process results sequentially (not parallel) to avoid rate limit errors
 ```
+

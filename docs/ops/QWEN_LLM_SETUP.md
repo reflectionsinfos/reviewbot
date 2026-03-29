@@ -1064,7 +1064,7 @@ def determine_overall_rag(compliance_score):
 | question | Text | Not Null | Review question |
 | category | String | - | For grouping |
 | weight | Float | Default: 1.0 | Scoring weight |
-| is_required | Boolean | Default: true | Mandatory flag |
+| is_review_mandatory | Boolean | Default: true | Blocks review completion until the item is reviewed |
 | expected_evidence | Text | - | What to look for |
 | suggested_for_domains | JSON | - | Domain relevance |
 | order | Integer | Default: 0 | Display order |
@@ -1878,7 +1878,7 @@ class TestChecklistParser:
             "question": "Are scope / SoW / baselines clearly defined?",
             "category": "delivery",
             "weight": 1.0,
-            "is_required": True
+            "is_review_mandatory": True
         }
         assert item["item_code"] == "1.1"
         assert item["category"] == "delivery"
@@ -2479,3 +2479,4 @@ icacls chroma_db /grant Everyone:F
 *Document Version: 1.0.0*
 *Last Updated: March 25, 2026*
 *AI Tech & Delivery Review Agent*
+

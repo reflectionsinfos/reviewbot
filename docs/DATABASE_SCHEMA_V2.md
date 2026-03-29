@@ -166,7 +166,7 @@ CREATE TABLE checklist_items (
     question TEXT NOT NULL,
     category VARCHAR(100),
     weight DECIMAL(5, 2) DEFAULT 1.0,
-    is_required BOOLEAN DEFAULT TRUE,
+    is_review_mandatory BOOLEAN DEFAULT TRUE,  -- blocks review completion until reviewed
     expected_evidence TEXT,
     
     -- NEW: Autonomous Review Configuration
@@ -530,3 +530,4 @@ COMMIT;
 *Document Owner: Database Team*  
 *Status: Ready for Implementation*  
 *Next: Create migration scripts*
+

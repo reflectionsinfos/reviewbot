@@ -38,7 +38,7 @@
     .user-dropdown-divider { border: none; border-top: 1px solid #334155; margin: 4px 0; }
 
     /* ── Layout ───────────────────────────────────────────────────────────── */
-    main { display: flex; flex: 1; overflow: hidden; }
+    main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 
     /* ── Auth Overlay ─────────────────────────────────────────────────────── */
     #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
@@ -76,7 +76,7 @@
     .left-panel { width: 320px; background: #1e293b; border-right: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; }
     .left-panel-header { padding: 16px 20px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
     .left-panel-header h2 { font-size: 16px; font-weight: 700; color: #f1f5f9; }
-    .left-panel-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .left-panel-content { flex: 1; overflow-y: auto; padding: 12px 12px 104px; }
     .template-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
     .template-card:hover { border-color: #475569; }
     .template-card.selected { border-color: #38bdf8; background: #1e3a5f33; }
@@ -98,7 +98,7 @@
     .empty-state-content p { font-size: 13px; }
 
     /* ── Table ────────────────────────────────────────────────────────────── */
-    .table-container { flex: 1; overflow: auto; padding: 20px 28px; }
+    .table-container { flex: 1; overflow: auto; padding: 20px 28px 104px; }
     .table-card { background: #0f172a55; border: 1px solid #334155; border-radius: 10px; overflow: hidden; }
     .table-card > table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th { background: #0f172a; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 12px 14px; text-align: left; position: sticky; top: 0; }
@@ -119,6 +119,14 @@
     .modal-desc { font-size: 13px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
     .modal-divider { border: none; border-top: 1px solid #334155; margin: 16px 0; }
+
+    #shared-footer-root .shared-footer {
+      position: fixed !important;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 110;
+    }
 
     /* ── Toast ────────────────────────────────────────────────────────────── */
     #toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
@@ -235,9 +243,10 @@
                 <tr>
                   <th style="width:80px;">Code</th>
                   <th style="width:120px;">Area</th>
-                  <th>Question &amp; Evidence</th>
+                  <th>Question</th>
+                  <th>Evidence</th>
                   <th style="width:70px;">Weight</th>
-                  <th style="width:50px;">Req</th>
+                  <th style="width:170px;">Is Review Mandatory</th>
                   <th style="width:90px;">Actions</th>
                 </tr>
               </thead>
@@ -246,10 +255,8 @@
                 <tr class="add-row">
                   <td><input id="add-code" class="inline-input" placeholder="SEC-001" style="width:80px;" title="Leave blank for auto-generated code (e.g., SEC-001, TECH-002). Format: AREA-NNN where AREA is a registered area code." /></td>
                   <td><input id="add-area" class="inline-input" placeholder="General" /></td>
-                  <td>
-                    <input id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;margin-bottom:4px;" />
-                    <input id="add-evidence" class="inline-input" placeholder="Expected evidence..." />
-                  </td>
+                  <td><input id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;" /></td>
+                  <td><input id="add-evidence" class="inline-input" placeholder="Expected evidence..." /></td>
                   <td><input id="add-weight" type="number" step="0.5" class="inline-input" value="1.0" style="width:60px;" /></td>
                   <td><select id="add-req" class="inline-input" style="width:50px;"><option value="true">Yes</option><option value="false">No</option></select></td>
                   <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
@@ -574,26 +581,26 @@
         tr.innerHTML = `
           <td><input id="edit-code-${item.id}" class="inline-input" value="${escapeHtml(item.item_code || '')}" style="width:70px;" /></td>
           <td><input id="edit-area-${item.id}" class="inline-input" value="${escapeHtml(item.area || '')}" /></td>
-          <td>
-            <textarea id="edit-question-${item.id}" class="inline-textarea" style="min-height:40px;margin-bottom:4px;">${escapeHtml(item.question || '')}</textarea>
-            <input id="edit-evidence-${item.id}" class="inline-input" value="${escapeHtml(item.expected_evidence || '')}" placeholder="Expected evidence..." />
-          </td>
+          <td><textarea id="edit-question-${item.id}" class="inline-textarea" style="min-height:40px;">${escapeHtml(item.question || '')}</textarea></td>
+          <td><input id="edit-evidence-${item.id}" class="inline-input" value="${escapeHtml(item.expected_evidence || '')}" placeholder="Expected evidence..." /></td>
           <td><input id="edit-weight-${item.id}" type="number" step="0.5" class="inline-input" value="${item.weight}" style="width:60px;" /></td>
-          <td><select id="edit-req-${item.id}" class="inline-input" style="width:50px;"><option value="true" ${item.is_required ? 'selected' : ''}>Yes</option><option value="false" ${!item.is_required ? 'selected' : ''}>No</option></select></td>
+          <td><select id="edit-req-${item.id}" class="inline-input" style="width:50px;"><option value="true" ${item.is_review_mandatory ? 'selected' : ''}>Yes</option><option value="false" ${!item.is_review_mandatory ? 'selected' : ''}>No</option></select></td>
           <td>
-            <select id="edit-strategy-${item.id}" class="inline-input" style="width:90px;font-size:11px;" title="Review strategy">
-              <option value="auto" ${strategy === 'auto' ? 'selected' : ''}>Auto</option>
-              <option value="file_presence" ${strategy === 'file_presence' ? 'selected' : ''}>File</option>
-              <option value="pattern_scan" ${strategy === 'pattern_scan' ? 'selected' : ''}>Pattern</option>
-              <option value="llm_analysis" ${strategy === 'llm_analysis' ? 'selected' : ''}>LLM</option>
-              <option value="metadata_check" ${strategy === 'metadata_check' ? 'selected' : ''}>Metadata</option>
-              <option value="human_required" ${strategy === 'human_required' ? 'selected' : ''}>Human</option>
-              <option value="ai_and_human" ${strategy === 'ai_and_human' ? 'selected' : ''}>AI+Human</option>
-            </select>
-          </td>
-          <td class="actions-cell">
-            <button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})" title="Save">💾</button>
-            <button class="btn-icon-only" onclick="cancelEdit()" title="Cancel">✕</button>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+              <select id="edit-strategy-${item.id}" class="inline-input" style="width:90px;font-size:11px;" title="Review strategy">
+                <option value="auto" ${strategy === 'auto' ? 'selected' : ''}>Auto</option>
+                <option value="file_presence" ${strategy === 'file_presence' ? 'selected' : ''}>File</option>
+                <option value="pattern_scan" ${strategy === 'pattern_scan' ? 'selected' : ''}>Pattern</option>
+                <option value="llm_analysis" ${strategy === 'llm_analysis' ? 'selected' : ''}>LLM</option>
+                <option value="metadata_check" ${strategy === 'metadata_check' ? 'selected' : ''}>Metadata</option>
+                <option value="human_required" ${strategy === 'human_required' ? 'selected' : ''}>Human</option>
+                <option value="ai_and_human" ${strategy === 'ai_and_human' ? 'selected' : ''}>AI+Human</option>
+              </select>
+              <div class="actions-cell">
+                <button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})" title="Save">💾</button>
+                <button class="btn-icon-only" onclick="cancelEdit()" title="Cancel">✕</button>
+              </div>
+            </div>
           </td>
         `;
       } else {
@@ -601,12 +608,10 @@
         tr.innerHTML = `
           <td style="font-family:monospace;color:#94a3b8">${escapeHtml(item.item_code || '')}</td>
           <td style="color:#94a3b8;font-size:12px">${escapeHtml(item.area || '')}</td>
-          <td>
-            <div style="font-weight:500;margin-bottom:3px">${escapeHtml(item.question || '')}</div>
-            <div style="font-size:11px;color:#64748b">${escapeHtml(item.expected_evidence || '')}</div>
-          </td>
+          <td style="font-weight:500;">${escapeHtml(item.question || '')}</td>
+          <td style="font-size:11px;color:#64748b">${escapeHtml(item.expected_evidence || '')}</td>
           <td>${item.weight}</td>
-          <td>${item.is_required ? 'Yes' : 'No'}</td>
+          <td>${item.is_review_mandatory ? 'Yes' : 'No'}</td>
           <td>
             <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
               ${strategyBadge}
@@ -652,7 +657,7 @@
       question: document.getElementById(`edit-question-${id}`).value,
       expected_evidence: document.getElementById(`edit-evidence-${id}`).value,
       weight: parseFloat(document.getElementById(`edit-weight-${id}`).value),
-      is_required: document.getElementById(`edit-req-${id}`).value === 'true'
+      is_review_mandatory: document.getElementById(`edit-req-${id}`).value === 'true'
     };
 
     if (!payload.question) { toast('Question is required', 'error'); return; }
@@ -660,25 +665,31 @@
 
     try {
       // Save item
-      await api(`/api/checklists/globals/${selectedTemplate.id}/items/${id}`, {
+      const itemRes = await api(`/api/checklists/globals/${selectedTemplate.id}/items/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      if (!itemRes) return;
 
-      // Save strategy override if not auto
       const strategy = document.getElementById(`edit-strategy-${id}`).value;
-      if (strategy && strategy !== 'auto') {
-        // Create or update routing rule
-        await api('/api/routing-rules', {
+      if (strategy === 'auto') {
+        const deleteRes = await fetch(`/api/routing-rules/items/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        if (deleteRes.status === 401) { logout(); return; }
+        if (!deleteRes.ok && deleteRes.status !== 404) {
+          const err = await deleteRes.json().catch(() => ({}));
+          throw new Error(err.detail || 'Failed to reset strategy');
+        }
+      } else {
+        const ruleRes = await api(`/api/routing-rules/items/${id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            checklist_item_id: id,
-            strategy: strategy,
-            is_active: true
-          })
+          body: JSON.stringify({ strategy })
         });
+        if (!ruleRes) return;
       }
 
       toast('Item updated', 'success');
@@ -697,7 +708,7 @@
       question: document.getElementById('add-question').value,
       expected_evidence: document.getElementById('add-evidence').value,
       weight: parseFloat(document.getElementById('add-weight').value || 1),
-      is_required: document.getElementById('add-req').value === 'true',
+      is_review_mandatory: document.getElementById('add-req').value === 'true',
       order: selectedItems.length
     };
 
@@ -921,3 +932,5 @@
 </script>
 </body>
 </html>
+
+

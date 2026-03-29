@@ -635,7 +635,7 @@ def sample_checklist_items():
             "question": "Are scope / SoW / baselines clearly defined?",
             "category": "delivery",
             "weight": 1.0,
-            "is_required": True
+            "is_review_mandatory": True
         },
         {
             "item_code": "1.2",
@@ -643,7 +643,7 @@ def sample_checklist_items():
             "question": "Are change requests captured?",
             "category": "delivery",
             "weight": 1.0,
-            "is_required": True
+            "is_review_mandatory": True
         }
     ]
 ```
@@ -947,3 +947,4 @@ def test_voice_response_with_background_noise(self):
 *Document Owner: QA Team*  
 *Next Review: June 2026*  
 *AI Tech & Delivery Review Agent v1.0.0*
+

@@ -8,11 +8,11 @@ from sqlalchemy import select, func
 from typing import List, Optional, Literal
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field
 from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
-from app.models import Checklist, ChecklistItem, ChecklistRecommendation, User, Project, Review, AutonomousReviewJob
+from app.models import Checklist, ChecklistItem, ChecklistRecommendation, User, Project, Review, AutonomousReviewJob, ChecklistRoutingRule
 from app.api.routes.auth import get_current_user
 from app.services.checklist_optimizer import get_checklist_optimizer
 
@@ -23,7 +23,10 @@ class ChecklistItemCreate(BaseModel):
     question: str
     category: Optional[str] = None
     weight: float = 1.0
-    is_required: bool = True
+    is_review_mandatory: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("is_review_mandatory", "is_required"),
+    )
     expected_evidence: Optional[str] = None
     item_code: Optional[str] = None
     order: int = 0
@@ -33,7 +36,10 @@ class ChecklistItemUpdate(BaseModel):
     question: Optional[str] = None
     category: Optional[str] = None
     weight: Optional[float] = None
-    is_required: Optional[bool] = None
+    is_review_mandatory: Optional[bool] = Field(
+        default=None,
+        validation_alias=AliasChoices("is_review_mandatory", "is_required"),
+    )
     expected_evidence: Optional[str] = None
     item_code: Optional[str] = None
     order: Optional[int] = None
@@ -86,7 +92,10 @@ class GlobalChecklistItemCreate(BaseModel):
     question: str
     category: Optional[str] = None
     weight: float = 1.0
-    is_required: bool = True
+    is_review_mandatory: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("is_review_mandatory", "is_required"),
+    )
     expected_evidence: Optional[str] = None
     order: int = 0
 
@@ -98,7 +107,10 @@ class GlobalChecklistItemUpdate(BaseModel):
     question: Optional[str] = None
     category: Optional[str] = None
     weight: Optional[float] = None
-    is_required: Optional[bool] = None
+    is_review_mandatory: Optional[bool] = Field(
+        default=None,
+        validation_alias=AliasChoices("is_review_mandatory", "is_required"),
+    )
     expected_evidence: Optional[str] = None
     order: Optional[int] = None
 
@@ -289,6 +301,19 @@ async def get_checklist(
     }
     
     if include_items:
+        item_ids = [item.id for item in checklist.items]
+        strategy_map = {}
+        if item_ids:
+            rule_result = await db.execute(
+                select(ChecklistRoutingRule)
+                .where(ChecklistRoutingRule.checklist_item_id.in_(item_ids))
+                .where(ChecklistRoutingRule.is_active == True)
+            )
+            strategy_map = {
+                rule.checklist_item_id: rule.strategy
+                for rule in rule_result.scalars().all()
+            }
+
         response["items"] = [
             {
                 "id": item.id,
@@ -297,9 +322,10 @@ async def get_checklist(
                 "question": item.question,
                 "category": item.category,
                 "weight": item.weight,
-                "is_required": item.is_required,
+                "is_review_mandatory": item.is_review_mandatory,
                 "expected_evidence": item.expected_evidence,
-                "order": item.order
+                "order": item.order,
+                "strategy": strategy_map.get(item.id, "auto"),
             }
             for item in checklist.items
         ]
@@ -522,7 +548,7 @@ async def clone_checklist_to_project(
                 question=item.question,
                 category=item.category,
                 weight=item.weight,
-                is_required=item.is_required,
+                is_review_mandatory=item.is_review_mandatory,
                 expected_evidence=item.expected_evidence,
                 suggested_for_domains=item.suggested_for_domains,
                 order=item.order
@@ -616,7 +642,7 @@ async def sync_from_global(
                     question=g_item.question,
                     category=g_item.category,
                     weight=g_item.weight,
-                    is_required=g_item.is_required,
+                    is_review_mandatory=g_item.is_review_mandatory,
                     expected_evidence=g_item.expected_evidence,
                     suggested_for_domains=g_item.suggested_for_domains,
                     order=g_item.order
@@ -650,7 +676,7 @@ async def sync_from_global(
                     p_item.area != g_item.area or
                     p_item.category != g_item.category or
                     p_item.weight != g_item.weight or
-                    p_item.is_required != g_item.is_required or
+                    p_item.is_review_mandatory != g_item.is_review_mandatory or
                     p_item.expected_evidence != g_item.expected_evidence or
                     p_item.order != g_item.order):
                     changed_items.append((p_item, g_item))
@@ -670,7 +696,7 @@ async def sync_from_global(
                 question=g_item.question,
                 category=g_item.category,
                 weight=g_item.weight,
-                is_required=g_item.is_required,
+                is_review_mandatory=g_item.is_review_mandatory,
                 expected_evidence=g_item.expected_evidence,
                 suggested_for_domains=g_item.suggested_for_domains,
                 order=g_item.order
@@ -685,7 +711,7 @@ async def sync_from_global(
                 p_item.question = g_item.question
                 p_item.category = g_item.category
                 p_item.weight = g_item.weight
-                p_item.is_required = g_item.is_required
+                p_item.is_review_mandatory = g_item.is_review_mandatory
                 p_item.expected_evidence = g_item.expected_evidence
                 p_item.order = g_item.order
                 updated += 1
@@ -754,7 +780,7 @@ async def add_checklist_item(
             question=item_in.question.strip() if item_in.question else "",
             category=item_in.category.strip() if item_in.category else None,
             weight=item_in.weight,
-            is_required=item_in.is_required,
+            is_review_mandatory=item_in.is_review_mandatory,
             expected_evidence=item_in.expected_evidence.strip() if item_in.expected_evidence else None,
             order=item_in.order
         )
@@ -769,7 +795,7 @@ async def add_checklist_item(
             "question": new_item.question,
             "category": new_item.category,
             "weight": new_item.weight,
-            "is_required": new_item.is_required,
+            "is_review_mandatory": new_item.is_review_mandatory,
             "expected_evidence": new_item.expected_evidence,
             "item_code": new_item.item_code,
             "order": new_item.order
@@ -831,7 +857,7 @@ async def update_checklist_item(
             "question": item.question,
             "category": item.category,
             "weight": item.weight,
-            "is_required": item.is_required,
+            "is_review_mandatory": item.is_review_mandatory,
             "expected_evidence": item.expected_evidence,
             "item_code": item.item_code,
             "order": item.order
@@ -1252,7 +1278,7 @@ async def add_item_to_global_checklist(
             question=item_in.question.strip(),
             category=item_in.category.strip() if item_in.category else None,
             weight=item_in.weight,
-            is_required=item_in.is_required,
+            is_review_mandatory=item_in.is_review_mandatory,
             expected_evidence=item_in.expected_evidence.strip() if item_in.expected_evidence else None,
             order=item_in.order
         )
@@ -1274,7 +1300,7 @@ async def add_item_to_global_checklist(
             "question": item.question,
             "category": item.category,
             "weight": item.weight,
-            "is_required": item.is_required,
+            "is_review_mandatory": item.is_review_mandatory,
             "expected_evidence": item.expected_evidence,
             "order": item.order
         }
@@ -1352,7 +1378,7 @@ async def update_item_in_global_checklist(
             "question": item.question,
             "category": item.category,
             "weight": item.weight,
-            "is_required": item.is_required,
+            "is_review_mandatory": item.is_review_mandatory,
             "expected_evidence": item.expected_evidence,
             "order": item.order
         }
@@ -1421,3 +1447,4 @@ async def delete_item_from_global_checklist(
         await db.rollback()
         logger.error(f"Error deleting item from global checklist: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+

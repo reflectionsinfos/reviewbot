@@ -57,7 +57,7 @@ class ChecklistParser:
                 "question": str(question).strip(),
                 "category": "delivery",
                 "weight": 1.0,
-                "is_required": True
+                "is_review_mandatory": True
             })
         
         return items
@@ -100,7 +100,7 @@ class ChecklistParser:
                 "question": str(question).strip(),
                 "category": "technical",
                 "weight": 1.0,
-                "is_required": True,
+                "is_review_mandatory": True,
                 "expected_evidence": expected_evidence
             })
         
@@ -202,3 +202,4 @@ def infer_domain_from_checklist_responses(
     ]
     
     return sorted(results, key=lambda x: x["confidence"], reverse=True)
+

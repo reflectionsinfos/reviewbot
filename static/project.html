@@ -38,7 +38,7 @@
     .user-dropdown-divider { border: none; border-top: 1px solid #334155; margin: 4px 0; }
 
     /* ── Layout ───────────────────────────────────────────────────────────── */
-    main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; width: 100%; flex: 1; }
+    main { max-width: 1300px; margin: 0 auto; padding: 28px 24px 120px; width: 100%; flex: 1; }
 
     /* ── Auth Overlay ─────────────────────────────────────────────────────── */
     #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
@@ -73,6 +73,8 @@
     .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; background: #0ea5e933; color: #7dd3fc; border: 1px solid #0ea5e9; }
     .badge-gray { background: #1e293b; color: #94a3b8; border-color: #334155; }
     .badge-green { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
+    .badge-blue { background: #1e3a5f44; color: #7dd3fc; border: 1px solid #1d4ed8; }
+    .badge-purple { background: #3b0764aa; color: #c084fc; border: 1px solid #6d28d9; }
 
     /* ── Project selector bar ─────────────────────────────────────────────── */
     .project-bar { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -133,6 +135,14 @@
     .modal-desc { font-size: 13px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
     .modal-divider { border: none; border-top: 1px solid #334155; margin: 16px 0; }
+
+    #shared-footer-root .shared-footer {
+      position: fixed !important;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 110;
+    }
 
     /* ── Template picker rows ─────────────────────────────────────────────── */
     .template-row { display: flex; align-items: center; gap: 16px; padding: 16px; border: 1px solid #334155; border-radius: 10px; margin-bottom: 10px; transition: border-color 0.15s, background 0.15s; }
@@ -289,9 +299,11 @@
               <th style="width:30px;"></th>
               <th style="width:90px;">Code</th>
               <th style="width:130px;">Area</th>
-              <th>Question &amp; Evidence</th>
+              <th>Question</th>
+              <th>Evidence</th>
               <th style="width:70px;">Weight</th>
-              <th style="width:60px;">Req</th>
+              <th style="width:170px;">Is Review Mandatory</th>
+              <th style="width:90px;">Strategy</th>
               <th style="width:90px;">Actions</th>
             </tr>
           </thead>
@@ -301,12 +313,11 @@
               <td></td>
               <td><input id="add-code" class="inline-edit-input" placeholder="SEC-001" title="Leave blank for auto-generated code (e.g., SEC-001, TECH-002). Format: AREA-NNN" /></td>
               <td><input id="add-area" class="inline-edit-input" placeholder="General" /></td>
-              <td>
-                <input id="add-q" class="inline-edit-input" placeholder="Question?" />
-                <input id="add-ev" class="inline-edit-input" placeholder="Expected evidence..." />
-              </td>
+              <td><input id="add-q" class="inline-edit-input" placeholder="Question?" /></td>
+              <td><input id="add-ev" class="inline-edit-input" placeholder="Expected evidence..." /></td>
               <td><input id="add-weight" type="number" step="0.5" class="inline-edit-input" value="1.0" /></td>
-              <td><select id="add-req" class="inline-edit-input"><option value="true">Yes</option><option value="false">No</option></select></td>
+              <td><select id="add-req" class="inline-edit-input" style="width:68px;"><option value="true">Yes</option><option value="false">No</option></select></td>
+              <td></td>
               <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
             </tr>
           </tbody>
@@ -1017,19 +1028,29 @@
       tr.addEventListener('dragleave', handleDragLeave);
 
       if (editingItemId === item.id) {
+        const strategy = item.strategy || 'auto';
         tr.innerHTML = `
           <td class="drag-handle" draggable="false">⋮⋮</td>
           <td><input id="edit-code-${item.id}" class="inline-edit-input" value="${item.item_code||''}"></td>
           <td><input id="edit-area-${item.id}" class="inline-edit-input" value="${item.area||''}"></td>
-          <td>
-            <input id="edit-q-${item.id}" class="inline-edit-input" value="${(item.question||'').replace(/"/g,'&quot;')}">
-            <input id="edit-ev-${item.id}" class="inline-edit-input" value="${(item.expected_evidence||'').replace(/"/g,'&quot;')}">
-          </td>
+          <td><input id="edit-q-${item.id}" class="inline-edit-input" value="${(item.question||'').replace(/"/g,'&quot;')}"></td>
+          <td><input id="edit-ev-${item.id}" class="inline-edit-input" value="${(item.expected_evidence||'').replace(/"/g,'&quot;')}"></td>
           <td><input id="edit-weight-${item.id}" type="number" step="0.5" class="inline-edit-input" value="${item.weight}"></td>
           <td>
-            <select id="edit-req-${item.id}" class="inline-edit-input">
-              <option value="true" ${item.is_required ? 'selected' : ''}>Yes</option>
-              <option value="false" ${!item.is_required ? 'selected' : ''}>No</option>
+            <select id="edit-req-${item.id}" class="inline-edit-input" style="width:68px;">
+              <option value="true" ${item.is_review_mandatory ? 'selected' : ''}>Yes</option>
+              <option value="false" ${!item.is_review_mandatory ? 'selected' : ''}>No</option>
+            </select>
+          </td>
+          <td>
+            <select id="edit-strategy-${item.id}" class="inline-edit-input" style="width:90px;font-size:11px;" title="Review strategy">
+              <option value="auto" ${strategy === 'auto' ? 'selected' : ''}>Auto</option>
+              <option value="file_presence" ${strategy === 'file_presence' ? 'selected' : ''}>File</option>
+              <option value="pattern_scan" ${strategy === 'pattern_scan' ? 'selected' : ''}>Pattern</option>
+              <option value="llm_analysis" ${strategy === 'llm_analysis' ? 'selected' : ''}>LLM</option>
+              <option value="metadata_check" ${strategy === 'metadata_check' ? 'selected' : ''}>Metadata</option>
+              <option value="human_required" ${strategy === 'human_required' ? 'selected' : ''}>Human</option>
+              <option value="ai_and_human" ${strategy === 'ai_and_human' ? 'selected' : ''}>AI+Human</option>
             </select>
           </td>
           <td class="actions-cell">
@@ -1037,16 +1058,16 @@
             <button class="btn-icon-only" onclick="cancelEdit()" title="Cancel">✕</button>
           </td>`;
       } else {
+        const strategyBadge = getStrategyBadge(item.strategy);
         tr.innerHTML = `
           <td class="drag-handle">⋮⋮</td>
           <td style="font-family:monospace;color:#94a3b8">${item.item_code||''}</td>
           <td style="color:#94a3b8;font-size:12px">${item.area||''}</td>
-          <td>
-            <div style="font-weight:500;margin-bottom:3px">${item.question||''}</div>
-            <div style="font-size:11px;color:#64748b">${item.expected_evidence||''}</div>
-          </td>
+          <td style="font-weight:500;">${item.question||''}</td>
+          <td style="font-size:11px;color:#64748b">${item.expected_evidence||''}</td>
           <td>${item.weight}</td>
-          <td>${item.is_required ? 'Yes' : 'No'}</td>
+          <td>${item.is_review_mandatory ? 'Yes' : 'No'}</td>
+          <td>${strategyBadge}</td>
           <td class="actions-cell">
             <button class="btn-icon-only" onclick="startEdit(${item.id})" title="Edit">✏️</button>
             <button class="btn-icon-only" style="color:#f87171" onclick="deleteItem(${item.id})" title="Delete">🗑️</button>
@@ -1054,6 +1075,19 @@
       }
       tbody.appendChild(tr);
     });
+  }
+
+  function getStrategyBadge(strategy) {
+    if (!strategy || strategy === 'auto') return '';
+    const badges = {
+      'file_presence': '<span class="badge badge-gray" style="font-size:9px;">File</span>',
+      'pattern_scan': '<span class="badge badge-gray" style="font-size:9px;">Pattern</span>',
+      'llm_analysis': '<span class="badge badge-blue" style="font-size:9px;">LLM</span>',
+      'metadata_check': '<span class="badge badge-gray" style="font-size:9px;">Meta</span>',
+      'human_required': '<span class="badge badge-purple" style="font-size:9px;">Human</span>',
+      'ai_and_human': '<span class="badge badge-blue" style="font-size:9px;">AI+H</span>',
+    };
+    return badges[strategy] || '';
   }
 
   function startEdit(id) { editingItemId = id; renderItemsTable(activeChecklistItems); }
@@ -1066,7 +1100,7 @@
       question: document.getElementById(`edit-q-${id}`).value,
       expected_evidence: document.getElementById(`edit-ev-${id}`).value,
       weight: parseFloat(document.getElementById(`edit-weight-${id}`).value),
-      is_required: document.getElementById(`edit-req-${id}`).value === 'true'
+      is_review_mandatory: document.getElementById(`edit-req-${id}`).value === 'true'
     };
     if (!payload.question) { toast('Question is required', 'error'); return; }
     if (payload.weight < 0 || payload.weight > 5) { toast('Weight must be 0–5', 'error'); return; }
@@ -1074,11 +1108,31 @@
       const res = await api(`/api/checklists/${currentChecklistId}/items/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
+      if (!res) return;
+
+      const strategy = document.getElementById(`edit-strategy-${id}`).value;
+      if (strategy === 'auto') {
+        const deleteRes = await fetch(`/api/routing-rules/items/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${TOKEN}` }
+        });
+        if (deleteRes.status === 401) { logout(); return; }
+        if (!deleteRes.ok && deleteRes.status !== 404) {
+          const err = await deleteRes.json().catch(() => ({}));
+          throw new Error(err.detail || 'Failed to reset strategy');
+        }
+      } else {
+        const ruleRes = await api(`/api/routing-rules/items/${id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ strategy })
+        });
+        if (!ruleRes) return;
+      }
+
       toast('Item updated', 'success');
       editingItemId = null;
-      const idx = activeChecklistItems.findIndex(i => i.id === id);
-      if (idx >= 0) activeChecklistItems[idx] = res;
-      renderItemsTable(activeChecklistItems);
+      await selectTab(currentChecklistId);
     } catch(e) { toast('Update failed: ' + e.message, 'error'); }
   }
 
@@ -1101,7 +1155,7 @@
       question: document.getElementById('add-q').value,
       expected_evidence: document.getElementById('add-ev').value,
       weight: parseFloat(document.getElementById('add-weight').value || 1),
-      is_required: document.getElementById('add-req').value === 'true',
+      is_review_mandatory: document.getElementById('add-req').value === 'true',
       order: activeChecklistItems.length
     };
     if (!payload.question) { toast('Question is required', 'error'); return; }
@@ -1172,3 +1226,4 @@
 </script>
 </body>
 </html>
+
