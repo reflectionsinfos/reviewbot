@@ -90,7 +90,7 @@ async def create_global_templates():
                             question=item_data.get("question"),
                             category=item_data.get("category", checklist_type),
                             weight=item_data.get("weight", 1.0),
-                            is_required=item_data.get("is_required", True),
+                            is_review_mandatory=item_data.get("is_review_mandatory", True),
                             expected_evidence=item_data.get("expected_evidence"),
                             order=idx
                         )
@@ -124,3 +124,4 @@ if __name__ == "__main__":
     print("existing Excel files and store them in the database.\n")
     
     asyncio.run(create_global_templates())
+

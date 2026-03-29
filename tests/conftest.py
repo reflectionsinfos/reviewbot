@@ -137,7 +137,7 @@ async def item_factory(db_session):
             question=question,
             category="delivery",
             weight=weight,
-            is_required=True,
+            is_review_mandatory=True,
             order=0
         )
         db_session.add(item)
@@ -146,3 +146,4 @@ async def item_factory(db_session):
         return item
         
     return _create_item
+

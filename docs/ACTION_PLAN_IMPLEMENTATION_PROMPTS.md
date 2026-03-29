@@ -326,7 +326,7 @@ Compliance: {summary.compliant}/{summary.total_items} items
 ```
 You are a CSS developer working on static/history.html in ReviewBot.
 
-Add the following CSS rules into the existing <style> block.
+Add the following CSS rules into the existing style block.
 Match the existing dark theme: background #0f172a, card #1e293b, border #334155, accent #38bdf8.
 
 Rules needed:

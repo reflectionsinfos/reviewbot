@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS checklist_items (
     area                VARCHAR(255),
     question            TEXT NOT NULL,
     weight              NUMERIC(3,1) DEFAULT 1.0,
-    is_required         BOOLEAN      DEFAULT TRUE,
+    is_review_mandatory         BOOLEAN      DEFAULT TRUE,
     "order"         INTEGER      DEFAULT 0
 );
 
@@ -340,3 +340,4 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("  Done!")
     print("=" * 60)
+

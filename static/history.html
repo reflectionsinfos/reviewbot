@@ -160,6 +160,54 @@
     .sort-btn:hover { border-color: #475569; color: #e2e8f0; }
     .results-summary { font-size: 12px; color: #475569; white-space: nowrap; align-self: center; }
 
+    /* ── Details tabs ──────────────────────────────────────────────────────── */
+    .dtab { background: transparent; border: none; border-bottom: 2px solid transparent; color: #94a3b8; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .dtab:hover { color: #e2e8f0; }
+    .dtab.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+
+    /* ── Action Plan toolbar ───────────────────────────────────────────────── */
+    .action-plan-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+    .action-plan-toolbar label { font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .action-plan-toolbar select { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 7px 12px; border-radius: 8px; font-size: 13px; }
+    .action-plan-toolbar select:focus { outline: none; border-color: #38bdf8; }
+
+    /* ── Action Plan sections ──────────────────────────────────────────────── */
+    .ap-section { background: #1e293b; border: 1px solid #334155; border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+    .ap-section-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: #0f172a; border-bottom: 1px solid #334155; cursor: pointer; }
+    .ap-section-title { font-size: 14px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 8px; }
+    .ap-section-count { background: #334155; color: #94a3b8; font-size: 11px; padding: 2px 8px; border-radius: 99px; }
+    .ap-section-toggle { color: #64748b; font-size: 18px; transition: transform 0.2s; }
+    .ap-section.collapsed .ap-section-toggle { transform: rotate(-90deg); }
+    .ap-section-content { padding: 16px 20px; }
+    .ap-section.collapsed .ap-section-content { display: none; }
+
+    /* ── Action Plan cards ─────────────────────────────────────────────────── */
+    .ap-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+    .ap-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .ap-card-area { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+    .ap-card-code { font-family: monospace; font-size: 12px; color: #94a3b8; }
+    .ap-card-question { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 12px; line-height: 1.5; }
+    .ap-card-field { margin-bottom: 10px; }
+    .ap-card-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .ap-card-value { font-size: 13px; color: #e2e8f0; line-height: 1.6; }
+    .ap-card-value.expected { color: #4ade80; }
+    .ap-card-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .ap-btn { background: transparent; border: 1px solid #334155; color: #94a3b8; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+    .ap-btn:hover { border-color: #38bdf8; color: #38bdf8; }
+    .ap-btn-primary { background: #0ea5e9; border-color: #0ea5e9; color: #fff; }
+    .ap-btn-primary:hover { background: #38bdf8; border-color: #38bdf8; }
+    .ap-prompt-box { background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 12px; margin-top: 10px; display: none; }
+    .ap-prompt-box.show { display: block; }
+    .prompt-text { background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 12px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; color: #e2e8f0; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; margin-bottom: 10px; }
+    .ap-compliant-list { list-style: none; padding: 0; margin: 0; }
+    .ap-compliant-list li { padding: 8px 0; border-bottom: 1px solid #1e293b; font-size: 13px; color: #94a3b8; }
+    .ap-compliant-list li:last-child { border-bottom: none; }
+    .ap-compliant-list code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #60a5fa; }
+
+    /* ── Toast notification ────────────────────────────────────────────────── */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #22c55e; color: #4ade80; padding: 12px 20px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 1000; animation: slideIn 0.2s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
     /* ── Item cards ───────────────────────────────────────────────────────── */
     .section-header { display: flex; align-items: center; gap: 10px; margin: 24px 0 12px; }
     .section-header h3 { font-size: 15px; font-weight: 600; }
@@ -336,7 +384,17 @@
       <span class="results-summary" id="results-summary"></span>
     </div>
 
-    <div class="items-container" id="det-items"></div>
+    <!-- Tab navigation -->
+    <div id="details-tabs" style="display:flex;gap:0;border-bottom:1px solid #334155;margin-bottom:16px;">
+      <button class="dtab active" onclick="switchDetailsTab('items')">Review Items</button>
+      <button class="dtab" onclick="switchDetailsTab('action-plan')">Action Plan</button>
+    </div>
+    <div id="tab-items">
+      <div class="items-container" id="det-items"></div>
+    </div>
+    <div id="tab-action-plan" style="display:none;">
+      <!-- Action Plan content rendered here -->
+    </div>
   </div>
 </main>
 
@@ -1028,6 +1086,270 @@
       .replace(/"/g,'&quot;')
       .replace(/'/g,'&#39;');
   }
+
+  // ── Action Plan Functions ─────────────────────────────────────────────────
+  window._actionPlanData = null;
+  window._currentJobId = null;
+
+  async function loadActionPlan(jobId) {
+    try {
+      const data = await api(`/api/autonomous-reviews/${jobId}/action-plan`);
+      window._actionPlanData = data;
+      renderActionPlan();
+    } catch (e) {
+      document.getElementById('tab-action-plan').innerHTML = 
+        `<div class="empty-state"><p style="color:#f87171;">Failed to load action plan: ${esc(e.message)}</p></div>`;
+    }
+  }
+
+  function renderActionPlan() {
+    const data = window._actionPlanData;
+    if (!data) return;
+
+    const ideFlavour = localStorage.getItem('reviewbot_ide_flavour') || 'generic';
+    const flavourKey = ideFlavour === 'cursor' ? 'cursor' : ideFlavour === 'claude' ? 'claude_code' : 'generic';
+
+    let html = `
+      <div class="action-plan-toolbar">
+        <label>IDE Flavour:</label>
+        <select id="ide-flavour" onchange="saveIdeFlavour(this.value)">
+          <option value="generic" ${ideFlavour === 'generic' ? 'selected' : ''}>Generic</option>
+          <option value="cursor" ${ideFlavour === 'cursor' ? 'selected' : ''}>Cursor/Copilot</option>
+          <option value="claude" ${ideFlavour === 'claude' ? 'selected' : ''}>Claude Code</option>
+        </select>
+        <button class="ap-btn" onclick="exportActionPlan()">📄 Export MD</button>
+        <button class="ap-btn ap-btn-primary" onclick="enhanceActionPlan(${data.job_id})">✨ Enhance with AI</button>
+      </div>
+    `;
+
+    // Critical Blockers (red)
+    html += renderApSection('🔴 Critical Blockers', data.critical_blockers, flavourKey, true);
+
+    // Advisories (amber)
+    html += renderApSection('🟡 Advisories', data.advisories, flavourKey, false);
+
+    // Needs Human Sign-off
+    html += renderApSection('🟣 Needs Human Sign-off', data.sign_off_required, flavourKey, false);
+
+    // Already Compliant (collapsed by default)
+    html += renderCompliantSection(data.compliant_summary);
+
+    document.getElementById('tab-action-plan').innerHTML = html;
+  }
+
+  function renderApSection(title, items, flavourKey, expanded) {
+    if (!items || items.length === 0) return '';
+    
+    const count = items.length;
+    const collapsedClass = expanded ? '' : 'collapsed';
+    
+    let html = `<div class="ap-section ${collapsedClass}" onclick="toggleApSection(this)">`;
+    html += `<div class="ap-section-header">`;
+    html += `<div class="ap-section-title">${title} <span class="ap-section-count">${count}</span></div>`;
+    html += `<div class="ap-section-toggle">▼</div>`;
+    html += `</div><div class="ap-section-content">`;
+
+    items.forEach((card, idx) => {
+      const promptText = card.ai_prompt ? card.ai_prompt[flavourKey] : 'No prompt available';
+      const cardId = `ap-card-${idx}`;
+      
+      html += `<div class="ap-card">`;
+      html += `<div class="ap-card-header">`;
+      html += `<span class="ap-card-area">${esc(card.area)}</span>`;
+      html += `<span class="badge badge-${card.priority === 'High' ? 'red' : 'amber'}">${card.priority}</span>`;
+      html += `<span class="ap-card-code">${esc(card.item_code)}</span>`;
+      html += `</div>`;
+      
+      html += `<div class="ap-card-question">${esc(card.question)}</div>`;
+      
+      html += `<div class="ap-card-field">`;
+      html += `<div class="ap-card-label">What was found:</div>`;
+      html += `<div class="ap-card-value">${esc(card.what_was_found)}</div>`;
+      html += `</div>`;
+      
+      html += `<div class="ap-card-field">`;
+      html += `<div class="ap-card-label">What to fix:</div>`;
+      html += `<div class="ap-card-value">${esc(card.what_to_fix)}</div>`;
+      html += `</div>`;
+      
+      if (card.expected_outcome) {
+        html += `<div class="ap-card-field">`;
+        html += `<div class="ap-card-label">Expected outcome:</div>`;
+        html += `<div class="ap-card-value expected">${esc(card.expected_outcome)}</div>`;
+        html += `</div>`;
+      }
+      
+      html += `<div class="ap-card-actions">`;
+      html += `<button class="ap-btn" onclick="togglePrompt(event, '${cardId}')">▶ Show AI Prompt</button>`;
+      html += `<button class="ap-btn" onclick="copyPrompt('${cardId}')">📋 Copy</button>`;
+      html += `</div>`;
+      
+      html += `<div id="${cardId}-prompt" class="ap-prompt-box">`;
+      html += `<pre class="prompt-text">${esc(promptText)}</pre>`;
+      html += `</div>`;
+      
+      html += `</div>`; // end ap-card
+    });
+
+    html += `</div></div>`; // end ap-section-content and ap-section
+    return html;
+  }
+
+  function renderCompliantSection(items) {
+    if (!items || items.length === 0) return '';
+    
+    let html = `<div class="ap-section collapsed" onclick="toggleApSection(this)">`;
+    html += `<div class="ap-section-header">`;
+    html += `<div class="ap-section-title">✅ Already Compliant <span class="ap-section-count">${items.length}</span></div>`;
+    html += `<div class="ap-section-toggle">▼</div>`;
+    html += `</div><div class="ap-section-content">`;
+    html += `<ul class="ap-compliant-list">`;
+    
+    items.forEach(item => {
+      html += `<li><code>${esc(item.item_code)}</code> — ${esc(item.area)}: ${esc(item.question)}</li>`;
+    });
+    
+    html += `</ul></div></div>`;
+    return html;
+  }
+
+  function toggleApSection(sectionEl) {
+    sectionEl.classList.toggle('collapsed');
+  }
+
+  function togglePrompt(event, cardId) {
+    event.stopPropagation();
+    const promptBox = document.getElementById(`${cardId}-prompt`);
+    promptBox.classList.toggle('show');
+  }
+
+  function copyPrompt(cardId) {
+    const promptBox = document.getElementById(`${cardId}-prompt`);
+    const promptText = promptBox.querySelector('.prompt-text').textContent;
+    
+    navigator.clipboard.writeText(promptText).then(() => {
+      showToast('Copied!');
+    }).catch(() => {
+      showToast('Failed to copy');
+    });
+  }
+
+  function showToast(message) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => toast.remove(), 1500);
+  }
+
+  function saveIdeFlavour(flavour) {
+    localStorage.setItem('reviewbot_ide_flavour', flavour);
+    if (window._actionPlanData) renderActionPlan();
+  }
+
+  function exportActionPlan() {
+    const data = window._actionPlanData;
+    if (!data) return;
+    
+    let md = `# Action Plan — ${data.project} | ${data.checklist}\n\n`;
+    md += `Generated: ${data.generated_at}\n`;
+    md += `Compliance: ${data.summary.compliant}/${data.summary.total} items\n\n`;
+    
+    if (data.critical_blockers.length > 0) {
+      md += `## 🔴 Critical Blockers\n\n`;
+      data.critical_blockers.forEach(card => {
+        md += `### ${card.item_code} — ${card.area}\n`;
+        md += `**${card.question}**\n\n`;
+        md += `**What was found:** ${card.what_was_found}\n\n`;
+        md += `**What to fix:** ${card.what_to_fix}\n\n`;
+        md += `**Expected outcome:** ${card.expected_outcome}\n\n`;
+        md += `**AI Prompt (Generic):**\n\`\`\`\n${card.ai_prompt?.generic || 'N/A'}\n\`\`\`\n\n`;
+        md += `---\n\n`;
+      });
+    }
+    
+    if (data.advisories.length > 0) {
+      md += `## 🟡 Advisories\n\n`;
+      data.advisories.forEach(card => {
+        md += `### ${card.item_code} — ${card.area}\n`;
+        md += `**${card.question}**\n\n`;
+        md += `**What was found:** ${card.what_was_found}\n\n`;
+        md += `**What to fix:** ${card.what_to_fix}\n\n`;
+        md += `**Expected outcome:** ${card.expected_outcome}\n\n`;
+        md += `**AI Prompt (Generic):**\n\`\`\`\n${card.ai_prompt?.generic || 'N/A'}\n\`\`\`\n\n`;
+        md += `---\n\n`;
+      });
+    }
+    
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `action-plan-${data.job_id}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function enhanceActionPlan(jobId) {
+    const btn = event.target;
+    const originalText = btn.textContent;
+    btn.textContent = '⏳ Enhancing...';
+    btn.disabled = true;
+    
+    try {
+      const result = await api(`/api/autonomous-reviews/${jobId}/action-plan/enhance`, { method: 'POST' });
+      if (result.status === 'already_enhanced') {
+        showToast('Already enhanced');
+      } else {
+        showToast(`Enhanced ${result.prompts_generated} prompts`);
+        await loadActionPlan(jobId);
+      }
+    } catch (e) {
+      showToast('Enhancement failed: ' + e.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  }
+
+  function switchDetailsTab(tab) {
+    // Update tab buttons
+    document.querySelectorAll('.dtab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // Show/hide content
+    const itemsTab = document.getElementById('tab-items');
+    const actionPlanTab = document.getElementById('tab-action-plan');
+    
+    if (tab === 'items') {
+      itemsTab.style.display = 'block';
+      actionPlanTab.style.display = 'none';
+    } else {
+      itemsTab.style.display = 'none';
+      actionPlanTab.style.display = 'block';
+      
+      // Load action plan if not already loaded
+      if (!window._actionPlanData && window._currentJobId) {
+        loadActionPlan(window._currentJobId);
+      }
+    }
+  }
+
+  // Override showDetails to set current job ID and reset to items tab
+  const originalShowDetails = window.showDetails || showDetails;
+  window.showDetails = function(jobId, reportId, fromHistory) {
+    window._currentJobId = jobId;
+    window._actionPlanData = null;
+    switchDetailsTab('items');
+    // Find and click the items tab button
+    const itemsTabBtn = document.querySelector('.dtab.active');
+    if (itemsTabBtn) itemsTabBtn.click();
+    originalShowDetails(jobId, reportId, fromHistory);
+  };
 
   // ── Init ───────────────────────────────────────────────────────────────────
   if (TOKEN) {

@@ -40,10 +40,10 @@ BEGIN
 
   FOR item IN SELECT * FROM checklist_items WHERE checklist_id = 5 ORDER BY "order" LOOP
     INSERT INTO checklist_items
-      (checklist_id, item_code, area, question, category, weight, is_required, expected_evidence, "order", created_at)
+      (checklist_id, item_code, area, question, category, weight, is_review_mandatory, expected_evidence, "order", created_at)
     VALUES
       (del_cl_id, item.item_code, item.area, item.question, item.category,
-       item.weight, item.is_required, item.expected_evidence, item."order", NOW());
+       item.weight, item.is_review_mandatory, item.expected_evidence, item."order", NOW());
   END LOOP;
 
   -- 3. Technical checklist + items (copy from checklist 6)
@@ -53,10 +53,10 @@ BEGIN
 
   FOR item IN SELECT * FROM checklist_items WHERE checklist_id = 6 ORDER BY "order" LOOP
     INSERT INTO checklist_items
-      (checklist_id, item_code, area, question, category, weight, is_required, expected_evidence, "order", created_at)
+      (checklist_id, item_code, area, question, category, weight, is_review_mandatory, expected_evidence, "order", created_at)
     VALUES
       (tec_cl_id, item.item_code, item.area, item.question, item.category,
-       item.weight, item.is_required, item.expected_evidence, item."order", NOW());
+       item.weight, item.is_review_mandatory, item.expected_evidence, item."order", NOW());
   END LOOP;
 
   -- 4. Delivery review + responses (copy RAG from NeUMoney review 3)
@@ -124,3 +124,4 @@ BEGIN
   RAISE NOTICE 'Hatch Pay inserted: project=% del_cl=% tec_cl=% del_rv=% tec_rv=% del_rpt=% tec_rpt=%',
     proj_id, del_cl_id, tec_cl_id, del_rv_id, tec_rv_id, del_rpt_id, tec_rpt_id;
 END $$;
+

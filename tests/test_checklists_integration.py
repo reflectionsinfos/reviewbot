@@ -138,7 +138,7 @@ async def test_items_crud_workflow(
         "item_code": "NEW.1",
         "question": "Is CRUD working?",
         "weight": 2.5,
-        "is_required": True,
+        "is_review_mandatory": True,
         "area": "Testing"
     }
     res_add = await async_client.post(f"/api/checklists/{chk.id}/items", json=add_payload, headers=headers)
@@ -155,7 +155,7 @@ async def test_items_crud_workflow(
         "item_code": "NEW.1",
         "question": "Updated Question",
         "weight": 3.0,
-        "is_required": False
+        "is_review_mandatory": False
     }
     res_edit = await async_client.put(f"/api/checklists/{chk.id}/items/{item_id}", json=edit_payload, headers=headers)
     assert res_edit.status_code == 200
@@ -312,3 +312,4 @@ async def test_sync_403_wrong_project_owner(
         headers=attacker_headers,
     )
     assert res.status_code == 403
+

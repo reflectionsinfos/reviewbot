@@ -25,7 +25,7 @@ class TestChecklistParser:
             "question": "Are scope / SoW / baselines clearly defined?",
             "category": "delivery",
             "weight": 1.0,
-            "is_required": True
+            "is_review_mandatory": True
         }
         
         assert item["item_code"] == "1.1"
@@ -287,3 +287,4 @@ class TestApprovalWorkflow:
 
 
 # Run tests with: pytest tests/test_agent.py -v
+

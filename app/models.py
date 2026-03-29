@@ -125,7 +125,7 @@ class ChecklistItem(Base):
     
     # Metadata
     weight = Column(Float, default=1.0)  # For scoring
-    is_review_mandatory = Column("is_required", Boolean, default=True)  # Blocks completion until reviewed
+    is_review_mandatory = Column(Boolean, default=True)  # Blocks completion until reviewed
     expected_evidence = Column(Text)  # What evidence to look for
     
     # Domain-specific suggestions

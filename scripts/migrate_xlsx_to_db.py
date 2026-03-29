@@ -133,7 +133,7 @@ def parse_sheet(df: pd.DataFrame, checklist_type: str) -> list[dict]:
             "reviewer_comment":  rev_comment,
             "rag_status":        rag_status,
             "weight":            1.0,
-            "is_required":       True,
+            "is_review_mandatory":       True,
             "order_idx":         len(items),
         })
 
@@ -193,7 +193,7 @@ def insert_items(cur, checklist_id, items) -> list[int]:
         cur.execute("""
             INSERT INTO checklist_items
                 (checklist_id, item_code, area, question, category,
-                 weight, is_required, expected_evidence, "order", created_at)
+                 weight, is_review_mandatory, expected_evidence, "order", created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
             RETURNING id
         """, (
@@ -203,7 +203,7 @@ def insert_items(cur, checklist_id, items) -> list[int]:
             item["question"],
             item["category"],
             item["weight"],
-            item["is_required"],
+            item["is_review_mandatory"],
             item["expected_evidence"],
             item["order_idx"],
         ))
@@ -370,3 +370,4 @@ def migrate():
 
 if __name__ == "__main__":
     migrate()
+

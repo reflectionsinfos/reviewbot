@@ -1,6 +1,9 @@
 """
 Database Session and Connection Management
 """
+import logging
+
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.core.config import settings
 
@@ -37,7 +40,6 @@ async def get_db() -> AsyncSession:
 async def init_db():
     """Initialize database tables and apply any pending column additions."""
     from app.models import Base
-    import logging
     log = logging.getLogger(__name__)
 
     async with engine.begin() as conn:
@@ -68,7 +70,52 @@ async def init_db():
         ]
         for sql in migrations:
             try:
-                await conn.execute(__import__('sqlalchemy').text(sql))
+                await conn.execute(sa.text(sql))
                 log.info("Migration applied: %s", sql[:60])
             except Exception as exc:
                 log.warning("Migration skipped (%s): %s", type(exc).__name__, sql[:60])
+
+        await _migrate_checklist_item_review_flag(conn, log)
+
+
+async def _migrate_checklist_item_review_flag(conn, log: logging.Logger) -> None:
+    """Rename checklist_items.is_required to checklist_items.is_review_mandatory."""
+    table_names = await conn.run_sync(lambda sync_conn: sa.inspect(sync_conn).get_table_names())
+    if "checklist_items" not in table_names:
+        return
+
+    columns = set(
+        await conn.run_sync(
+            lambda sync_conn: [col["name"] for col in sa.inspect(sync_conn).get_columns("checklist_items")]
+        )
+    )
+    if "is_required" not in columns:
+        return
+
+    dialect = conn.dialect.name
+
+    if "is_review_mandatory" not in columns:
+        await conn.execute(
+            sa.text(
+                "ALTER TABLE checklist_items "
+                "ADD COLUMN is_review_mandatory BOOLEAN NOT NULL DEFAULT TRUE"
+            )
+        )
+        await conn.execute(
+            sa.text(
+                "UPDATE checklist_items "
+                "SET is_review_mandatory = COALESCE(is_required, TRUE)"
+            )
+        )
+        log.info("Copied checklist_items.is_required into is_review_mandatory")
+
+    drop_sql = (
+        "ALTER TABLE checklist_items DROP COLUMN IF EXISTS is_required"
+        if dialect == "postgresql"
+        else "ALTER TABLE checklist_items DROP COLUMN is_required"
+    )
+    try:
+        await conn.execute(sa.text(drop_sql))
+        log.info("Dropped legacy checklist_items.is_required column")
+    except Exception as exc:
+        log.warning("Could not drop legacy checklist_items.is_required column: %s", exc)

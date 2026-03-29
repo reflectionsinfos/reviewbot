@@ -173,7 +173,7 @@ def generate():
             for i, item in enumerate(items):
                 lines.append(
                     f"    INSERT INTO checklist_items "
-                    f"(checklist_id, item_code, area, question, category, weight, is_required, expected_evidence, \"order\", created_at) "
+                    f"(checklist_id, item_code, area, question, category, weight, is_review_mandatory, expected_evidence, \"order\", created_at) "
                     f"VALUES (cl_id, {sq(item['item_code'])}, {sq(item['area'])}, {sq(item['question'])}, "
                     f"{sq(item['category'])}, 1.0, TRUE, {sq(item['expected_evidence'])}, {i}, NOW());"
                 )
@@ -263,7 +263,7 @@ def generate():
             for i, item in enumerate(items):
                 lines.append(
                     f"  INSERT INTO checklist_items "
-                    f"(checklist_id, item_code, area, question, category, weight, is_required, expected_evidence, \"order\", created_at) "
+                    f"(checklist_id, item_code, area, question, category, weight, is_review_mandatory, expected_evidence, \"order\", created_at) "
                     f"VALUES ({v}_id, {sq(item['item_code'])}, {sq(item['area'])}, {sq(item['question'])}, "
                     f"{sq(item['category'])}, 1.0, TRUE, {sq(item['expected_evidence'])}, {i}, NOW());"
                 )
@@ -315,3 +315,4 @@ def generate():
 
 if __name__ == "__main__":
     generate()
+
