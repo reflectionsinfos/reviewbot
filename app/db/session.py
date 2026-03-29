@@ -122,11 +122,8 @@ async def _migrate_checklist_item_review_flag(conn, log: logging.Logger) -> None
         )
         log.info("Copied checklist_items.is_required into is_review_mandatory")
 
-    drop_sql = (
-        "ALTER TABLE checklist_items DROP COLUMN IF EXISTS is_required"
-        if dialect == "postgresql"
-        else "ALTER TABLE checklist_items DROP COLUMN is_required"
-    )
+    # Only apply DROP if requested; PostgreSQL natively supports IF EXISTS in SQLAlchemy text() for most operations
+    drop_sql = "ALTER TABLE checklist_items DROP COLUMN IF EXISTS is_required"
     try:
         await conn.execute(sa.text(drop_sql))
         log.info("Dropped legacy checklist_items.is_required column")

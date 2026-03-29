@@ -23,9 +23,9 @@ def _patched_hashpw(password, salt):
 _bcrypt.hashpw = _patched_hashpw
 # ──────────────────────────────────────────────────────────────────────────
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = "postgresql+asyncpg://review_user:review_password@localhost:5432/test_reviews_db"
 
-# Force the application to boot against SQLite during tests before importing main.
+# Force the application to boot against PostgreSQL during tests before importing main.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("DEBUG", "false")
 

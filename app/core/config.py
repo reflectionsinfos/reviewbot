@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./reviews.db"
+    DATABASE_URL: str = "postgresql+asyncpg://review_user:review_password@localhost:5432/reviews_db"
     
     # API Keys
     OPENAI_API_KEY: Optional[str] = None
