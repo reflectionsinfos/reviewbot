@@ -9,7 +9,7 @@
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
 
     /* ── Header ───────────────────────────────────────────────────────────── */
-    header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
+    header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; position: sticky; top: 0; z-index: 120; }
     header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; text-decoration: none; display: flex; align-items: center; gap: 10px; }
     header .logo img { height: 32px; width: auto; }
     header .tagline { font-size: 13px; color: #94a3b8; }
@@ -36,7 +36,7 @@
     .user-dropdown-divider { border: none; border-top: 1px solid #334155; margin: 4px 0; }
 
     /* ── Main Content ──────────────────────────────────────────────────────── */
-    main { max-width: 1200px; margin: 0 auto; padding: 40px 24px; flex: 1; }
+    main { max-width: 1200px; margin: 0 auto; padding: 40px 24px 120px; flex: 1; }
     h1 { font-size: 32px; font-weight: 700; color: #f1f5f9; margin-bottom: 16px; }
     h2 { font-size: 24px; font-weight: 600; color: #38bdf8; margin: 40px 0 16px; }
     h3 { font-size: 18px; font-weight: 600; color: #e2e8f0; margin: 24px 0 12px; }
@@ -68,14 +68,96 @@
     .callout-info .callout-title { color: #4ade80; }
     .callout-warning { background: #78350f44; border-color: #92400e; }
     .callout-warning .callout-title { color: #fb923c; }
+    .callout a { color: #93c5fd; text-decoration: none; }
+    .callout a:hover { color: #dbeafe; text-decoration: underline; }
+
+    /* ── Related Documentation ─────────────────────────────────────────────── */
+    .related-docs {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.98));
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 22px 24px;
+      margin-top: 32px;
+      box-shadow: 0 16px 40px rgba(2, 6, 23, 0.24);
+    }
+    .related-docs .callout-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      font-size: 16px;
+      color: #f8fafc;
+    }
+    .related-docs-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 12px;
+    }
+    .related-docs-list li { margin: 0; }
+    .related-docs-list a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 16px;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.88);
+      color: #e2e8f0;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .related-docs-list a::after {
+      content: "↗";
+      color: #38bdf8;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .related-docs-list a:hover {
+      border-color: #38bdf8;
+      background: rgba(30, 41, 59, 0.96);
+      color: #f8fafc;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(14, 165, 233, 0.12);
+      text-decoration: none;
+    }
+    .related-docs-list a:focus-visible {
+      outline: 2px solid #38bdf8;
+      outline-offset: 3px;
+    }
+
+    /* Keep global shared footer visible while scrolling on this page */
+    #shared-footer-root .shared-footer {
+      position: fixed !important;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 110;
+    }
 
     /* ── Footer ────────────────────────────────────────────────────────────── */
-    footer { background: #1e293b; border-top: 1px solid #334155; padding: 20px 28px; font-size: 12px; color: #475569; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-    footer a { color: #64748b; text-decoration: none; transition: color 0.15s; }
-    footer a:hover { color: #38bdf8; }
-    .footer-links { display: flex; gap: 20px; }
-    .footer-powered { display: flex; align-items: center; gap: 8px; }
-    .footer-powered img { height: 20px; width: auto; }
+    footer {
+      background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
+      border-top: 1px solid #334155;
+      padding: 20px 28px;
+      font-size: 12px;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 -8px 24px rgba(2, 6, 23, 0.18);
+    }
+    footer a { color: #93c5fd; text-decoration: none; transition: color 0.15s, opacity 0.15s; }
+    footer a:hover { color: #e0f2fe; opacity: 1; }
+    .footer-links { display: flex; gap: 20px; align-items: center; }
+    .footer-powered { display: flex; align-items: center; gap: 8px; color: #e2e8f0; }
+    .footer-powered img { height: 20px; width: auto; border-radius: 4px; }
   </style>
 </head>
 <body>
@@ -404,9 +486,9 @@ POST /api/routing-rules
     <li><strong>Reviewer Attribution</strong> — Track human reviewer name and role</li>
   </ul>
 
-  <div class="callout">
+  <div class="callout related-docs">
     <div class="callout-title">📚 Related Documentation</div>
-    <ul style="margin: 8px 0 0 20px;">
+    <ul class="related-docs-list">
       <li><a href="/docs" target="_blank">API Reference</a></li>
       <li><a href="https://github.com/reflectionsinfos/reviewbot" target="_blank">GitHub Repository</a></li>
       <li><a href="https://www.reflectionsglobal.com/contact-us" target="_blank">Contact Support</a></li>
@@ -415,17 +497,8 @@ POST /api/routing-rules
 
 </main>
 
-<footer>
-  <div class="footer-powered">
-    <span>Powered by</span>
-    <img src="/static/images/reflectionsit_logo.jpg" alt="Reflections Global" onerror="this.style.display='none'" />
-    <span>Reflections Global</span>
-  </div>
-  <div class="footer-links">
-    <a href="https://www.reflectionsglobal.com/contact-us" target="_blank">Contact Us</a>
-    <a href="/docs" target="_blank">API Docs</a>
-  </div>
-</footer>
+<div id="shared-footer-root"></div>
+<script src="/static/components/footer-loader.js"></script>
 
 <script>
   const TOKEN_KEY = 'rb_token';

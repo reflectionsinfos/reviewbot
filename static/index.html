@@ -7,7 +7,7 @@
   <style>
     /* ── Reset & base ─────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
 
     /* ── Layout ───────────────────────────────────────────────────────── */
     header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
@@ -17,7 +17,7 @@
     header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
     header .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
 
-    main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; }
+    main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; width: 100%; flex: 1; }
 
     /* ── Auth overlay ─────────────────────────────────────────────────── */
     #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
@@ -355,6 +355,8 @@
 
 </main>
 
+<div id="shared-footer-root"></div>
+<script src="/static/components/footer-loader.js"></script>
 <script>
 // ── State ──────────────────────────────────────────────────────────────────────
 let token = localStorage.getItem('rb_token') || '';
@@ -879,7 +881,7 @@ function ragIcon(rag) {
   return { green: '✅', amber: '⚠️', red: '❌', skipped: '👤', na: '·' }[rag] || '·';
 }
 function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + '…' : (s || ''); }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s) { return String(s||'').replace(/&/g,'&').replace(/</g,'<').replace(/>/g,'>'); }
 function setLog(msg) { document.getElementById('status-log').textContent = msg; }
 function showConfigError(msg) {
   const el = document.getElementById('config-error');

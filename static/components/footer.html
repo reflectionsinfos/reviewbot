@@ -1,0 +1,88 @@
+<style>
+  .shared-footer {
+    margin-top: auto;
+    background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
+    border-top: 1px solid #334155;
+    box-shadow: 0 -8px 24px rgba(2, 6, 23, 0.18);
+    color: #cbd5e1;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    padding: 20px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .shared-footer__powered {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #e2e8f0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .shared-footer__powered-label {
+    color: #cbd5e1;
+  }
+
+  .shared-footer__logo {
+    height: 20px;
+    width: auto;
+    border-radius: 4px;
+  }
+
+  .shared-footer__brand {
+    color: #e2e8f0;
+  }
+
+  .shared-footer__links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  .shared-footer__link {
+    color: #93c5fd;
+    text-decoration: none;
+    font-size: 12px;
+    transition: color 0.15s, opacity 0.15s;
+  }
+
+  .shared-footer__link:hover {
+    color: #e0f2fe;
+    opacity: 1;
+  }
+
+  .shared-footer__link:focus-visible {
+    outline: 2px solid #38bdf8;
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  @media (max-width: 640px) {
+    .shared-footer {
+      padding: 18px 20px;
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .shared-footer__links {
+      gap: 14px;
+    }
+  }
+</style>
+
+<footer class="shared-footer" role="contentinfo" aria-label="Site footer">
+  <div class="shared-footer__powered">
+    <span class="shared-footer__powered-label">Powered by</span>
+    <img class="shared-footer__logo" src="/static/images/reflectionsit_logo.jpg" alt="Reflections Global" onerror="this.style.display='none'" />
+    <span class="shared-footer__brand">Reflections Global</span>
+  </div>
+  <div class="shared-footer__links">
+    <a class="shared-footer__link" href="https://www.reflectionsglobal.com/contact-us" target="_blank" rel="noopener noreferrer">Contact Us</a>
+    <a class="shared-footer__link" href="/docs" target="_blank" rel="noopener noreferrer">API Docs</a>
+  </div>
+</footer>
