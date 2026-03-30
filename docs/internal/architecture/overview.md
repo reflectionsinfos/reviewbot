@@ -70,8 +70,8 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                       Storage Layer                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │
-│  │  SQLite/    │  │  ChromaDB   │  │  File System            │ │
-│  │  PostgreSQL │  │  (Vector)   │  │  (uploads, reports)     │ │
+│  │  PostgreSQL │  │  ChromaDB   │  │  File System            │ │
+│  │ (Cloud SQL) │  │  (Vector)   │  │  (Cloud Run Storage)    │ │
 │  └─────────────┘  └─────────────┘  └─────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -242,6 +242,7 @@ reviewbot/
 | **Uvicorn** | 0.27+ | ASGI server |
 | **SQLAlchemy** | 2.0+ | ORM |
 | **Pydantic** | 2.0+ | Data validation |
+| **GCP Cloud Run** | Prod | Application Hosting |
 
 ### AI/ML
 

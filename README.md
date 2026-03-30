@@ -29,6 +29,14 @@ An AI-powered platform for conducting structured technical and delivery project 
 | Auth | JWT (python-jose) + bcrypt |
 | Reports | ReportLab (PDF) + Markdown |
 
+## 🌍 Live URL (Production - GCP)
+The production environment is hosted on Google Cloud Platform:
+- **Service URL**: [https://reviewbot-web-128263129038.us-central1.run.app](https://reviewbot-web-128263129038.us-central1.run.app)
+- **Status Endpoint**: [/api/status](https://reviewbot-web-128263129038.us-central1.run.app/api/status)
+- **Health Check**: [/health](https://reviewbot-web-128263129038.us-central1.run.app/health)
+
+For GCP maintenance and troubleshooting, refer to [docs/GCP_TROUBLESHOOTING.md](docs/GCP_TROUBLESHOOTING.md).
+
 ---
 
 ## Deploy & Run
@@ -107,7 +115,21 @@ Creates these users (password: **`Admin@123`**):
 | admin@reviewbot.com | admin |
 | reviewer@reviewbot.com | reviewer |
 
-#### Option B — Run a pre-generated SQL seed file
+#### Option B — Run modular SQL restoration (Production-Ready)
+For Cloud SQL or production environments, use the modular SQL units in `scripts/db/` to ensure sequence-aware restoration.
+
+```bash
+# Order of execution:
+1. scripts/db/01_extensions.sql
+2. scripts/db/02_tables.sql
+3. scripts/db/03_constraints.sql
+4. scripts/db/04_indexes.sql
+5. scripts/db/05_data.sql
+```
+
+The `02_tables.sql` file has been reordered to ensure all tables exist before their sequences are assigned ownership.
+
+#### Option C — Seed from SQL (Docker / Local)
 
 SQL seed files can be run without Python. They connect directly to PostgreSQL via Docker.
 

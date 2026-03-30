@@ -246,42 +246,62 @@ Non-secret env variables:
 - Concurrent jobs process correctly.
 - Restart/redeploy does not lose job state or file pointers.
 
-## 11. Phased Execution Plan
+## 11. GCP Deployment Guide (via `gcp_scripts/`)
 
-### Phase 1: Cloud Foundation
-- Create GCP resources (Cloud SQL, Artifact Registry, Storage, Secrets, baseline Cloud Run).
-- Deploy web app with DB connectivity.
+Follow these steps to deploy ReviewBot using the provided automation scripts.
 
-### Phase 2: Cloud-Safe App Refactor
-- Remove local filesystem scan path.
-- Move caches to shared persistence.
-- Move file artifacts to GCS.
-- Add migration runner.
+### 11.1 Prerequisites
+- [gcloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated.
+- A GCP Project with billing enabled.
+- Docker installed and running locally.
 
-### Phase 3: Async Worker Reliability
-- Integrate Cloud Tasks + worker service.
-- Add retries/idempotency/dead-letter handling.
+### 11.2 Step 1: Enable Required APIs
+Run the API enablement script to activate Cloud Run, Cloud SQL, and Secret Manager.
+```bash
+./gcp_scripts/01_enable_apis.sh --project reviewbot-491619
+```
 
-### Phase 4: Hardening and Go-Live
-- Observability, alerts, CORS/auth tightening.
-- Load tests and failure drills.
-- Production cutover.
+### 11.3 Step 2: Set up IAM and Permissions
+Create the `reviewbot-runtime` service account and assign the required roles.
+```bash
+./gcp_scripts/02_setup_iam.sh --project reviewbot-491619
+```
 
-## 12. Production Readiness Exit Criteria
+### 11.4 Step 3: Initialize Infrastructure
+Create the Artifact Registry, Cloud Storage bucket, and Secret Manager placeholders.
+```bash
+./gcp_scripts/03_create_infra.sh --project reviewbot-491619 --bucket reviewbot-491619-artifacts
+```
 
-- No feature depends on server local filesystem.
-- No critical state kept in process memory only.
-- All DB schema changes are migration-controlled and repeatable.
-- Artifacts persist in Cloud Storage and remain downloadable across deploys.
-- Async jobs are queue-backed and resilient to restarts.
-- Monitoring + alerting + rollback path validated.
+### 11.5 Step 4: Provision the Database
+Create the Cloud SQL PostgreSQL instance and the initial database/user.
+```bash
+./gcp_scripts/04_create_db.sh --project reviewbot-491619 --instance-name reviewbot-db --db-password <SECURE_PASSWORD>
+```
 
-## 13. Suggested Naming Convention
+### 11.6 Step 5: Deploy the Application
+Build the image, push to Artifact Registry, and deploy to Cloud Run.
+```bash
+./gcp_scripts/05_deploy_app.sh --project reviewbot-491619 --region us-central1 --image-name reviewbot
+```
 
-- Cloud Run web service: `reviewbot-web`
-- Cloud Run worker service: `reviewbot-worker`
-- Cloud SQL instance: `reviewbot-pg`
-- Artifact Registry repo: `reviewbot`
-- Cloud Tasks queue: `reviewbot-jobs`
-- Storage bucket: `<PROJECT_ID>-reviewbot-artifacts`
+### 11.7 Helper: Local DB Access
+To connect to the Cloud SQL instance from your local machine (e.g., for DBeaver or migrations), use the proxy script:
+```bash
+./gcp_scripts/run_sql_proxy.sh --project reviewbot-491619 --instance reviewbot-db
+```
+
+## 12. Cleanup
+To delete all resources created by this deployment (useful for CI/CD tests), run:
+```bash
+./gcp_scripts/cleanup_all.sh --project reviewbot-491619
+```
+
+## 13. Suggested Project Naming Convention
+
+- Cloud Run service: `reviewbot-web`
+- Cloud SQL instance: `reviewbot-db`
+- Artifact Registry repo: `reviewbot-repo`
+- Storage bucket: `reviewbot-491619-artifacts`
+- Runtime SA: `reviewbot-runtime@reviewbot-491619.iam.gserviceaccount.com`
 
