@@ -191,7 +191,7 @@ CREATE SEQUENCE public.users_id_seq
     CACHE 1;
 
 CREATE TABLE public.autonomous_review_jobs (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.autonomous_review_jobs_id_seq'::regclass),
     project_id integer NOT NULL,
     checklist_id integer NOT NULL,
     source_path character varying NOT NULL,
@@ -213,7 +213,7 @@ CREATE TABLE public.autonomous_review_jobs (
 );
 
 CREATE TABLE public.autonomous_review_overrides (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.autonomous_review_overrides_id_seq'::regclass),
     result_id integer NOT NULL,
     new_rag_status character varying NOT NULL,
     comments text NOT NULL,
@@ -223,7 +223,7 @@ CREATE TABLE public.autonomous_review_overrides (
 );
 
 CREATE TABLE public.autonomous_review_results (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.autonomous_review_results_id_seq'::regclass),
     job_id integer NOT NULL,
     checklist_item_id integer NOT NULL,
     strategy character varying,
@@ -238,7 +238,7 @@ CREATE TABLE public.autonomous_review_results (
 );
 
 CREATE TABLE public.checklist_items (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.checklist_items_id_seq'::regclass),
     checklist_id integer NOT NULL,
     item_code character varying,
     area character varying,
@@ -253,7 +253,7 @@ CREATE TABLE public.checklist_items (
 );
 
 CREATE TABLE public.checklist_recommendations (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.checklist_recommendations_id_seq'::regclass),
     checklist_id integer NOT NULL,
     suggestion_type character varying,
     description text,
@@ -267,7 +267,7 @@ CREATE TABLE public.checklist_recommendations (
 );
 
 CREATE TABLE public.checklist_routing_rules (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.checklist_routing_rules_id_seq'::regclass),
     checklist_item_id integer,
     checklist_id integer,
     strategy character varying(50) NOT NULL,
@@ -279,7 +279,7 @@ CREATE TABLE public.checklist_routing_rules (
 );
 
 CREATE TABLE public.checklists (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.checklists_id_seq'::regclass),
     name character varying NOT NULL,
     type character varying NOT NULL,
     version character varying,
@@ -292,7 +292,7 @@ CREATE TABLE public.checklists (
 );
 
 CREATE TABLE public.consolidated_self_review_reports (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.consolidated_self_review_reports_id_seq'::regclass),
     review_instance_id integer,
     project_id integer NOT NULL,
     overall_readiness_score double precision,
@@ -304,7 +304,7 @@ CREATE TABLE public.consolidated_self_review_reports (
 );
 
 CREATE TABLE public.gap_tracking (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.gap_tracking_id_seq'::regclass),
     checklist_item_id integer,
     project_id integer NOT NULL,
     first_identified_at timestamp without time zone,
@@ -318,7 +318,7 @@ CREATE TABLE public.gap_tracking (
 );
 
 CREATE TABLE public.meeting_blocks (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.meeting_blocks_id_seq'::regclass),
     review_instance_id integer,
     reason character varying(255) NOT NULL,
     status character varying(50),
@@ -331,7 +331,7 @@ CREATE TABLE public.meeting_blocks (
 );
 
 CREATE TABLE public.milestone_review_triggers (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.milestone_review_triggers_id_seq'::regclass),
     project_id integer NOT NULL,
     checklist_id integer,
     trigger_event character varying(100) NOT NULL,
@@ -342,7 +342,7 @@ CREATE TABLE public.milestone_review_triggers (
 );
 
 CREATE TABLE public.project_members (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.project_members_id_seq'::regclass),
     project_id integer NOT NULL,
     user_id integer NOT NULL,
     persona character varying(100),
@@ -351,7 +351,7 @@ CREATE TABLE public.project_members (
 );
 
 CREATE TABLE public.projects (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.projects_id_seq'::regclass),
     name character varying NOT NULL,
     domain character varying,
     description text,
@@ -366,7 +366,7 @@ CREATE TABLE public.projects (
 );
 
 CREATE TABLE public.recurring_review_schedules (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.recurring_review_schedules_id_seq'::regclass),
     project_id integer NOT NULL,
     checklist_id integer,
     name character varying(255) NOT NULL,
@@ -381,7 +381,7 @@ CREATE TABLE public.recurring_review_schedules (
 );
 
 CREATE TABLE public.reminder_queue (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.reminder_queue_id_seq'::regclass),
     review_instance_id integer,
     reminder_type character varying(50) NOT NULL,
     scheduled_at timestamp without time zone NOT NULL,
@@ -395,7 +395,7 @@ CREATE TABLE public.reminder_queue (
 );
 
 CREATE TABLE public.report_approvals (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.report_approvals_id_seq'::regclass),
     report_id integer NOT NULL,
     approver_id integer NOT NULL,
     status character varying,
@@ -405,7 +405,7 @@ CREATE TABLE public.report_approvals (
 );
 
 CREATE TABLE public.reports (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.reports_id_seq'::regclass),
     review_id integer NOT NULL,
     summary text,
     overall_rag_status character varying,
@@ -424,7 +424,7 @@ CREATE TABLE public.reports (
 );
 
 CREATE TABLE public.review_instances (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.review_instances_id_seq'::regclass),
     project_id integer NOT NULL,
     schedule_id integer,
     trigger_id integer,
@@ -441,7 +441,7 @@ CREATE TABLE public.review_instances (
 );
 
 CREATE TABLE public.review_responses (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.review_responses_id_seq'::regclass),
     review_id integer NOT NULL,
     checklist_item_id integer NOT NULL,
     answer character varying,
@@ -456,7 +456,7 @@ CREATE TABLE public.review_responses (
 );
 
 CREATE TABLE public.review_trend_analytics (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.review_trend_analytics_id_seq'::regclass),
     project_id integer NOT NULL,
     period_start timestamp without time zone NOT NULL,
     period_end timestamp without time zone NOT NULL,
@@ -473,7 +473,7 @@ CREATE TABLE public.review_trend_analytics (
 );
 
 CREATE TABLE public.reviews (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.reviews_id_seq'::regclass),
     project_id integer NOT NULL,
     checklist_id integer NOT NULL,
     title character varying,
@@ -488,7 +488,7 @@ CREATE TABLE public.reviews (
 );
 
 CREATE TABLE public.self_review_sessions (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.self_review_sessions_id_seq'::regclass),
     review_instance_id integer,
     project_id integer NOT NULL,
     checklist_id integer,
@@ -503,7 +503,7 @@ CREATE TABLE public.self_review_sessions (
 );
 
 CREATE TABLE public.stakeholder_preparation (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.stakeholder_preparation_id_seq'::regclass),
     review_instance_id integer,
     stakeholder_id integer NOT NULL,
     preparation_pack_sent_at timestamp without time zone,
@@ -516,7 +516,7 @@ CREATE TABLE public.stakeholder_preparation (
 );
 
 CREATE TABLE public.users (
-    id integer NOT NULL,
+    id integer NOT NULL DEFAULT nextval('public.users_id_seq'::regclass),
     email character varying NOT NULL,
     full_name character varying NOT NULL,
     hashed_password character varying NOT NULL,

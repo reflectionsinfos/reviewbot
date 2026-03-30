@@ -88,6 +88,26 @@ async def init_db():
             except Exception as exc:
                 log.warning("Migration skipped (%s): %s", type(exc).__name__, sql[:60])
 
+        # ── Ensure ID columns have sequence defaults (fallback for raw SQL imports) ──
+        tables_to_fix = [
+            "autonomous_review_jobs", "autonomous_review_overrides", "autonomous_review_results",
+            "checklist_items", "checklist_recommendations", "checklist_routing_rules",
+            "checklists", "consolidated_self_review_reports", "gap_tracking",
+            "meeting_blocks", "milestone_review_triggers", "project_members",
+            "projects", "recurring_review_schedules", "reminder_queue",
+            "report_approvals", "reports", "review_instances",
+            "review_responses", "review_trend_analytics", "reviews",
+            "self_review_sessions", "stakeholder_preparation", "users"
+        ]
+        for table in tables_to_fix:
+            seq_sql = f"ALTER TABLE {table} ALTER COLUMN id SET DEFAULT nextval('{table}_id_seq')"
+            try:
+                await conn.execute(sa.text(seq_sql))
+                log.info("Fixed sequence default for %s", table)
+            except Exception:
+                # Table might not exist yet or already has default
+                pass
+
         await _migrate_checklist_item_review_flag(conn, log)
 
 

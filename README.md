@@ -178,10 +178,12 @@ curl http://localhost:8000/health
 
 | Service | URL |
 |---------|-----|
-| API | http://localhost:8000 |
-| Swagger / API Docs | http://localhost:8000/docs |
-| Autonomous Review UI | http://localhost:8000/ui |
-| Health Check | http://localhost:8000/health |
+| **Production API (GCP)** | [https://reviewbot-web-128263129038.us-central1.run.app](https://reviewbot-web-128263129038.us-central1.run.app) |
+| **Production Status** | [/api/status](https://reviewbot-web-128263129038.us-central1.run.app/api/status) |
+| Local API | http://localhost:8000 |
+| Local Swagger | http://localhost:8000/docs |
+| Local UI | http://localhost:8000/ui |
+| Local Health | http://localhost:8000/health |
 
 ---
 
@@ -210,7 +212,7 @@ The autonomous review feature scans a source codebase against a checklist — no
 
 ### How it works
 
-1. User selects project + checklist + Git Repository URL in the UI (or via API)
+1. User selects project + checklist in the UI (or via VS Code extension)
 2. ReviewBot scans the repository (skipping `node_modules`, `.git`, `target`, `venv`, etc.)
 3. Each checklist item is routed to an analysis strategy:
    - **file_presence** — checks if expected files/dirs exist (architecture docs, CI config, README, etc.)
