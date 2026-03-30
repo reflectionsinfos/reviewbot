@@ -1,0 +1,183 @@
+<style>
+  .shared-header {
+    background: rgba(30, 41, 59, 0.8);
+    backdrop-filter: blur(12px);
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    font-family: 'Outfit', 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+  .shared-header .logo {
+    font-size: 20px;
+    font-weight: 700;
+    color: #38bdf8;
+    letter-spacing: -0.5px;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .shared-header .logo img {
+    height: 32px;
+    width: auto;
+  }
+  .shared-header .tagline {
+    font-size: 13px;
+    color: #94a3b8;
+  }
+  .shared-header nav {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .shared-header nav a {
+    color: #94a3b8;
+    text-decoration: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+  .shared-header nav a:hover {
+    background: rgba(56, 189, 248, 0.1);
+    color: #38bdf8;
+  }
+  .shared-header nav a.active {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+  }
+
+  .shared-header .nav-right {
+    display: flex;
+    align-items: center;
+    margin-left: 12px;
+  }
+  .shared-header .user-dropdown {
+    position: relative;
+  }
+  .shared-header .user-dropdown-btn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #e2e8f0;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+  }
+  .shared-header .user-dropdown-btn:hover {
+    border-color: #38bdf8;
+    background: rgba(30, 41, 59, 0.9);
+  }
+  .shared-header .user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+  .shared-header .user-avatar-human { background: linear-gradient(135deg, #10b981, #059669); }
+  .shared-header .user-avatar-bot { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+  .shared-header .user-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: #1e293b;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    min-width: 220px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    z-index: 2000;
+  }
+  .shared-header .user-dropdown-menu.hidden {
+    display: none;
+  }
+  .shared-header .user-dropdown-header {
+    padding: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .shared-header .user-dropdown-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 2px;
+  }
+  .shared-header .user-dropdown-role {
+    font-size: 11px;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .shared-header .user-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+  .shared-header .user-dropdown-item:hover {
+    background: rgba(56, 189, 248, 0.1);
+    color: #38bdf8;
+  }
+  .shared-header .user-dropdown-item svg {
+    width: 16px;
+    height: 16px;
+  }
+</style>
+
+<header class="shared-header">
+  <a href="/" class="logo">
+    <img src="/frontend_vanilla/images/reflectionsit_logo.jpg" alt="Reflections" onerror="this.style.display='none'" />
+    ReviewBot
+  </a>
+  <span class="tagline">AI Review Platform</span>
+  <nav>
+    <a href="/ui" id="nav-review">AI Review</a>
+    <a href="/projects-ui" id="nav-projects">Projects</a>
+    <a href="/globals" id="nav-globals">Global Templates</a>
+    <a href="/system-config" id="nav-config">System Config</a>
+    <a href="/documentation" id="nav-docs">How It Works</a>
+    <a href="/docs" target="_blank">API Docs ↗</a>
+  </nav>
+  <div class="nav-right">
+    <div class="user-dropdown">
+      <button class="user-dropdown-btn" onclick="toggleUserDropdown()">
+        <div class="user-avatar user-avatar-human" id="shared-user-avatar">🧑</div>
+        <span id="shared-user-name">User</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="user-dropdown-menu hidden" id="shared-user-menu">
+        <div class="user-dropdown-header">
+          <div class="user-dropdown-name" id="shared-menu-name">User Name</div>
+          <div class="user-dropdown-role" id="shared-menu-role">User</div>
+        </div>
+        <button class="user-dropdown-item" onclick="logout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
+</header>

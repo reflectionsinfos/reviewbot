@@ -10,12 +10,7 @@
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
 
     /* ── Layout ───────────────────────────────────────────────────────── */
-    header { background: #1e293b; padding: 14px 28px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #334155; }
-    header .logo { font-size: 20px; font-weight: 700; color: #38bdf8; letter-spacing: -0.5px; }
-    header .tagline { font-size: 13px; color: #94a3b8; }
-    header .user-info { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #94a3b8; }
-    header .btn-logout { background: transparent; border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-    header .btn-logout:hover { border-color: #ef4444; color: #ef4444; }
+    header { display: none; } /* Handled by shared-header */
 
     main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; width: 100%; flex: 1; }
 
@@ -190,25 +185,8 @@
   </div>
 </div>
 
-<!-- ── Header ─────────────────────────────────────────────────────────────── -->
-<header>
-  <a href="/" class="logo" style="text-decoration:none;">
-    <img src="/frontend_vanilla/images/reflectionsit_logo.jpg" alt="Reflections" onerror="this.style.display='none'" style="height:32px;width:auto;vertical-align:middle;margin-right:10px;" />
-    ReviewBot
-  </a>
-  <span class="tagline">AI Review Platform</span>
-  <nav style="margin-left:auto;display:flex;gap:8px;">
-    <a href="/ui" style="color:#38bdf8;text-decoration:none;padding:6px 14px;border-radius:6px;font-size:13px;border:1px solid #38bdf8;">AI Review</a>
-    <a href="/projects-ui" style="color:#94a3b8;text-decoration:none;padding:6px 14px;border-radius:6px;font-size:13px;border:1px solid #334155;" onmouseover="this.style.borderColor='#38bdf8';this.style.color='#38bdf8'" onmouseout="this.style.borderColor='#334155';this.style.color='#94a3b8'">Projects</a>
-    <a href="/globals" style="color:#94a3b8;text-decoration:none;padding:6px 14px;border-radius:6px;font-size:13px;border:1px solid #334155;" onmouseover="this.style.borderColor='#38bdf8';this.style.color='#38bdf8'" onmouseout="this.style.borderColor='#334155';this.style.color='#94a3b8'">Global Templates</a>
-    <a href="/documentation" style="color:#94a3b8;text-decoration:none;padding:6px 14px;border-radius:6px;font-size:13px;border:1px solid #334155;" onmouseover="this.style.borderColor='#38bdf8';this.style.color='#38bdf8'" onmouseout="this.style.borderColor='#334155';this.style.color='#94a3b8'">How It Works</a>
-    <a href="/docs" target="_blank" style="color:#94a3b8;text-decoration:none;padding:6px 14px;border-radius:6px;font-size:13px;border:1px solid #334155;" onmouseover="this.style.borderColor='#38bdf8';this.style.color='#38bdf8'" onmouseout="this.style.borderColor='#334155';this.style.color='#94a3b8'">API Docs ↗</a>
-  </nav>
-  <div class="user-info" style="margin-left:12px;">
-    <span id="header-user"></span>
-    <button class="btn-logout" onclick="logout()">Sign out</button>
-  </div>
-</header>
+<!-- ── Shared Header ─────────────────────────────────────────────────────── -->
+<div id="shared-header-root"></div>
 
 <!-- ── Main ───────────────────────────────────────────────────────────────── -->
 <main>
@@ -496,7 +474,8 @@ reviewbot review --project-id 1 --checklist-id 1 --source-path ./src</code>
 </main>
 
 <div id="shared-footer-root"></div>
-<script src="/frontend_vanilla/components/footer-loader.js"></script>
+  <script src="/frontend_vanilla/components/header_loader.js"></script>
+  <script src="/frontend_vanilla/components/footer-loader.js"></script>
 <script>
 // ── State ──────────────────────────────────────────────────────────────────────
 let token = localStorage.getItem('rb_token') || '';
@@ -534,7 +513,7 @@ async function login() {
     localStorage.setItem('rb_token', token);
     _logoutInProgress = false;
     document.getElementById('auth-overlay').style.display = 'none';
-    document.getElementById('header-user').textContent = email;
+    if (window.updateSharedUserInfo) window.updateSharedUserInfo();
     loadProjects();
   } catch (e) {
     errEl.textContent = e.message;
@@ -561,10 +540,7 @@ if (token) {
     // auth overlay stays visible
   } else {
     document.getElementById('auth-overlay').style.display = 'none';
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      document.getElementById('header-user').textContent = payload.sub || 'User';
-    } catch {}
+    if (window.updateSharedUserInfo) window.updateSharedUserInfo();
     loadProjects();
   }
 }
