@@ -362,10 +362,10 @@ Become the industry-standard AI platform for comprehensive organizational review
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| FR-9.1 | Support public GitHub, GitLab, and Bitbucket URLs without token | Must Have | TODO |
-| FR-9.2 | Support private repositories with Personal Access Token (PAT) | Must Have | TODO |
-| FR-9.3 | Securely store PAT tokens (encrypted at rest, per-project) | Must Have | TODO |
-| FR-9.4 | Support local folder path (Docker volume mount, for on-premises deployments) | Must Have | TODO |
+| FR-9.1 | Support public GitHub URLs | Must Have | Done |
+| FR-9.2 | Support private repositories with PAT | Must Have | Done |
+| FR-9.3 | Securely store PAT tokens (encrypted at rest) | Must Have | Done |
+| FR-9.4 | Support local folder path (Volume mount) | Must Have | Done |
 | FR-9.5 | Auto-detect repository provider type from URL (GitHub, GitLab, Bitbucket) | Should Have | TODO |
 | FR-9.6 | Support branch, tag, and commit SHA selection for review scope | Should Have | TODO |
 | FR-9.7 | Provide PAT token generation guidance in UI per provider (GitHub, GitLab, Bitbucket) | Should Have | TODO |
@@ -870,7 +870,7 @@ Become the industry-standard AI platform for comprehensive organizational review
 | NFR-4.1 | All API endpoints require authentication | Done |
 | NFR-4.2 | Passwords hashed with bcrypt | Done |
 | NFR-4.3 | JWT tokens with expiration | Done |
-| NFR-4.4 | HTTPS in production | TODO |
+| NFR-4.4 | HTTPS in production (Cloud Run) | Done |
 | NFR-4.5 | SQL injection prevention (parameterized queries) | Done |
 | NFR-4.6 | Input validation (Pydantic) | Done |
 | NFR-4.7 | CORS configuration | Done |
@@ -1167,12 +1167,12 @@ Become the industry-standard AI platform for comprehensive organizational review
 - [x] Human approval workflow
 - [x] Basic authentication
 
-**New in Phase 1:**
-- [ ] Repository integration: GitHub/GitLab/Bitbucket (public, PAT for private), local path (FR-9)
-- [ ] Document Review: upload and AI review of HLD/LLD, architecture docs, process docs (FR-10)
-- [ ] Knowledge QUIZ in text mode (FR-11.1, FR-11.2, FR-11.4, FR-11.5, FR-11.6, FR-11.9)
-- [ ] Architecture Review: basic pattern evaluation and SPOF identification (FR-12.1-FR-12.5)
-- [ ] **Two-Track Action Item System** — Action cards + AI IDE prompts after each review (FR-21.1–FR-21.4)
+**Cloud Infrastructure (Completed):**
+- [x] GCP Cloud Run deployment with CI/CD
+- [x] Cloud SQL (PostgreSQL 15) managed database
+- [x] Secret Manager integration for backend security
+- [x] HTTPS/TLS enabled by default
+- [x] Modular SQL restoration workflow (01-05 scripts)
 
 ### Phase 1.5: QUIZ Voice & Enhanced Reviews (Q3 2026)
 

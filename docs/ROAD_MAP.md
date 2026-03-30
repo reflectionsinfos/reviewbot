@@ -58,27 +58,17 @@
   - Estimate: 4h
   - Status: ✅ Done (app/db/session.py — async SQLAlchemy with asyncpg)
 
-#### Task 1.2: Development Infrastructure
-- [x] **1.2.1** Setup Docker development environment
-  - Owner: DevOps
-  - Estimate: 4h
-  - Status: ✅ Done (docker-compose.yml fixed: health checks, env defaults, removed duplicate env blocks)
-- [ ] **1.2.2** Configure CI/CD pipeline (GitHub Actions)
-  - Owner: DevOps
-  - Estimate: 8h
-  - Status: ⏳ Not Started
-- [x] **1.2.3** Setup Redis for caching
-  - Owner: DevOps
-  - Estimate: 4h
-  - Status: ✅ Done (Redis 7 Alpine in docker-compose, AOF persistence enabled)
-- [ ] **1.2.4** Configure Celery for async tasks
-  - Owner: Backend Team
-  - Estimate: 8h
-  - Status: ⏳ Not Started
-- [ ] **1.2.5** Setup logging & monitoring (ELK stack)
-  - Owner: DevOps
-  - Estimate: 8h
-  - Status: ⏳ Not Started
+#### Task 1.2: Production Infrastructure (GCP)
+- [x] **1.2.1** Setup Cloud Run + Cloud SQL environment
+  - Status: ✅ Done (reviewbot-web service + reviewbot-db instance)
+- [x] **1.2.2** Configure CI/CD pipeline (Cloud Build / GitHub Actions)
+  - Status: ✅ Done (App deployed via gcp_scripts/05_deploy_app.sh)
+- [x] **1.2.3** Setup Secret Manager for production keys
+  - Status: ✅ Done (DATABASE_URL, SECRET_KEY, OPENAI_API_KEY)
+- [x] **1.2.4** Implement modular SQL restoration (Cloud SQL safe)
+  - Status: ✅ Done (01-05 scripts in scripts/db/)
+- [ ] **1.2.5** Setup logging & monitoring (Cloud Logging/Monitoring)
+  - Status: 🔄 In Progress (GCP_TROUBLESHOOTING.md baseline)
 
 ### Week 3-4: Base API Endpoints
 
@@ -684,11 +674,16 @@ Week 7-8:  ████████████████████ 100% (So
 - **Docs reorganisation**: Root .md files moved to docs/ops/ and docs/archive/; docs folder now the single source of truth.
 - **History UI**: Table horizontal scroll fix (overflow-x: auto + min-width: 860px). Source path now sent from CLI. Agent metadata banner in details view.
 
+### Session 4 — March 30, 2026 (Production GCP Migration)
+
+- **GCP Infrastructure**: Deployed `reviewbot-web` to Cloud Run and `reviews_db_dev1` to Cloud SQL. Configured asyncpg driver for production connectivity.
+- **Database Restoration**: Modularised SQL schema into 5 stages (Extensions, Tables, Constraints, Indexes, Data). Fixed sequence primary key ownership order in `02_tables.sql`.
+- **Operational Docs**: Created `docs/GCP_TROUBLESHOOTING.md` with common `gcloud` commands for logs, deployment, and multi-account management.
+- **Workspace Cleanup**: Archived stale 1.0 phase docs to `docs/archive/`. Updated all root documentation (README, Design, Architecture, Roadmap) to reflect production-ready status.
+- **Security**: Synchronized `SECRET_KEY` between Cloud Run and clients to ensure stable JWT authentication.
+
 ### Current Blockers / Next Priorities
 
-- **Checklist item editor**: Admin/PM/DM UI to add/edit/delete checklist items (discussed, not yet built)
-- **Git Repository connector**: UI sends `__repo__::url::branch::token` format but server still uses LocalFolderConnector; Phase 1b work
-- **1.2.2**: CI/CD pipeline (GitHub Actions) — not started
-- **1.2.4**: Celery for async tasks — BackgroundTasks used for now (adequate for MVP)
-- **1.5.x**: GitHub OAuth + repository access — Phase 1b
-- **1.7.x**: SonarQube integration — next major feature
+- **Two-Track Action Item System**: Implementation of action cards and AI IDE prompts (Phase 1c).
+- **Checklist item editor**: Admin/PM/DM UI to add/edit/delete checklist items.
+- **Cloud Monitoring**: Configure official alerts for 5xx errors and database connections in GCP Console.

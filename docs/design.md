@@ -19,7 +19,8 @@
 6. [AI Agent Design](#ai-agent-design)
 7. [Security Design](#security-design)
 8. [Deployment Design](#deployment-design)
-9. [Design Patterns](#design-patterns)
+9. [GCP Production Infrastructure](#gcp-production-infrastructure)
+10. [Design Patterns](#design-patterns)
 
 ---
 
@@ -151,7 +152,7 @@
 - JSON support for flexible fields
 - SQLite for development simplicity
 
-**Decision:** PostgreSQL (production), SQLite (development)
+**Decision:** PostgreSQL (production via GCP Cloud SQL), SQLite (development)
 
 **Rationale:**
 - PostgreSQL: Enterprise-grade, JSONB support, advanced queries
@@ -1090,6 +1091,27 @@ environment:
   - UVICORN_WORKERS=4
   - SECRET_KEY=${SECRET_KEY_FROM_VAULT}
 ```
+
+---
+
+## GCP Production Infrastructure
+
+### Cloud Run (reviewbot-web)
+- **Service**: `reviewbot-web`
+- **Region**: `us-central1`
+- **CPU/Memory**: 1 CPU / 1GB RAM (standard tier)
+- **Connectivity**: Managed DB Connector (Sidecar VPC)
+
+### Cloud SQL (reviewbot-db)
+- **Instance**: `reviewbot-db`
+- **Database Name**: `reviews_db_dev1` (Sandbox) / `reviews_db` (Production)
+- **Engine**: PostgreSQL 15.6
+- **Storage**: SSD (10GB starting)
+
+### Environment Synchronization
+Production environment variables are managed directly in Cloud Run, including:
+- `DATABASE_URL`: `postgresql+asyncpg://postgres:${DB_PASS}@/reviews_db_dev1?host=/cloudsql/${INSTANCE_NAME}`
+- `SECRET_KEY`: Distributed across Cloud Run and authenticated clients to ensure JWT consistency.
 
 ---
 
