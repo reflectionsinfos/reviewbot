@@ -20,17 +20,18 @@
     main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; width: 100%; flex: 1; }
 
     /* ── Auth overlay ─────────────────────────────────────────────────── */
-    #auth-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
-    .auth-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 36px; width: 380px; }
-    .auth-card h2 { color: #38bdf8; margin-bottom: 6px; }
-    .auth-card p { color: #94a3b8; font-size: 13px; margin-bottom: 24px; }
+    #auth-overlay { position: fixed; inset: 0; background: url('/frontend_vanilla/images/login_bg.png') center/cover no-repeat; display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    #auth-overlay::before { content: ''; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); }
+    .auth-card { position: relative; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px; width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+    .auth-card h2 { font-size: 32px; font-weight: 800; color: #38bdf8; margin-bottom: 8px; letter-spacing: -1px; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
+    .auth-card p { color: #94a3b8; font-size: 14px; margin-bottom: 32px; font-weight: 500; }
+    .auth-card .welcome-text { color: #ffffff; font-size: 24px; font-weight: 700; margin-bottom: 4px; }
 
     /* ── Form elements ────────────────────────────────────────────────── */
-    .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
-    input, select, textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
-    input:focus, select:focus { outline: none; border-color: #38bdf8; }
-    select option { background: #1e293b; }
+    .form-group { margin-bottom: 24px; }
+    label { display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+    input, select, textarea { width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: #f1f5f9; padding: 12px 16px; border-radius: 12px; font-size: 15px; transition: all 0.3s; }
+    input:focus, select:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.15); background: rgba(15, 23, 42, 0.8); }
 
     /* ── Buttons ──────────────────────────────────────────────────────── */
     .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
@@ -171,8 +172,8 @@
 <!-- ── Auth Overlay ───────────────────────────────────────────────────────── -->
 <div id="auth-overlay">
   <div class="auth-card">
-    <h2>🤖 ReviewBot</h2>
-    <p>Autonomous Code Review Platform — sign in to continue</p>
+    <div class="welcome-text">Welcome back</div>
+    <p>Sign in to continue to ReviewBot</p>
     <div id="auth-error" class="alert alert-error hidden"></div>
     <div class="form-group">
       <label>Email</label>
@@ -180,9 +181,12 @@
     </div>
     <div class="form-group">
       <label>Password</label>
-      <input id="login-password" type="password" value="Admin@123" placeholder="••••••••" />
+      <input id="login-password" type="password" value="admin123" placeholder="••••••••" />
     </div>
-    <button class="btn btn-primary btn-block" onclick="login()">Sign In</button>
+    <button class="btn btn-primary btn-block btn-lg" onclick="login()" style="height: 48px; font-size: 16px; background: linear-gradient(135deg, #0ea5e9, #38bdf8); border-radius: 12px; box-shadow: 0 8px 16px rgba(14, 165, 233, 0.25); border: none; font-weight: 700; cursor: pointer; transition: all 0.3s;">Sign In</button>
+    <div style="margin-top:24px; text-align:center; font-size:12px; color:#64748b;">
+      Secure access for ReviewBot Enterprise
+    </div>
   </div>
 </div>
 
