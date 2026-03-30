@@ -29,6 +29,9 @@ env/
 # Environment variables (keep template, ignore actual .env)
 .env
 .env.local
+env.local
+env.*.gcp
+env.*.local
 ! .env.example
 ! .env.docker
 
