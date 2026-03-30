@@ -617,3 +617,39 @@ class ReviewTrendAnalytics(Base):
 
     project = relationship("Project")
 
+
+class LLMConfig(Base):
+    """LLM provider configuration from database"""
+    __tablename__ = "llm_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True, nullable=False)
+    provider = Column(String, nullable=False)  # openai, anthropic, google, groq, azure, etc.
+    model_name = Column(String, nullable=False)
+    api_key = Column(String, nullable=False)
+    base_url = Column(String, nullable=True)
+    api_version = Column(String, nullable=True)
+    is_active = Column(Boolean, default=False)
+    config_params = Column(JSON, nullable=True) # temperature, max_tokens, etc.
+
+    # Usage tracking and limits
+    total_tokens_used = Column(Integer, default=0)
+    total_requests_made = Column(Integer, default=0)
+    max_tokens_limit = Column(Integer, nullable=True)  # Null means no limit
+    max_requests_limit = Column(Integer, nullable=True)
+    last_usage_reset_at = Column(DateTime, default=datetime.utcnow)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SystemSetting(Base):
+    """Global system configuration settings"""
+    __tablename__ = "system_settings"
+
+    key = Column(String, primary_key=True, index=True)
+    value = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    category = Column(String, default="General") # General, Agent, Security, UI
+    is_mandatory = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

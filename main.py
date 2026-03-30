@@ -15,6 +15,8 @@ from app.api.routes import projects, reviews, reports, checklists, auth
 from app.api.routes.autonomous_reviews import router as autonomous_reviews_router
 from app.api.routes.agent import router as agent_router
 from app.api.routes.routing_rules import router as routing_rules_router
+from app.api.routes.llm_configs import router as llm_configs_router
+from app.api.routes.settings import router as settings_router
 from app.db.session import init_db
 from app.services.autonomous_review.progress import progress_manager
 
@@ -53,6 +55,18 @@ app.include_router(reports.router,              prefix="/api/reports",          
 app.include_router(autonomous_reviews_router,   prefix="/api/autonomous-reviews", tags=["Autonomous Review"])
 app.include_router(agent_router,               prefix="/api/v1/agent/scan",      tags=["Agent Bridge"])
 app.include_router(routing_rules_router,       prefix="/api/routing-rules",      tags=["Routing Rules"])
+app.include_router(llm_configs_router,         prefix="/api/llm-configs",        tags=["LLM Configuration"])
+app.include_router(settings_router,            prefix="/api/settings",           tags=["System Settings"])
+
+
+# Diagnostic route for LLM test (direct to main)
+@app.post("/api/llm-test-direct")
+async def llm_test_direct(config_in: dict):
+    from app.services.autonomous_review.connectors.llm import validate_llm_connectivity
+    from app.models import LLMConfig
+    temp = LLMConfig(**config_in)
+    success, msg = await validate_llm_connectivity(overriding_config=temp)
+    return {"success": success, "message": msg}
 
 # ── WebSocket — Autonomous Review live progress ───────────────────────────────
 @app.websocket("/ws/autonomous-reviews/{job_id}")
@@ -113,6 +127,12 @@ async def redirect_to_globals():
 async def serve_documentation():
     """Serve the How It Works documentation page"""
     return FileResponse(os.path.join(_frontend_dir, "documentation.html"))
+
+
+@app.get("/system-config", include_in_schema=False)
+async def serve_system_config_ui():
+    """Serve the System Configuration Management UI"""
+    return FileResponse(os.path.join(_frontend_dir, "system_config.html"))
 
 
 # ── Health / root ─────────────────────────────────────────────────────────────

@@ -147,6 +147,13 @@ async def start_autonomous_review(
             "codebase metadata, or provide a Git Repository URL."
         )
 
+    from app.services.autonomous_review.connectors.llm import validate_llm_connectivity
+    
+    # ── LLM Pre-flight check ──────────────────────────────
+    is_ready, message = await validate_llm_connectivity(db)
+    if not is_ready:
+        raise HTTPException(status_code=400, detail=f"LLM not ready: {message}")
+
     # Create job
     job = AutonomousReviewJob(
         project_id=req.project_id,
@@ -611,13 +618,13 @@ async def enhance_action_plan(
     if not results:
         return {"status": "enhanced", "prompts_generated": 0}
 
-    if not provider_is_configured():
+    if not await provider_is_configured(db):
         raise HTTPException(
             status_code=400,
-            detail="No LLM provider configured. Set ACTIVE_LLM_PROVIDER and the corresponding API key.",
+            detail="No LLM provider configured. Set ACTIVE_LLM_PROVIDER and the corresponding API key, or configure one in the Admin UI.",
         )
 
-    llm_client = get_llm_client()
+    llm_client = await get_llm_client(db)
     generator = ActionPlanGenerator()
 
     enhanced_prompts: dict = {}
@@ -644,7 +651,7 @@ async def enhance_action_plan(
 
         try:
             response = await llm_client.chat.completions.create(
-                model=pick_model(),
+                model=await pick_model(db),
                 messages=[
                     {
                         "role": "system",

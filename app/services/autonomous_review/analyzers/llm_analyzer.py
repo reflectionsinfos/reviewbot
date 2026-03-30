@@ -55,9 +55,9 @@ class LLMAnalyzer:
     def __init__(self) -> None:
         self._client = None
 
-    def _get_client(self):
+    async def _get_client(self):
         if self._client is None:
-            self._client = get_llm_client()
+            self._client = await get_llm_client()
         return self._client
 
     async def analyze(
@@ -104,9 +104,9 @@ class LLMAnalyzer:
         )
 
         try:
-            client = self._get_client()
+            client = await self._get_client()
             response = await client.chat.completions.create(
-                model=pick_model(),
+                model=await pick_model(),
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
@@ -117,6 +117,11 @@ class LLMAnalyzer:
             )
 
             raw = response.choices[0].message.content or "{}"
+            
+            # Increment usage
+            from ..connectors.llm import increment_llm_usage
+            await increment_llm_usage(tokens=response.usage.total_tokens)
+            
             data = json.loads(raw)
 
             rag = data.get("rag", "na")

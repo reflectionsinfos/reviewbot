@@ -93,13 +93,17 @@ async def init_db():
             "autonomous_review_jobs", "autonomous_review_overrides", "autonomous_review_results",
             "checklist_items", "checklist_recommendations", "checklist_routing_rules",
             "checklists", "consolidated_self_review_reports", "gap_tracking",
+            "llm_configs",
             "meeting_blocks", "milestone_review_triggers", "project_members",
             "projects", "recurring_review_schedules", "reminder_queue",
             "report_approvals", "reports", "review_instances",
             "review_responses", "review_trend_analytics", "reviews",
-            "self_review_sessions", "stakeholder_preparation", "users"
+            "self_review_sessions", "stakeholder_preparation", "users",
+            "system_settings"
         ]
         for table in tables_to_fix:
+            if table == "system_settings":
+                continue # Has string PK
             seq_sql = f"ALTER TABLE {table} ALTER COLUMN id SET DEFAULT nextval('{table}_id_seq')"
             try:
                 await conn.execute(sa.text(seq_sql))
@@ -109,6 +113,43 @@ async def init_db():
                 pass
 
         await _migrate_checklist_item_review_flag(conn, log)
+
+    # ── Seed system settings (New) ──────────────────────────────────────────
+    try:
+        async with AsyncSessionLocal() as db:
+            await seed_system_settings(db)
+    except Exception as exc:
+        log.warning("Seeding system settings skipped: %s", exc)
+
+
+async def seed_system_settings(db: AsyncSession):
+    """Seed initial settings if empty."""
+    from app.models import SystemSetting
+    from app.core.config import settings
+
+    # Seed initial settings if empty
+    # Format: (default_val, description, category, is_mandatory)
+    defaults = {
+        "APP_NAME": (settings.APP_NAME, "Name of the application", "UI", True),
+        "VOICE_ENABLED": (str(settings.VOICE_ENABLED).lower(), "Enable voice STT/TTS", "Agent", False),
+        "REQUIRE_HUMAN_APPROVAL": (str(settings.REQUIRE_HUMAN_APPROVAL).lower(), "Force human sign-off on autonomous reviews", "Agent", True),
+        "DEFAULT_LANGUAGE": (settings.DEFAULT_LANGUAGE, "Primary language for the agent", "General", True),
+        "DEBUG": (str(settings.DEBUG).lower(), "Enable debug logging and detailed errors", "General", False),
+        "ACCESS_TOKEN_EXPIRE_MINUTES": (str(settings.ACCESS_TOKEN_EXPIRE_MINUTES), "JWT Token expiration time", "Security", True),
+        "ELEVENLABS_API_KEY": (settings.ELEVENLABS_API_KEY or "", "Voice generation API key", "Agent", False),
+    }
+
+    try:
+        # Check if already seeded
+        res = await db.execute(sa.select(SystemSetting))
+        existing_keys = {s.key for s in res.scalars().all()}
+            
+        for key, (val, desc, cat, mandatory) in defaults.items():
+            if key not in existing_keys:
+                db.add(SystemSetting(key=key, value=val, description=desc, category=cat, is_mandatory=mandatory))
+        await db.commit()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("Could not seed system settings: %s", exc)
 
 
 async def _migrate_checklist_item_review_flag(conn, log: logging.Logger) -> None:

@@ -83,13 +83,12 @@ async def classify_strategies_with_llm(items: list, llm_client=None) -> dict[int
     try:
         # Use configured LLM client
         if llm_client is None:
-            from app.core.config import settings
             # Import dynamically to avoid circular imports
-            from .connectors.llm import get_llm_client
-            llm_client = get_llm_client()
+            from app.services.autonomous_review.connectors.llm import get_llm_client, pick_model
+            llm_client = await get_llm_client()
         
         response = await llm_client.chat.completions.create(
-            model="gpt-4o-mini",  # Use fast, cheap model for classification
+            model=await pick_model(),  # Use dynamic model selection
             messages=[
                 {"role": "system", "content": "You are a strategy classifier. Return only valid JSON."},
                 {"role": "user", "content": prompt}
