@@ -33,24 +33,24 @@ Edit your `.env` file:
 
 ```env
 # OpenAI (Default)
-OPENAI_API_KEY="sk-your-openai-key-here"
+OPENAI_API_KEY="sk-OPENAI-DUMMY-KEY-FOR-DOCS"
 
 # Anthropic (Claude)
-ANTHROPIC_API_KEY="sk-ant-your-anthropic-key-here"
+ANTHROPIC_API_KEY="sk-ant-DUMMY-ANTHROPIC-KEY"
 
 # Google (Gemini)
-GOOGLE_API_KEY="your-google-key-here"
+GOOGLE_API_KEY="GOOGLE-DUMMY-KEY-FOR-DOCS"
 
 # GROQ (Fast LLM)
-GROQ_API_KEY="gsk_your-groq-key-here"
+GROQ_API_KEY="gsk_GROQ-DUMMY-KEY-FOR-DOCS"
 
 # QWEN (Alibaba)
-QWEN_API_KEY="your-qwen-key-here"
+QWEN_API_KEY="QWEN-DUMMY-KEY-FOR-DOCS"
 
 # Azure OpenAI
-AZURE_OPENAI_API_KEY="your-azure-key-here"
-AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
-AZURE_OPENAI_DEPLOYMENT="your-deployment-name"
+AZURE_OPENAI_API_KEY="AZURE-DUMMY-KEY-FOR-DOCS"
+AZURE_OPENAI_ENDPOINT="https://DUMMY-RESOURCE.openai.azure.com/"
+AZURE_OPENAI_DEPLOYMENT="DUMMY-DEPLOYMENT"
 ```
 
 ---
@@ -423,7 +423,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60  # Longer for dev
 
 ```env
 ACTIVE_LLM_PROVIDER="openai"
-OPENAI_API_KEY="sk-test-key-here"
+OPENAI_API_KEY=sk-OPENAI-DUMMY-KEY-FOR-DOCS              # Required
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 ```
 
