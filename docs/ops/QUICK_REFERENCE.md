@@ -61,7 +61,7 @@ pytest tests/ -v
 ## 🔑 Key Configuration (.env)
 
 ```env
-OPENAI_API_KEY=sk-...              # Required
+OPENAI_API_KEY=sk-DUMMY-KEY-FOR-DOCS              # Required
 DATABASE_URL=sqlite+aiosqlite:///./reviews.db
 SECRET_KEY=change-in-production    # Change!
 VOICE_ENABLED=true
