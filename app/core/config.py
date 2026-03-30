@@ -65,7 +65,7 @@ class Settings(BaseSettings):
         return value
     
     class Config:
-        env_file = ".env"
+        env_file = (".env", "env.non-prod.gcp", "env.local")
         case_sensitive = True
         extra = "ignore"
 

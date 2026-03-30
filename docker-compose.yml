@@ -9,12 +9,12 @@ services:
   # --------------------------------------------
   # Application Service
   # --------------------------------------------
-  app:
+  reviewbot-app:
     build:
       context: .
       dockerfile: Dockerfile
       target: ${BUILD_TARGET:-production}
-    container_name: ai-review-agent
+    container_name: reviewbot-app
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
@@ -23,7 +23,7 @@ services:
       - DEBUG=${DEBUG:-true}
 
       # Database (PostgreSQL)
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://review_user:review_password_change_me@db:5432/reviews_db}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://review_user:review_password_change_me@reviewbot-db:5432/reviews_db}
 
       # API Keys - Multiple LLM Support (Configure all, but only one active at a time)
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
@@ -66,7 +66,7 @@ services:
       - .:/app:cached
       
     depends_on:
-      db:
+      reviewbot-db:
         condition: service_healthy
     networks:
       - ai-review-network
@@ -81,9 +81,9 @@ services:
   # --------------------------------------------
   # Database Service (PostgreSQL)
   # --------------------------------------------
-  db:
+  reviewbot-db:
     image: postgres:15-alpine
-    container_name: ai-review-db
+    container_name: reviewbot-db
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres_admin_password

@@ -3,5 +3,4 @@
 __all__ = [
     "orchestrator",
     "progress",
-    "strategy_router",
 ]

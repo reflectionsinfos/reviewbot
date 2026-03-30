@@ -10,6 +10,7 @@ Available Agents:
 - (Future) analytics_agent: For trend analysis and insights
 """
 
-from app.agents.review_agent.agent import ReviewAgent
+from app.agents.review_agent.review_agent import ReviewAgent
+from app.agents.strategy_router_agent import StrategyRouter
 
-__all__ = ["ReviewAgent"]
+__all__ = ["ReviewAgent", "StrategyRouter"]

@@ -4,7 +4,7 @@ Performs regex searches across source files. Objective, no LLM needed.
 """
 from .base import AnalysisResult
 from ..connectors.local_folder import FileIndex
-from ..strategy_router import StrategyConfig
+from app.agents.strategy_router_agent import StrategyConfig
 
 
 class PatternScanAnalyzer:

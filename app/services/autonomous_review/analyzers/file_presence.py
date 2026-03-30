@@ -4,7 +4,7 @@ Checks whether expected files or directories exist in the project.
 """
 from .base import AnalysisResult
 from ..connectors.local_folder import FileIndex
-from ..strategy_router import StrategyConfig
+from app.agents.strategy_router_agent import StrategyConfig
 
 
 class FilePresenceAnalyzer:

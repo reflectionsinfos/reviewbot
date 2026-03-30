@@ -12,7 +12,7 @@ from typing import Any, List
 from .base import AnalysisResult
 from ..connectors.llm import get_llm_client, pick_model
 from ..connectors.local_folder import FileIndex
-from ..strategy_router import StrategyConfig
+from app.agents.strategy_router_agent import StrategyConfig
 
 logger = logging.getLogger(__name__)
 

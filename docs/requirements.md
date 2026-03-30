@@ -1069,6 +1069,24 @@ Become the industry-standard AI platform for comprehensive organizational review
 
 ## Acceptance Criteria (Definition of Done)
 
+### NFR-2: Scalability & Production Infrastructure
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| NFR-2.1 | Support deployment to GCP Cloud Run (Serverless) | Must Have | Done |
+| NFR-2.2 | Use GCP Cloud SQL (Managed PostgreSQL 15) for persistence | Must Have | Done |
+| NFR-2.3 | Implement automated primary key sequence repair for Cloud SQL | Must Have | Done |
+| NFR-2.4 | Support at least 10 concurrent autonomous review jobs | Should Have | In Progress |
+| NFR-2.5 | Environment isolation via `env.*` files (local vs prod) | Must Have | Done |
+
+### NFR-3: Security & secrets
+
+| ID | Requirement | Priority | Status |
+|----|-------------|----------|--------|
+| NFR-3.1 | No hardcoded secrets in deployment scripts | Must Have | Done |
+| NFR-3.2 | JWT-based auth for all management endpoints | Must Have | Done |
+| NFR-3.3 | Encrypted database connection (SSL/TLS) for Cloud SQL | Must Have | Done |
+
 ### Code Quality
 - [ ] All functions have type hints
 - [ ] All public methods have docstrings

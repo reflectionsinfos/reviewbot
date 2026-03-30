@@ -115,7 +115,42 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Override Workflow & Dual Reporting
+## 🛠️ How it Works (Actual Implementation)
+
+The ReviewBot Autonomous Review engine follows a high-efficiency flow designed to scan thousands of files without crashing or exceeding LLM rate limits.
+
+### 1. Job Initiation & File Indexing
+
+When a review job is triggered (via `POST /api/autonomous-reviews/`), the system:
+- Connects to the workspace (e.g., `LocalFolderConnector`).
+- **Indexes the files**: It builds a metadata-only index of the project, skipping `node_modules`, `.git`, `venv`, and other non-source binaries.
+- **Project Context Generation**: Extracts the `tech_stack` and `domain` from the `Project` model to inform analyzers.
+
+### 2. Strategy-Based Routing (The Router)
+
+The **Strategy Router** (`app/services/autonomous_review/strategy_router.py`) evaluates each checklist item and assigns it to specialized **Analyzers**. The distribution varies per checklist; for example, the **Standard Technical Checklist** typically reflects:
+
+- **human_required (approx. 43%)**: Items requiring expert human judgment (e.g., team morale, budget governance).
+- **llm_analysis (approx. 34%)**: Contextual evaluation of docs, architecture, and code structure.
+- **file_presence (approx. 13%)**: Fast verification of required project artifacts (CI configs, README, etc.).
+- **pattern_scan (approx. 7%)**: Regex-based detection of security/code patterns.
+- **metadata_check (approx. 3%)**: Automated inspection of version/threshold metadata in config files.
+
+### 3. Asynchronous Execution & Real-Time Sync
+
+- **Orchestrator**: The `orchestrator.py` service runs these analyzers in an async loop.
+- **Live Output**: Results are broadcasted in real-time via **WebSockets** (`/ws/autonomous-reviews/{job_id}`) so the user sees results as they are found.
+- **Persistence**: Each result is saved to the `AutonomousReviewResult` table immediately.
+
+### 4. Report Generation
+
+Upon job completion:
+- The system calculates the **Compliance Score** (Weighted RAG sum / Total applicable weight).
+- Generates a structured **Report** containing itemized findings and high-level summaries.
+- The report moves to the **Approval Workflow**, requiring a Human `ReportApproval` before final distribution.
+
+### Legacy Concept: Override Workflow & Dual Reporting
+(This feature is currently in roadmap)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐

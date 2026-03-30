@@ -18,7 +18,7 @@ from app.models import (
     ChecklistItem, Checklist,
 )
 from .connectors.agent_scan import AgentFileIndex
-from .strategy_router import StrategyRouter
+from app.agents.strategy_router_agent import StrategyRouter
 from .analyzers.file_presence import FilePresenceAnalyzer
 from .analyzers.pattern_scan import PatternScanAnalyzer
 from .analyzers.llm_analyzer import LLMAnalyzer

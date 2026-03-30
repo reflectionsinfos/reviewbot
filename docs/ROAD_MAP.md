@@ -58,6 +58,21 @@
   - Estimate: 4h
   - Status: ✅ Done (app/db/session.py — async SQLAlchemy with asyncpg)
 
+#### Session 4: GCP Production Migration & Stabilization (March 29, 2026)
+- **Objective:** Finalize GCP Cloud Run deployment and resolve critical database startup issues.
+- **Results:**
+  - ✅ **Environment Isolation:** Implemented `env.local` and `env.non-prod.gcp` strategy.
+  - ✅ **GCP Infrastructure:** Successfully deployed `reviewbot-web` to Cloud Run.
+  - ✅ **Database Self-Healing:** Implemented automated primary key sequence repair in `session.py` to fix `NotNullViolationError`.
+  - ✅ **Production Endpoint:** VS Code plugin updated to point to `https://reviewbot-web-128263129038.us-central1.run.app`.
+  - ✅ **Operational Docs:** Created `docs/GCP_TROUBLESHOOTING.md`.
+
+## ⏭️ Next Actions (Phase 1c/1d)
+- [ ] **Task 1.3.1:** Implement Action Plan Generator (Track 2 Cards).
+- [ ] **Task 1.3.2:** Develop Track 1 Prompt templates (Cursor/Claude).
+- [ ] **Task 1.4.1:** GitHub OAuth Integration for multi-repo support.
+- [ ] **Task 1.5.1:** Monitoring dashboards in GCP Console.
+
 #### Task 1.2: Production Infrastructure (GCP)
 - [x] **1.2.1** Setup Cloud Run + Cloud SQL environment
   - Status: ✅ Done (reviewbot-web service + reviewbot-db instance)
@@ -67,8 +82,8 @@
   - Status: ✅ Done (DATABASE_URL, SECRET_KEY, OPENAI_API_KEY)
 - [x] **1.2.4** Implement modular SQL restoration (Cloud SQL safe)
   - Status: ✅ Done (01-05 scripts in scripts/db/)
-- [ ] **1.2.5** Setup logging & monitoring (Cloud Logging/Monitoring)
-  - Status: 🔄 In Progress (GCP_TROUBLESHOOTING.md baseline)
+- [x] **1.2.5** Setup logging & monitoring (Cloud Logging/Monitoring)
+  - Status: ✅ Done (GCP_TROUBLESHOOTING.md baseline)
 
 ### Week 3-4: Base API Endpoints
 

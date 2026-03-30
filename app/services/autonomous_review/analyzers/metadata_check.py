@@ -7,7 +7,7 @@ import re
 import json
 from .base import AnalysisResult
 from ..connectors.local_folder import FileIndex
-from ..strategy_router import StrategyConfig
+from app.agents.strategy_router_agent import StrategyConfig
 
 # Known deprecated/EOL packages (extend as needed)
 DEPRECATED_PYTHON = {

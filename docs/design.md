@@ -1094,19 +1094,6 @@ environment:
 
 ---
 
-## GCP Production Infrastructure
-
-### Cloud Run (reviewbot-web)
-- **Service**: `reviewbot-web`
-- **Region**: `us-central1`
-- **CPU/Memory**: 1 CPU / 1GB RAM (standard tier)
-- **Connectivity**: Managed DB Connector (Sidecar VPC)
-
-### Cloud SQL (reviewbot-db)
-- **Instance**: `reviewbot-db`
-- **Database Name**: `reviews_db_dev1` (Sandbox) / `reviews_db` (Production)
-- **Engine**: PostgreSQL 15.6
-- **Storage**: SSD (10GB starting)
 
 ### Environment Synchronization
 Production environment variables are managed directly in Cloud Run, including:

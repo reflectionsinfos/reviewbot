@@ -25,7 +25,7 @@ from app.models import (
     AutonomousReviewJob, AutonomousReviewResult, AutonomousReviewOverride,
     Project, Checklist, ChecklistItem, User,
 )
-from app.services.autonomous_review.orchestrator_agent import run_agent_review
+from app.services.autonomous_review.agent_orchestrator import run_agent_review
 
 router = APIRouter()
 

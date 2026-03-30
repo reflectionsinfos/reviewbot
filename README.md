@@ -30,12 +30,23 @@ An AI-powered platform for conducting structured technical and delivery project 
 | Reports | ReportLab (PDF) + Markdown |
 
 ## 🌍 Live URL (Production - GCP)
+
 The production environment is hosted on Google Cloud Platform:
 - **Service URL**: [https://reviewbot-web-128263129038.us-central1.run.app](https://reviewbot-web-128263129038.us-central1.run.app)
 - **Status Endpoint**: [/api/status](https://reviewbot-web-128263129038.us-central1.run.app/api/status)
-- **Health Check**: [/health](https://reviewbot-web-128263129038.us-central1.run.app/health)
+- **Environment**: Production (Non-prod sandbox)
+- **Operational Docs**: [docs/GCP_TROUBLESHOOTING.md](docs/GCP_TROUBLESHOOTING.md)
 
-For GCP maintenance and troubleshooting, refer to [docs/GCP_TROUBLESHOOTING.md](docs/GCP_TROUBLESHOOTING.md).
+---
+
+## 🛠️ Environment Isolation (Best Practice)
+
+We now use strict environment isolation for security and reliability:
+- **`env.local`**: Local development (Docker).
+- **`env.non-prod.gcp`**: Production deployment to GCP Cloud Run.
+- **`.gitignore`**: Updated to protect all environment files.
+
+To deploy to production, fill `env.non-prod.gcp` and run `.\gcp_scripts\05_deploy_app.ps1`.
 
 ---
 
@@ -116,12 +127,12 @@ Creates these users (password: **`Admin@123`**):
 | reviewer@reviewbot.com | reviewer |
 
 #### Option B — Run modular SQL restoration (Production-Ready)
-For Cloud SQL or production environments, use the modular SQL units in `scripts/db/` to ensure sequence-aware restoration.
+For Cloud SQL or production environments, use the modular SQL units in `scripts/db/`. **ReviewBot now features automated "Self-Healing" primary key sequence repair** on startup — no more `IntegrityError` during high-volume imports!
 
 ```bash
-# Order of execution:
+# Order of execution (if manual restore is needed):
 1. scripts/db/01_extensions.sql
-2. scripts/db/02_tables.sql
+2. scripts/db/02_tables.sql  (reordered for sequence safety)
 3. scripts/db/03_constraints.sql
 4. scripts/db/04_indexes.sql
 5. scripts/db/05_data.sql
@@ -222,15 +233,17 @@ The autonomous review feature scans a source codebase against a checklist — no
 4. Results stream live via WebSocket
 5. Final report available at `GET /api/autonomous-reviews/{job_id}/report`
 
-### Strategy distribution (152 checklist items)
+### Typical Strategy Distribution (Standard Technical Checklist Example)
 
-| Strategy | Items | Examples |
+The distribution of items across strategies varies by checklist. For the **Standard Technical Checklist (152 items)**, the typical breakdown is:
+
+| Strategy | Items (Approx.) | Examples |
 |----------|-------|---------|
 | human_required | 43% | Budget, CSAT, team morale, governance, escalations |
-| llm_analysis | 34% | Code quality, architecture, documentation completeness |
-| file_presence | 13% | CI/CD config, README, HLD/LLD docs, Dockerfile |
-| pattern_scan | 7% | Secrets detection, test count, HTTPS usage |
-| metadata_check | 3% | Dependabot/Snyk config, coverage thresholds |
+| llm_analysis | 34% | Code quality review, architecture documentation |
+| file_presence | 13% | CI/CD config files, README, HLD/LLD docs |
+| pattern_scan | 7% | Secrets detection, HTTPS usage, test count |
+| metadata_check | 3% | Dependabot/Snyk configuration, coverage thresholds |
 
 ---
 

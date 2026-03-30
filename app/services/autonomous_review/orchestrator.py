@@ -14,7 +14,7 @@ from app.models import (
     ChecklistItem, Checklist, ChecklistRoutingRule,
 )
 from .connectors.local_folder import LocalFolderConnector
-from .strategy_router import StrategyRouter, build_strategy_config_from_db
+from app.agents.strategy_router_agent import StrategyRouter, build_strategy_config_from_db
 from .analyzers.file_presence import FilePresenceAnalyzer
 from .analyzers.pattern_scan import PatternScanAnalyzer
 from .analyzers.llm_analyzer import LLMAnalyzer

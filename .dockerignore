@@ -26,7 +26,12 @@ env/
 # Environment variables
 .env
 .env.local
+.env.staging
 .env.production
+env.local
+env.non-prod.gcp
+env.*
+*.env
 
 # Database (SQLite)
 *.db
@@ -42,6 +47,7 @@ chroma_db/
 
 # Logs
 *.log
+*.log.*
 logs/
 
 # OS
