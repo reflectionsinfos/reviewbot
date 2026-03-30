@@ -125,7 +125,6 @@ async def _migrate_checklist_item_review_flag(conn, log: logging.Logger) -> None
     if "is_required" not in columns:
         return
 
-    dialect = conn.dialect.name
 
     if "is_review_mandatory" not in columns:
         await conn.execute(
