@@ -44,6 +44,23 @@ AI-powered platform for structured technical and delivery project reviews. Suppo
 
 ---
 
+## Local Development — Auto-Login
+
+When `APP_ENV=local` (set in `env.local`), the app exposes `GET /api/auth/dev-config` which returns the dev credentials. All frontend pages call this on load and auto-submit the login form — **zero clicks to get in**.
+
+Credentials are stored only in `env.local` (git-ignored). The endpoint returns `404` in all non-local environments.
+
+```env
+# env.local
+APP_ENV=local
+DEV_AUTO_LOGIN_EMAIL=admin@reviewbot.com
+DEV_AUTO_LOGIN_PASSWORD=Reflect@123
+```
+
+See [DEVELOPER_NOTES.md](DEVELOPER_NOTES.md) for full local dev setup.
+
+---
+
 ## Running Locally
 
 ### Prerequisites

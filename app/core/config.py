@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     APP_NAME: str = "AI Tech & Delivery Review Agent"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
+    APP_ENV: str = "production"  # local | production
+
+    # Dev auto-login (only used when APP_ENV=local, never exposed in production)
+    DEV_AUTO_LOGIN_EMAIL: Optional[str] = None
+    DEV_AUTO_LOGIN_PASSWORD: Optional[str] = None
     
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://review_user:review_password@localhost:5432/reviews_db"

@@ -1231,7 +1231,7 @@
     if (isTokenExpired(TOKEN)) {
       TOKEN = '';
       localStorage.removeItem('rb_token');
-      // auth overlay stays visible — user must re-login
+      if (window.tryDevAutoLogin) window.tryDevAutoLogin();
     } else {
       document.getElementById('auth-overlay').style.display = 'none';
       // Check if URL has a report ID (e.g. /history/42) — load it directly
@@ -1242,6 +1242,8 @@
         loadHistory();
       }
     }
+  } else {
+    if (window.tryDevAutoLogin) window.tryDevAutoLogin();
   }
 </script>
 </body>

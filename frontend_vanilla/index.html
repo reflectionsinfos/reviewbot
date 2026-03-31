@@ -566,12 +566,14 @@ if (token) {
   if (isTokenExpired(token)) {
     token = '';
     localStorage.removeItem('rb_token');
-    // auth overlay stays visible
+    if (window.tryDevAutoLogin) window.tryDevAutoLogin();
   } else {
     document.getElementById('auth-overlay').style.display = 'none';
     if (window.updateSharedUserInfo) window.updateSharedUserInfo();
     loadProjects();
   }
+} else {
+  if (window.tryDevAutoLogin) window.tryDevAutoLogin();
 }
 
 // ── API helpers ────────────────────────────────────────────────────────────────

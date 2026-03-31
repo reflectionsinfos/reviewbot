@@ -372,6 +372,7 @@
     } else {
       if (tok) localStorage.removeItem(TOKEN_KEY); // clear expired token
       showLogin();
+      if (window.tryDevAutoLogin) window.tryDevAutoLogin();
     }
   });
 </script>

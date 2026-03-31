@@ -431,14 +431,15 @@
   }
 
   if (TOKEN) {
-    if (isTokenExpired(TOKEN)) { TOKEN = ''; localStorage.removeItem('rb_token'); document.getElementById('auth-overlay').style.display = 'flex'; }
-    else { 
-      document.getElementById('auth-overlay').style.display = 'none'; 
+    if (isTokenExpired(TOKEN)) { TOKEN = ''; localStorage.removeItem('rb_token'); document.getElementById('auth-overlay').style.display = 'flex'; if (window.tryDevAutoLogin) window.tryDevAutoLogin(); }
+    else {
+      document.getElementById('auth-overlay').style.display = 'none';
       if (window.updateSharedUserInfo) window.updateSharedUserInfo();
-      parseTokenAndLoad(); 
+      parseTokenAndLoad();
     }
   } else {
     document.getElementById('auth-overlay').style.display = 'flex';
+    if (window.tryDevAutoLogin) window.tryDevAutoLogin();
   }
 
   async function api(path, opts = {}) {

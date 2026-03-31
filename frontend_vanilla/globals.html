@@ -285,7 +285,7 @@
     loadTemplates();
   }
   if (TOKEN && !isTokenExpired(TOKEN)) { document.getElementById('auth-overlay').style.display='none'; parseTokenAndLoad(); }
-  else { document.getElementById('auth-overlay').style.display='flex'; }
+  else { document.getElementById('auth-overlay').style.display='flex'; if (window.tryDevAutoLogin) window.tryDevAutoLogin(); }
 
   async function api(path, opts = {}) {
     try {

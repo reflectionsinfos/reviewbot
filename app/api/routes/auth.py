@@ -135,6 +135,19 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     }
 
 
+@router.get("/dev-config")
+async def dev_config():
+    """Return dev auto-login credentials — only available when APP_ENV=local"""
+    if settings.APP_ENV != "local":
+        raise HTTPException(status_code=404, detail="Not found")
+    if not settings.DEV_AUTO_LOGIN_EMAIL or not settings.DEV_AUTO_LOGIN_PASSWORD:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {
+        "email": settings.DEV_AUTO_LOGIN_EMAIL,
+        "password": settings.DEV_AUTO_LOGIN_PASSWORD,
+    }
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str

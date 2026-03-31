@@ -182,6 +182,21 @@ async function updateSharedUserInfo() {
 
 window.updateSharedUserInfo = updateSharedUserInfo;
 
+/* ── Dev Auto-Login (local only) ─────────────────────────────────────────── */
+async function tryDevAutoLogin() {
+  try {
+    const res = await fetch('/api/auth/dev-config');
+    if (!res.ok) return; // 404 in production — silent, do nothing
+    const cfg = await res.json();
+    const emailEl = document.getElementById('login-email');
+    const pwdEl   = document.getElementById('login-password');
+    if (emailEl) emailEl.value = cfg.email;
+    if (pwdEl)   pwdEl.value   = cfg.password;
+    if (typeof window.login === 'function') await window.login();
+  } catch { /* network error or non-local env — silent */ }
+}
+window.tryDevAutoLogin = tryDevAutoLogin;
+
 /* ── Change Password ─────────────────────────────────────────────────────── */
 
 function openChangePassword() {
