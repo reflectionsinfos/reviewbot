@@ -260,3 +260,255 @@ Token stored at `~/.reviewbot/config.json`, expires after 8 hours.
 | Config | `env.non-prod.gcp` |
 | DB | Cloud SQL (PostgreSQL 15) — `reviewbot-db` instance |
 | `APP_ENV` | Not set (defaults to `production`) — auto-login disabled |
+
+---
+
+## GCP Deployment — Full Reference
+
+### GCP Resources
+
+| Resource | Name / ID |
+|----------|-----------|
+| Project ID | `reviewbot-491619` |
+| Region | `us-central1` |
+| Cloud Run service | `reviewbot-web` |
+| Cloud SQL instance | `reviewbot-db` (PostgreSQL 15, `db-f1-micro`, 10 GB HDD) |
+| Database | `reviews_db` |
+| DB user | `review_user` |
+| Artifact Registry | `reviewbot-repo` (Docker, `us-central1`) |
+| GCS bucket | `reviewbot-491619-artifacts` |
+| Service Account | `reviewbot-runtime@reviewbot-491619.iam.gserviceaccount.com` |
+
+### IAM Roles for `reviewbot-runtime`
+
+| Role | Purpose |
+|------|---------|
+| `roles/cloudsql.client` | Connect to Cloud SQL |
+| `roles/storage.objectAdmin` | Read/write GCS bucket |
+| `roles/secretmanager.secretAccessor` | Read secrets |
+| `roles/logging.logWriter` | Write Cloud Logging |
+| `roles/run.invoker` | Invoke Cloud Run (for internal calls) |
+
+---
+
+### First-Time Setup (run scripts in order)
+
+All scripts are in `gcp_scripts\`. Run from PowerShell:
+
+```powershell
+cd c:\projects\reviewbot
+
+# Step 1 — Enable required GCP APIs
+.\gcp_scripts\01_enable_apis.ps1
+# Enables: Cloud Run, Cloud SQL, Artifact Registry, Cloud Build,
+#          Secret Manager, Cloud Storage, IAM
+
+# Step 2 — Create service account + assign IAM roles
+.\gcp_scripts\02_setup_iam.ps1
+
+# Step 3 — Create Artifact Registry, GCS bucket, Secret Manager placeholders
+.\gcp_scripts\03_create_infra.ps1
+# Creates secrets: DATABASE_URL, OPENAI_API_KEY, GROQ_API_KEY,
+#                  SECRET_KEY, ACTIVE_LLM_PROVIDER
+
+# Step 4 — Create Cloud SQL instance + database + user
+.\gcp_scripts\04_create_db.ps1
+# Creates: PostgreSQL 15, db-f1-micro, 10 GB HDD
+# Takes ~5 minutes
+
+# Step 5 — Build & deploy to Cloud Run
+.\gcp_scripts\05_deploy_app.ps1
+# Reads env.non-prod.gcp, builds via Cloud Build, deploys to Cloud Run
+```
+
+---
+
+### `env.non-prod.gcp` Configuration
+
+This file is git-ignored. Required variables:
+
+```env
+# LLM
+ACTIVE_LLM_PROVIDER=groq        # or openai, anthropic, google, etc.
+GROQ_API_KEY=your-groq-key
+
+# Database — filled by 04_create_db.ps1 output
+DB_USER=review_user
+DB_PASS=<your-db-password>
+DB_NAME=reviews_db
+
+# Security
+SECRET_KEY=<generate: python -c "import secrets; print(secrets.token_urlsafe(32))">
+
+# IMPORTANT: do NOT set APP_ENV=local here — it would expose dev credentials
+```
+
+**Cloud SQL connection URL** (used inside Cloud Run — Unix socket, not TCP):
+```
+postgresql+asyncpg://review_user:<pass>@/reviews_db?host=/cloudsql/reviewbot-491619:us-central1:reviewbot-db
+```
+
+---
+
+### Re-deploy After Code Changes
+
+```powershell
+.\gcp_scripts\05_deploy_app.ps1
+```
+
+The script:
+1. Reads credentials from `env.non-prod.gcp`
+2. Builds the Docker image via Cloud Build (pushes to Artifact Registry)
+3. Deploys to Cloud Run with `--allow-unauthenticated`, port 8000
+4. Attaches Cloud SQL instance for Unix socket connection
+
+---
+
+### Local Access to Cloud SQL (SQL Proxy)
+
+To connect DBeaver or psql to the GCP database from your Windows machine:
+
+```powershell
+.\gcp_scripts\run_sql_proxy.ps1
+# Runs: cloud-sql-proxy reviewbot-491619:us-central1:reviewbot-db --port 5432
+```
+
+Then connect DBeaver to: `localhost:5432 / reviews_db / review_user`
+
+---
+
+### gcloud Cheat Sheet
+
+**Cloud Run**
+```bash
+# View service details
+gcloud run services describe reviewbot-web --region us-central1
+
+# Stream live logs
+gcloud run services logs tail reviewbot-web --region us-central1
+
+# List revisions
+gcloud run revisions list --service reviewbot-web --region us-central1
+
+# Force redeploy latest image (no code change)
+gcloud run services update reviewbot-web --region us-central1 --image \
+  us-central1-docker.pkg.dev/reviewbot-491619/reviewbot-repo/reviewbot:latest
+
+# Set/update an env var
+gcloud run services update reviewbot-web --region us-central1 \
+  --set-env-vars ACTIVE_LLM_PROVIDER=openai
+```
+
+**Cloud SQL**
+```bash
+# Check instance status
+gcloud sql instances describe reviewbot-db
+
+# Connect via Cloud SQL Auth Proxy (interactive psql)
+cloud-sql-proxy reviewbot-491619:us-central1:reviewbot-db --port 5432
+# then: psql -h 127.0.0.1 -U review_user -d reviews_db
+
+# Run a migration (from inside Cloud Run shell or via proxy)
+docker-compose exec app alembic upgrade head   # (local)
+# For GCP: gcloud run jobs create ... or exec via proxy + psql
+
+# List databases
+gcloud sql databases list --instance reviewbot-db
+
+# Restart instance
+gcloud sql instances restart reviewbot-db
+```
+
+**Artifact Registry**
+```bash
+# List images
+gcloud artifacts docker images list \
+  us-central1-docker.pkg.dev/reviewbot-491619/reviewbot-repo
+
+# Authenticate Docker to Artifact Registry
+gcloud auth configure-docker us-central1-docker.pkg.dev
+```
+
+**Secret Manager**
+```bash
+# List secrets
+gcloud secrets list --project reviewbot-491619
+
+# View a secret value
+gcloud secrets versions access latest --secret SECRET_KEY --project reviewbot-491619
+
+# Update a secret
+echo -n "new-value" | gcloud secrets versions add GROQ_API_KEY --data-file=-
+```
+
+**GCS**
+```bash
+# List bucket contents
+gsutil ls gs://reviewbot-491619-artifacts/
+
+# Copy a file up
+gsutil cp ./report.pdf gs://reviewbot-491619-artifacts/reports/
+```
+
+**Auth / Account**
+```bash
+# Check active account
+gcloud auth list
+
+# Switch project
+gcloud config set project reviewbot-491619
+
+# Generate application default credentials (for local SDK calls)
+gcloud auth application-default login
+```
+
+---
+
+### Cloud Run Operations
+
+```bash
+# Check current deployed URL
+gcloud run services describe reviewbot-web --region us-central1 \
+  --format "value(status.url)"
+
+# View recent logs (last 50 lines)
+gcloud logging read "resource.type=cloud_run_revision AND \
+  resource.labels.service_name=reviewbot-web" \
+  --limit 50 --format "table(timestamp,textPayload)"
+
+# Scale to zero (stop billing when idle)
+gcloud run services update reviewbot-web --region us-central1 --min-instances 0
+
+# Roll back to previous revision
+gcloud run services update-traffic reviewbot-web --region us-central1 \
+  --to-revisions PREV_REVISION=100
+```
+
+---
+
+### Teardown (Destructive — Deletes Everything)
+
+```powershell
+.\gcp_scripts\cleanup_all.ps1
+```
+
+Deletes in order: Cloud Run service → Cloud SQL instance → Artifact Registry → Service Account → Secret Manager secrets. **Prompts for confirmation before each step.**
+
+> **Warning:** Deleting the Cloud SQL instance is irreversible. All database data will be lost unless you have a backup.
+
+---
+
+### GCP Troubleshooting
+
+| Error | Fix |
+|-------|-----|
+| `PERMISSION_DENIED` on deploy | Run `gcloud auth login` and check `reviewbot-runtime` IAM roles |
+| Cloud Run can't reach Cloud SQL | Verify `--add-cloudsql-instances` flag in deploy script and SA has `cloudsql.client` role |
+| `connection refused` via SQL Proxy | Check `cloud-sql-proxy` is running and using the correct instance connection name |
+| Image push fails | Run `gcloud auth configure-docker us-central1-docker.pkg.dev` |
+| `APP_ENV=local` accidentally set in GCP | Remove it from `env.non-prod.gcp` — it exposes dev credentials |
+| Cloud Run returns 404 on all routes | Check startup logs — likely a missing env var or DB connection failure |
+| Secret not found at runtime | Verify secret name matches exactly and SA has `secretmanager.secretAccessor` |
+
+Full troubleshooting guide: `docs/GCP_TROUBLESHOOTING.md`
+Full architecture plan: `docs/gcp_deployment_plan.md`
