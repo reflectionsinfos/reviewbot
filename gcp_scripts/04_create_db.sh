@@ -67,5 +67,9 @@ else
 fi
 
 echo "✅ Cloud SQL instance and database ready."
-echo "   Database URL placeholder (manual setup for Secret Manager):"
-echo "   postgresql+asyncpg://$DATABASE_USER:$DB_PASSWORD@/reviews_db?unix_sock=/cloudsql/$PROJECT_ID:$REGION:$INSTANCE_NAME/.s.PGSQL.5432"
+echo ""
+echo "   DATABASE_URL for Cloud Run (copy into env.non-prod.gcp):"
+echo "   postgresql+asyncpg://$DATABASE_USER:$DB_PASSWORD@/$DATABASE_NAME?host=/cloudsql/$PROJECT_ID:$REGION:$INSTANCE_NAME"
+echo ""
+echo "   Next step: populate Secret Manager with the DATABASE_URL above:"
+echo "   echo -n 'postgresql+asyncpg://$DATABASE_USER:$DB_PASSWORD@/$DATABASE_NAME?host=/cloudsql/$PROJECT_ID:$REGION:$INSTANCE_NAME' | gcloud secrets versions add DATABASE_URL --data-file=-"

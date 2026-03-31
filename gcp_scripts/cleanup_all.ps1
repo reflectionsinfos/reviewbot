@@ -40,6 +40,7 @@ gcloud iam service-accounts delete "$saEmail" --quiet
 $secrets = @(
     "DATABASE_URL",
     "OPENAI_API_KEY",
+    "GROQ_API_KEY",
     "SECRET_KEY",
     "ACTIVE_LLM_PROVIDER"
 )

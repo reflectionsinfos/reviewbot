@@ -63,5 +63,9 @@ if ($userList.Contains($DatabaseUser)) {
 }
 
 Write-Host "✅ Cloud SQL instance and database ready." -ForegroundColor Green
-Write-Host "   Database URL placeholder (manual setup for Secret Manager):"
-Write-Host "   postgresql+asyncpg://${DatabaseUser}:${DatabasePassword}@/reviews_db?unix_sock=/cloudsql/${ProjectID}:${Region}:${InstanceName}/.s.PGSQL.5432" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "   DATABASE_URL for Cloud Run (copy into env.non-prod.gcp):" -ForegroundColor Yellow
+Write-Host "   postgresql+asyncpg://${DatabaseUser}:${DatabasePassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "   Next step: populate Secret Manager with the DATABASE_URL above:" -ForegroundColor Yellow
+Write-Host "   echo -n 'postgresql+asyncpg://${DatabaseUser}:${DatabasePassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}' | gcloud secrets versions add DATABASE_URL --data-file=-" -ForegroundColor Gray

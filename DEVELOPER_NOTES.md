@@ -217,9 +217,56 @@ Server URL: `https://reviewbot-web-128263129038.us-central1.run.app` (or `http:/
 
 ### CLI Agent
 
-```bash
-pip install reviewbot-agent
+The agent package is **not yet on PyPI**. Two install methods are available:
 
+#### Option A — Install from .whl (recommended)
+
+Download the pre-built wheel from the ReviewBot UI (AI Review page → CLI AGENT tab → **Download .whl**), then:
+
+```bash
+pip install reviewbot_agent-0.1.0-py3-none-any.whl
+```
+
+The `.whl` file is served from the ReviewBot server at:
+```
+/frontend_vanilla/downloads/reviewbot_agent-0.1.0-py3-none-any.whl
+```
+
+To rebuild the wheel after code changes:
+```bash
+cd c:\projects\reviewbot-agent
+python -m build --wheel
+# → dist/reviewbot_agent-0.1.0-py3-none-any.whl
+
+# Copy to reviewbot server downloads folder
+cp dist/reviewbot_agent-0.1.0-py3-none-any.whl \
+   c:\projects\reviewbot\frontend_vanilla\downloads\
+```
+
+#### Option B — Install from GitHub (once repo is published)
+
+Once `reviewbot-agent` is pushed to GitHub:
+```bash
+pip install git+https://github.com/reflectionsinfos/reviewbot-agent.git
+```
+
+To set up the remote (one-time, after creating the GitHub repo):
+```bash
+cd c:\projects\reviewbot-agent
+git remote add origin https://github.com/reflectionsinfos/reviewbot-agent.git
+git push -u origin main
+```
+
+#### Option C — Install from source zip
+
+Download the zip from the ReviewBot UI → CLI AGENT tab → **Download Source (.zip)**, then:
+```bash
+unzip reviewbot-agent.zip && cd reviewbot-agent && pip install .
+```
+
+#### After installing
+
+```bash
 # Login (no prior auth needed — this IS the auth step)
 reviewbot login --server http://localhost:8000
 
@@ -512,3 +559,50 @@ Deletes in order: Cloud Run service → Cloud SQL instance → Artifact Registry
 
 Full troubleshooting guide: `docs/GCP_TROUBLESHOOTING.md`
 Full architecture plan: `docs/gcp_deployment_plan.md`
+
+---
+
+## Future Enhancements / Roadmap
+
+Requirements captured here for planning. These are **not yet implemented**.
+
+### CLI Agent Distribution
+
+| # | Requirement | Notes |
+|---|-------------|-------|
+| UB-1 | Publish `reviewbot-agent` to PyPI | Enables `pip install reviewbot-agent` on any machine without downloading a file. Needs a PyPI account, API token, and version tagging workflow. |
+| UB-2 | Push `reviewbot-agent` to GitHub | Create `reflectionsinfos/reviewbot-agent` repo, set remote, push. Enables `pip install git+https://github.com/reflectionsinfos/reviewbot-agent.git` and standard open-source contribution flow. |
+| UB-3 | Auto-rebuild `.whl` on deploy | Add a CI/CD step in `05_deploy_app.ps1` (or a GitHub Action) to rebuild and copy the `.whl` to `frontend_vanilla/downloads/` whenever `reviewbot-agent` source changes, so the download link on the UI always serves the latest version. |
+| UB-4 | Version the `.whl` download link | Instead of a hardcoded filename (`reviewbot_agent-0.1.0-py3-none-any.whl`), serve via a stable redirect URL like `/downloads/reviewbot-agent-latest.whl` so the UI never needs updating on version bumps. |
+
+### VS Code Extension Distribution
+
+| # | Requirement | Notes |
+|---|-------------|-------|
+| UB-5 | Publish VS Code extension to VS Code Marketplace | Currently distributed as a manual `.vsix` download. Marketplace publish requires an Azure DevOps publisher account. |
+| UB-6 | Auto-rebuild `.vsix` on deploy | Similar to UB-3 — rebuild and copy the `.vsix` to `frontend_vanilla/downloads/` on deploy. |
+
+### Authentication & Security
+
+| # | Requirement | Notes |
+|---|-------------|-------|
+| UB-7 | OAuth / SSO login | Replace email+password with Google/Microsoft OAuth for enterprise deployments. |
+| UB-8 | API key authentication | Allow service accounts (CI/CD pipelines) to authenticate with a long-lived API key instead of a short-lived JWT. |
+| UB-9 | Role-based checklist access | Restrict which checklists a user/role can run reviews against. |
+
+### Review Features
+
+| # | Requirement | Notes |
+|---|-------------|-------|
+| UB-10 | Watch mode in CLI agent (`--watch`) | Re-run review automatically when source files change. Stub exists in `cli.py` but not implemented. |
+| UB-11 | Incremental / diff reviews | Review only files changed since last review (git diff), not the full codebase. Reduces LLM cost and review time. |
+| UB-12 | GitHub Actions integration | Pre-built Action that runs `reviewbot review` on every PR and posts results as a PR comment. |
+| UB-13 | Webhook notifications | POST review completion + compliance score to a configurable webhook (Slack, Teams, Jira). |
+
+### Platform
+
+| # | Requirement | Notes |
+|---|-------------|-------|
+| UB-14 | Multi-tenancy / organisations | Isolate projects, users, and checklists by organisation. Currently all users share the same namespace. |
+| UB-15 | Scheduled autonomous reviews | Cron-triggered reviews against a repo (e.g., nightly scan of main branch). |
+| UB-16 | Cloud SQL to Cloud SQL Auth Proxy in production | Replace direct socket connection with Auth Proxy sidecar for better secret isolation. |

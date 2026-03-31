@@ -54,6 +54,7 @@ gcloud iam service-accounts delete "$SA_NAME@$PROJECT_ID.iam.gserviceaccount.com
 SECRETS=(
     "DATABASE_URL"
     "OPENAI_API_KEY"
+    "GROQ_API_KEY"
     "SECRET_KEY"
     "ACTIVE_LLM_PROVIDER"
 )

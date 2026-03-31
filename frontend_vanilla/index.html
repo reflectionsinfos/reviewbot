@@ -342,10 +342,16 @@
           <div class="tool-icon" style="background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#38bdf8;font-weight:bold;font-family:monospace;font-size:13px;">$_</div>
           <h3>ReviewBot CLI Agent</h3>
         </div>
-        <a href="/frontend_vanilla/downloads/reviewbot-agent.zip" class="download-btn" download>
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          Download Agent (.zip)
-        </a>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <a href="/frontend_vanilla/downloads/reviewbot_agent-0.1.0-py3-none-any.whl" class="download-btn" download>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download .whl
+          </a>
+          <a href="/frontend_vanilla/downloads/reviewbot-agent.zip" class="download-btn" style="background:#334155;" download>
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download Source (.zip)
+          </a>
+        </div>
       </div>
 
       <p style="color:#94a3b8;font-size:13px;margin:0 0 20px;">Run autonomous code reviews from your terminal or CI/CD pipeline. Commands below are <strong style="color:#38bdf8">pre-filled</strong> with your selected project and checklist.</p>
@@ -355,11 +361,15 @@
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
           <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">1</span>
           <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Install the agent</span>
-          <span style="font-size:11px;color:#475569;">— one time only</span>
+          <span style="font-size:11px;color:#475569;">— one time only, choose one method</span>
         </div>
         <div class="code-block" id="cli-install-cmd">
           <button class="copy-btn" onclick="copyCode('cli-install-cmd')">Copy</button>
-          <code>pip install reviewbot-agent</code>
+          <code id="cli-install-cmd-text"># Option A — from downloaded .whl (recommended, works offline)
+pip install reviewbot_agent-0.1.0-py3-none-any.whl
+
+# Option B — from source zip
+unzip reviewbot-agent.zip && cd reviewbot-agent && pip install .</code>
         </div>
       </div>
 

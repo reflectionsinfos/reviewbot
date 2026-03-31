@@ -39,6 +39,22 @@ Write-Host "  → Region: $Region" -ForegroundColor Gray
 
 $imageTag = "${Region}-docker.pkg.dev/${ProjectID}/${RepoName}/${ImageName}:latest"
 
+# 0. Rebuild CLI agent .whl so the download link on the UI stays current
+Write-Host "  → Rebuilding CLI agent .whl..." -ForegroundColor Gray
+$agentPath = Join-Path (Split-Path -Parent $PSScriptRoot) "..\reviewbot-agent"
+if (Test-Path $agentPath) {
+    Push-Location $agentPath
+    python -m build --wheel --quiet
+    $whl = Get-ChildItem dist\reviewbot_agent-*.whl | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($whl) {
+        Copy-Item $whl.FullName "..\reviewbot\frontend_vanilla\downloads\" -Force
+        Write-Host "    ✓ Copied $($whl.Name) to frontend_vanilla/downloads/" -ForegroundColor Gray
+    }
+    Pop-Location
+} else {
+    Write-Host "    ⚠ reviewbot-agent not found at $agentPath — skipping .whl rebuild." -ForegroundColor Yellow
+}
+
 # 1. Build and push image via Cloud Build
 Write-Host "  → Building image via Cloud Build..." -ForegroundColor Gray
 gcloud builds submit --tag "$imageTag" . --quiet
