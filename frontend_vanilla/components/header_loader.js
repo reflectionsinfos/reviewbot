@@ -42,7 +42,14 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       });
 
-      updateSharedUserInfo();
+      userInfoSyncInterval = setInterval(function() {
+        if (document.getElementById('shared-user-name')) {
+          clearInterval(userInfoSyncInterval);
+          updateSharedUserInfo();
+        }
+      }, 50);
+      // Fallback: stop after 2s
+      setTimeout(() => clearInterval(userInfoSyncInterval), 2000);
     })
     .catch(function (error) {
       console.error('Header loader error:', error);
@@ -110,11 +117,11 @@ function decodeJwtPayload(token) {
 function extractUserInfo(payload) {
   if (!payload || typeof payload !== 'object') return null;
 
-  return {
-    email: payload.sub || payload.email || payload.preferred_username || payload.username || '',
-    name: payload.full_name || payload.name || '',
-    role: payload.role || payload.user_role || 'user'
-  };
+  const email = payload.sub || payload.email || payload.preferred_username || payload.username || '';
+  const name = payload.full_name || payload.name || '';
+  const role = payload.role || payload.user_role || 'user';
+
+  return { email, name, role };
 }
 
 async function fetchCurrentUser(token) {
@@ -143,29 +150,30 @@ async function updateSharedUserInfo() {
   }
 
   let tokenUserInfo = null;
-
   try {
-    tokenUserInfo = extractUserInfo(decodeJwtPayload(tok));
+    const payload = decodeJwtPayload(tok);
+    if (payload) {
+      tokenUserInfo = extractUserInfo(payload);
+    }
   } catch (e) {
     console.error('Error parsing token for header info:', e);
   }
 
   if (tokenUserInfo && (tokenUserInfo.name || tokenUserInfo.email)) {
     applySharedUserInfo(tokenUserInfo);
-  } else {
-    resetSharedUserInfo();
   }
 
-  if (tokenUserInfo && tokenUserInfo.name) {
-    return;
-  }
-
-  try {
-    const currentUser = await fetchCurrentUser(tok);
-    if (!currentUser.name && !currentUser.email) return;
-    applySharedUserInfo(currentUser);
-  } catch (e) {
-    console.error('Error loading current user for header info:', e);
+  // Always attempt to fetch absolute source of truth from /me if name is suspiciously generic
+  const currentName = document.getElementById('shared-user-name')?.textContent || '';
+  if (!currentName || currentName === 'User' || currentName === 'Admin') {
+    try {
+      const currentUser = await fetchCurrentUser(tok);
+      if (currentUser && (currentUser.name || currentUser.email)) {
+        applySharedUserInfo(currentUser);
+      }
+    } catch (e) {
+      console.warn('Could not refresh full user info from API:', e);
+    }
   }
 }
 
