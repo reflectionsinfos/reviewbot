@@ -418,11 +418,44 @@
         </div>
         <div class="code-block" id="cli-review-cmd">
           <button class="copy-btn" onclick="copyCode('cli-review-cmd')">Copy</button>
-          <code id="cli-review-cmd-text">reviewbot review \
-  --project-id &lt;project-id&gt; \
-  --checklist-id &lt;checklist-id&gt; \
-  --source-path ./your-project \
-  --output ./review-report.md</code>
+          <code id="cli-review-cmd-text">reviewbot review --project-id &lt;project-id&gt; --checklist-id &lt;checklist-id&gt; --source-path ./your-project --output ./review-report.md</code>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+          <span style="font-size:11px;color:#475569;">Tip: on bash/macOS you can split with <code style="font-size:10px;color:#64748b;">\</code> at end of each line for readability. On PowerShell use a backtick <code style="font-size:10px;color:#64748b;">`</code></span>
+          <button onclick="toggleCliExample()" id="cli-example-btn" style="background:none;border:1px solid #334155;color:#94a3b8;font-size:11px;border-radius:4px;padding:3px 10px;cursor:pointer;white-space:nowrap;margin-left:12px;">View example ▾</button>
+        </div>
+        <!-- Example panel -->
+        <div id="cli-example-panel" style="display:none;margin-top:10px;border:1px solid #1e3a4a;border-radius:8px;overflow:hidden;">
+          <div style="background:#0c2233;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:11px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:0.06em;">Example — reviewing a Node.js project</span>
+            <button class="copy-btn" style="position:static;opacity:1;" onclick="copyCode('cli-example-cmd')">Copy</button>
+          </div>
+          <div style="background:#071a27;padding:14px 16px;font-size:13px;line-height:1.8;">
+            <div style="color:#64748b;font-size:11px;margin-bottom:8px;">bash / macOS / Linux</div>
+            <div class="code-block" id="cli-example-cmd" style="margin:0 0 14px;">
+              <code>reviewbot review \
+  --project-id 3 \
+  --checklist-id 7 \
+  --source-path ~/projects/my-node-app \
+  --output ~/Desktop/review-report.md</code>
+            </div>
+            <div style="color:#64748b;font-size:11px;margin-bottom:8px;">PowerShell (Windows)</div>
+            <div class="code-block" id="cli-example-ps1" style="margin:0 0 14px;">
+              <button class="copy-btn" onclick="copyCode('cli-example-ps1')">Copy</button>
+              <code>reviewbot review `
+  --project-id 3 `
+  --checklist-id 7 `
+  --source-path C:\projects\my-node-app `
+  --output C:\Users\you\Desktop\review-report.md</code>
+            </div>
+            <div style="background:rgba(56,189,248,0.06);border-left:3px solid #0ea5e9;padding:8px 12px;border-radius:0 4px 4px 0;">
+              <div style="font-size:11px;color:#94a3b8;line-height:1.7;">
+                <strong style="color:#f1f5f9;">project-id</strong> and <strong style="color:#f1f5f9;">checklist-id</strong> — select from dropdowns above and the command auto-fills.<br/>
+                <strong style="color:#f1f5f9;">source-path</strong> — the root folder of the codebase you want reviewed.<br/>
+                <strong style="color:#f1f5f9;">output</strong> — where to save the Markdown report. Use an absolute path to avoid confusion.
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -671,7 +704,15 @@ function updateCliCommands() {
   const projectArg   = hasBoth ? pid : '<project-id>';
   const checklistArg = hasBoth ? cid : '<checklist-id>';
   cmdEl.textContent =
-    `reviewbot review \\\n  --project-id ${projectArg} \\\n  --checklist-id ${checklistArg} \\\n  --source-path ./your-project \\\n  --output ./review-report.md`;
+    `reviewbot review --project-id ${projectArg} --checklist-id ${checklistArg} --source-path ./your-project --output ./review-report.md`;
+}
+
+function toggleCliExample() {
+  const panel = document.getElementById('cli-example-panel');
+  const btn   = document.getElementById('cli-example-btn');
+  const open  = panel.style.display === 'none';
+  panel.style.display = open ? 'block' : 'none';
+  btn.textContent     = open ? 'Hide example ▴' : 'View example ▾';
 }
 
 async function onProjectChange() {
