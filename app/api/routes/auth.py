@@ -133,3 +133,29 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         "full_name": current_user.full_name,
         "role": current_user.role,
     }
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+async def change_password(
+    req: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change password for the currently authenticated user"""
+    if not verify_password(req.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    if len(req.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    result = await db.execute(select(User).where(User.id == current_user.id))
+    user = result.scalar_one()
+    user.hashed_password = get_password_hash(req.new_password)
+    await db.commit()
+
+    return {"message": "Password changed successfully"}

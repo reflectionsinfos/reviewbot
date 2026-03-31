@@ -145,6 +145,375 @@
     width: 16px;
     height: 16px;
   }
+  .shared-header .user-dropdown-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.05);
+    margin: 4px 0;
+  }
+
+  /* ── Change Password Modal ───────────────────────────────────────────────── */
+  #chpwd-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+  }
+  #chpwd-overlay.open { display: flex; }
+  #chpwd-modal {
+    background: #1e293b;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 32px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  }
+  #chpwd-modal h3 {
+    margin: 0 0 6px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+  #chpwd-modal .chpwd-subtitle {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 24px;
+  }
+  #chpwd-modal .chpwd-field {
+    margin-bottom: 16px;
+  }
+  #chpwd-modal .chpwd-field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  #chpwd-modal .chpwd-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  #chpwd-modal .chpwd-input-wrap input {
+    width: 100%;
+    background: #0f172a;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 10px 40px 10px 12px;
+    color: #e2e8f0;
+    font-size: 14px;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+  }
+  #chpwd-modal .chpwd-input-wrap input:focus {
+    border-color: #38bdf8;
+  }
+  #chpwd-modal .chpwd-eye {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #64748b;
+    padding: 2px;
+    font-size: 15px;
+    line-height: 1;
+  }
+  #chpwd-modal .chpwd-eye:hover { color: #94a3b8; }
+  #chpwd-strength {
+    height: 4px;
+    border-radius: 2px;
+    margin-top: 6px;
+    background: #0f172a;
+    overflow: hidden;
+  }
+  #chpwd-strength-bar {
+    height: 100%;
+    width: 0%;
+    border-radius: 2px;
+    transition: width 0.3s, background 0.3s;
+  }
+  #chpwd-strength-label {
+    font-size: 11px;
+    margin-top: 4px;
+    color: #64748b;
+  }
+  #chpwd-msg {
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  #chpwd-msg.success { background: rgba(16,185,129,0.15); color: #34d399; display: block; }
+  #chpwd-msg.error   { background: rgba(239,68,68,0.15);  color: #f87171; display: block; }
+  #chpwd-modal .chpwd-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 24px;
+  }
+  #chpwd-modal .chpwd-btn-cancel {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: transparent;
+    color: #94a3b8;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #chpwd-modal .chpwd-btn-cancel:hover { background: rgba(255,255,255,0.05); color: #e2e8f0; }
+  #chpwd-modal .chpwd-btn-save {
+    flex: 2;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  #chpwd-modal .chpwd-btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+  #chpwd-modal .chpwd-btn-save:not(:disabled):hover { opacity: 0.9; }
+
+  /* ── Manage Users Modal ──────────────────────────────────────────────────── */
+  #mgusers-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  #mgusers-overlay.open { display: flex; }
+  #mgusers-modal {
+    background: #1e293b;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 28px 32px;
+    width: 100%;
+    max-width: 760px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6);
+  }
+  #mgusers-modal .mgu-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  #mgusers-modal .mgu-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+  #mgusers-modal .mgu-header-actions { display: flex; gap: 10px; align-items: center; }
+  #mgusers-modal .mgu-btn-add {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #mgusers-modal .mgu-btn-add:hover { opacity: 0.9; }
+  #mgusers-modal .mgu-btn-close {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #94a3b8;
+    border-radius: 8px;
+    padding: 7px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  #mgusers-modal .mgu-btn-close:hover { color: #e2e8f0; }
+
+  /* Add User Form */
+  #mgu-add-form {
+    background: #0f172a;
+    border: 1px solid rgba(56,189,248,0.2);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  #mgu-add-form.open { display: block; }
+  #mgu-add-form h4 { margin: 0 0 16px; font-size: 14px; color: #38bdf8; font-weight: 600; }
+  #mgu-add-form .mgu-form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  #mgu-add-form .mgu-form-field { flex: 1; min-width: 160px; }
+  #mgu-add-form .mgu-form-field label { display: block; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
+  #mgu-add-form .mgu-form-field input,
+  #mgu-add-form .mgu-form-field select {
+    width: 100%;
+    background: #1e293b;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 7px;
+    padding: 8px 10px;
+    color: #e2e8f0;
+    font-size: 13px;
+    outline: none;
+    box-sizing: border-box;
+  }
+  #mgu-add-form .mgu-form-field input:focus,
+  #mgu-add-form .mgu-form-field select:focus { border-color: #38bdf8; }
+  #mgu-add-form .mgu-form-field select option { background: #1e293b; }
+  #mgu-add-form .mgu-form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+  #mgu-add-form .mgu-btn-submit {
+    padding: 8px 20px;
+    border-radius: 7px;
+    border: none;
+    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  #mgu-add-form .mgu-btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  #mgu-add-form .mgu-btn-cancel-add {
+    padding: 8px 16px;
+    border-radius: 7px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: none;
+    color: #94a3b8;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  /* Generated password box */
+  .mgu-pwd-reveal {
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-top: 12px;
+    display: none;
+  }
+  .mgu-pwd-reveal.show { display: block; }
+  .mgu-pwd-reveal .mgu-pwd-label { font-size: 11px; color: #34d399; font-weight: 600; margin-bottom: 6px; text-transform: uppercase; }
+  .mgu-pwd-reveal .mgu-pwd-value {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .mgu-pwd-reveal .mgu-pwd-text {
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    color: #f1f5f9;
+    letter-spacing: 1px;
+    flex: 1;
+  }
+  .mgu-pwd-reveal .mgu-copy-btn {
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: 1px solid rgba(52,211,153,0.4);
+    background: rgba(16,185,129,0.15);
+    color: #34d399;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .mgu-pwd-reveal .mgu-copy-btn:hover { background: rgba(16,185,129,0.25); }
+  .mgu-pwd-reveal .mgu-pwd-note { font-size: 11px; color: #64748b; margin-top: 6px; }
+
+  /* Users table */
+  #mgu-table-wrap { overflow-x: auto; }
+  #mgu-table-wrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #mgu-table-wrap th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.07); }
+  #mgu-table-wrap td { padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #cbd5e1; vertical-align: middle; }
+  #mgu-table-wrap tr:last-child td { border-bottom: none; }
+  #mgu-table-wrap tr:hover td { background: rgba(255,255,255,0.02); }
+  .mgu-role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .mgu-role-admin   { background: rgba(139,92,246,0.2); color: #a78bfa; }
+  .mgu-role-manager { background: rgba(14,165,233,0.2); color: #38bdf8; }
+  .mgu-role-reviewer{ background: rgba(100,116,139,0.2); color: #94a3b8; }
+  .mgu-status-active   { color: #34d399; font-size: 12px; }
+  .mgu-status-inactive { color: #f87171; font-size: 12px; }
+  .mgu-action-btn {
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: none;
+    color: #94a3b8;
+    font-size: 12px;
+    cursor: pointer;
+    margin-right: 4px;
+    transition: all 0.2s;
+  }
+  .mgu-action-btn:hover { border-color: #38bdf8; color: #38bdf8; }
+  .mgu-action-btn.danger:hover { border-color: #f87171; color: #f87171; }
+  .mgu-action-btn.success:hover { border-color: #34d399; color: #34d399; }
+  #mgusers-msg {
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    display: none;
+  }
+  #mgusers-msg.success { background: rgba(16,185,129,0.15); color: #34d399; display: block; }
+  #mgusers-msg.error   { background: rgba(239,68,68,0.15);  color: #f87171; display: block; }
+  .mgu-loading { text-align: center; padding: 32px; color: #64748b; font-size: 14px; }
+
+  /* ── Inline Confirm Bar ──────────────────────────────────────────────────── */
+  #mgu-confirm-bar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+  }
+  #mgu-confirm-bar.show { display: flex; }
+  #mgu-confirm-bar .mgu-confirm-icon {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: rgba(239,68,68,0.15);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  #mgu-confirm-bar .mgu-confirm-text { flex: 1; }
+  #mgu-confirm-bar .mgu-confirm-text strong { display: block; font-size: 13px; color: #f1f5f9; margin-bottom: 2px; }
+  #mgu-confirm-bar .mgu-confirm-text span { font-size: 12px; color: #94a3b8; }
+  #mgu-confirm-bar .mgu-confirm-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  #mgu-confirm-bar .mgu-confirm-yes {
+    padding: 6px 16px; border-radius: 6px; border: none;
+    background: #ef4444; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer;
+    min-width: 90px;
+  }
+  #mgu-confirm-bar .mgu-confirm-yes:hover { background: #dc2626; }
+  #mgu-confirm-bar .mgu-confirm-no {
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1); background: none;
+    color: #94a3b8; font-size: 12px; cursor: pointer;
+  }
+  #mgu-confirm-bar .mgu-confirm-no:hover { color: #e2e8f0; }
 </style>
 
 <header class="shared-header">
@@ -173,6 +542,15 @@
           <div class="user-dropdown-name" id="shared-menu-name">User Name</div>
           <div class="user-dropdown-role" id="shared-menu-role">User</div>
         </div>
+        <button class="user-dropdown-item admin-only-item" id="btn-manage-users" style="display:none" onclick="openManageUsers()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Manage Users
+        </button>
+        <button class="user-dropdown-item" onclick="openChangePassword()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Change Password
+        </button>
+        <div class="user-dropdown-divider"></div>
         <button class="user-dropdown-item" onclick="logout()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Logout
@@ -181,3 +559,140 @@
     </div>
   </div>
 </header>
+
+<!-- ── Manage Users Modal (admin only) ───────────────────────────────────── -->
+<div id="mgusers-overlay" onclick="handleMguOverlayClick(event)">
+  <div id="mgusers-modal">
+    <div class="mgu-header">
+      <h3>Manage Users</h3>
+      <div class="mgu-header-actions">
+        <button class="mgu-btn-add" onclick="toggleAddUserForm()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add User
+        </button>
+        <button class="mgu-btn-close" onclick="closeManageUsers()">Close</button>
+      </div>
+    </div>
+
+    <div id="mgusers-msg"></div>
+
+    <!-- Add User Form -->
+    <div id="mgu-add-form">
+      <h4>New User</h4>
+      <div class="mgu-form-row">
+        <div class="mgu-form-field">
+          <label>Full Name</label>
+          <input type="text" id="mgu-new-name" placeholder="Jane Smith" />
+        </div>
+        <div class="mgu-form-field">
+          <label>Email</label>
+          <input type="email" id="mgu-new-email" placeholder="jane@example.com" />
+        </div>
+        <div class="mgu-form-field" style="max-width:140px">
+          <label>Role</label>
+          <select id="mgu-new-role">
+            <option value="reviewer">Reviewer</option>
+            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="mgu-form-actions">
+        <button class="mgu-btn-cancel-add" onclick="toggleAddUserForm()">Cancel</button>
+        <button class="mgu-btn-submit" id="mgu-submit-btn" onclick="submitAddUser()">Create User</button>
+      </div>
+      <!-- Generated password reveal -->
+      <div class="mgu-pwd-reveal" id="mgu-new-pwd-box">
+        <div class="mgu-pwd-label">Default Password — share this privately with the user</div>
+        <div class="mgu-pwd-value">
+          <span class="mgu-pwd-text" id="mgu-new-pwd-text"></span>
+          <button class="mgu-copy-btn" onclick="copyMguPwd('mgu-new-pwd-text', this)">Copy</button>
+        </div>
+        <div class="mgu-pwd-note">The user should change this after first login.</div>
+      </div>
+    </div>
+
+    <!-- Inline Confirm Bar -->
+    <div id="mgu-confirm-bar">
+      <div class="mgu-confirm-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div class="mgu-confirm-text">
+        <strong id="mgu-confirm-title">Reset password?</strong>
+        <span id="mgu-confirm-desc"></span>
+      </div>
+      <div class="mgu-confirm-actions">
+        <button class="mgu-confirm-no" onclick="cancelMguConfirm()">Cancel</button>
+        <button class="mgu-confirm-yes" onclick="executeMguConfirm()">Yes, Reset</button>
+      </div>
+    </div>
+
+    <!-- Users Table -->
+    <div id="mgu-table-wrap">
+      <div class="mgu-loading" id="mgu-loading">Loading users…</div>
+      <table id="mgu-table" style="display:none">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="mgu-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Reset password reveal (reused per row) -->
+    <div class="mgu-pwd-reveal" id="mgu-reset-pwd-box" style="margin-top:16px">
+      <div class="mgu-pwd-label">New Password for <span id="mgu-reset-email"></span> — share this privately</div>
+      <div class="mgu-pwd-value">
+        <span class="mgu-pwd-text" id="mgu-reset-pwd-text"></span>
+        <button class="mgu-copy-btn" onclick="copyMguPwd('mgu-reset-pwd-text', this)">Copy</button>
+      </div>
+      <div class="mgu-pwd-note">The user should change this after logging in.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Change Password Modal ──────────────────────────────────────────────── -->
+<div id="chpwd-overlay" onclick="handleChpwdOverlayClick(event)">
+  <div id="chpwd-modal">
+    <h3>Change Password</h3>
+    <p class="chpwd-subtitle">Enter your current password and choose a new one.</p>
+
+    <div id="chpwd-msg"></div>
+
+    <div class="chpwd-field">
+      <label>Current Password</label>
+      <div class="chpwd-input-wrap">
+        <input type="password" id="chpwd-current" placeholder="Your current password" autocomplete="current-password" />
+        <button class="chpwd-eye" type="button" onclick="toggleChpwdEye('chpwd-current', this)">👁</button>
+      </div>
+    </div>
+
+    <div class="chpwd-field">
+      <label>New Password</label>
+      <div class="chpwd-input-wrap">
+        <input type="password" id="chpwd-new" placeholder="Min. 8 characters" autocomplete="new-password" oninput="updateStrength(this.value)" />
+        <button class="chpwd-eye" type="button" onclick="toggleChpwdEye('chpwd-new', this)">👁</button>
+      </div>
+      <div id="chpwd-strength"><div id="chpwd-strength-bar"></div></div>
+      <div id="chpwd-strength-label"></div>
+    </div>
+
+    <div class="chpwd-field">
+      <label>Confirm New Password</label>
+      <div class="chpwd-input-wrap">
+        <input type="password" id="chpwd-confirm" placeholder="Repeat new password" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitChangePassword()" />
+        <button class="chpwd-eye" type="button" onclick="toggleChpwdEye('chpwd-confirm', this)">👁</button>
+      </div>
+    </div>
+
+    <div class="chpwd-actions">
+      <button class="chpwd-btn-cancel" onclick="closeChangePassword()">Cancel</button>
+      <button class="chpwd-btn-save" id="chpwd-submit" onclick="submitChangePassword()">Update Password</button>
+    </div>
+  </div>
+</div>

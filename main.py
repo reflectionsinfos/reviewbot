@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 
 from app.core.config import settings
 from app.api.routes import projects, reviews, reports, checklists, auth
+from app.api.routes.users import router as users_router
 from app.api.routes.autonomous_reviews import router as autonomous_reviews_router
 from app.api.routes.agent import router as agent_router
 from app.api.routes.routing_rules import router as routing_rules_router
@@ -57,6 +58,7 @@ app.include_router(agent_router,               prefix="/api/v1/agent/scan",     
 app.include_router(routing_rules_router,       prefix="/api/routing-rules",      tags=["Routing Rules"])
 app.include_router(llm_configs_router,         prefix="/api/llm-configs",        tags=["LLM Configuration"])
 app.include_router(settings_router,            prefix="/api/settings",           tags=["System Settings"])
+app.include_router(users_router,               prefix="/api/admin",              tags=["Admin - User Management"])
 
 
 # Diagnostic route for LLM test (direct to main)
