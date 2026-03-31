@@ -342,34 +342,52 @@
           <div class="tool-icon" style="background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#38bdf8;font-weight:bold;font-family:monospace;font-size:13px;">$_</div>
           <h3>ReviewBot CLI Agent</h3>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <a href="/frontend_vanilla/downloads/reviewbot_agent-0.1.0-py3-none-any.whl" class="download-btn" download>
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            Download .whl
-          </a>
-          <a href="/frontend_vanilla/downloads/reviewbot-agent.zip" class="download-btn" style="background:#334155;" download>
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-            Download Source (.zip)
-          </a>
-        </div>
       </div>
 
       <p style="color:#94a3b8;font-size:13px;margin:0 0 20px;">Run autonomous code reviews from your terminal or CI/CD pipeline. Commands below are <strong style="color:#38bdf8">pre-filled</strong> with your selected project and checklist.</p>
 
       <!-- Step 1 — Install -->
       <div style="margin-bottom:16px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">1</span>
           <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Install the agent</span>
           <span style="font-size:11px;color:#475569;">— one time only, choose one method</span>
         </div>
-        <div class="code-block" id="cli-install-cmd">
-          <button class="copy-btn" onclick="copyCode('cli-install-cmd')">Copy</button>
-          <code id="cli-install-cmd-text"># Option A — from downloaded .whl (recommended, works offline)
-pip install reviewbot_agent-0.1.0-py3-none-any.whl
 
-# Option B — from source zip
-unzip reviewbot-agent.zip && cd reviewbot-agent && pip install .</code>
+        <!-- Option A -->
+        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div>
+              <span style="font-size:11px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:0.06em;">Option A</span>
+              <span style="font-size:12px;color:#94a3b8;margin-left:8px;">Pre-built wheel — recommended, works offline</span>
+            </div>
+            <a href="/frontend_vanilla/downloads/reviewbot_agent-0.1.0-py3-none-any.whl" class="download-btn" style="padding:6px 14px;font-size:12px;" download>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Download .whl
+            </a>
+          </div>
+          <div class="code-block" id="cli-install-whl" style="margin:0">
+            <button class="copy-btn" onclick="copyCode('cli-install-whl')">Copy</button>
+            <code>pip install reviewbot_agent-0.1.0-py3-none-any.whl</code>
+          </div>
+        </div>
+
+        <!-- Option B -->
+        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:14px 16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div>
+              <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">Option B</span>
+              <span style="font-size:12px;color:#94a3b8;margin-left:8px;">Source zip — install from downloaded archive</span>
+            </div>
+            <a href="/frontend_vanilla/downloads/reviewbot-agent.zip" class="download-btn" style="padding:6px 14px;font-size:12px;background:#334155;" download>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+              Download .zip
+            </a>
+          </div>
+          <div class="code-block" id="cli-install-zip" style="margin:0">
+            <button class="copy-btn" onclick="copyCode('cli-install-zip')">Copy</button>
+            <code>unzip reviewbot-agent.zip && cd reviewbot-agent && pip install .</code>
+          </div>
         </div>
       </div>
 
@@ -391,8 +409,12 @@ unzip reviewbot-agent.zip && cd reviewbot-agent && pip install .</code>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
           <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">3</span>
           <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Run a review</span>
-          <span id="cli-prefill-badge" style="display:none;font-size:11px;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:4px;padding:1px 7px;">IDs pre-filled from dropdowns above</span>
           <span id="cli-noprefill-badge" style="font-size:11px;color:#f59e0b;">— select a project &amp; checklist above to pre-fill IDs</span>
+        </div>
+        <div id="cli-prefill-context" style="display:none;background:rgba(56,189,248,0.07);border:1px solid rgba(56,189,248,0.2);border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#94a3b8;">
+          <span style="color:#38bdf8;font-weight:600;">Project:</span> <span id="cli-pname-label"></span>
+          <span style="margin:0 10px;color:#334155;">|</span>
+          <span style="color:#38bdf8;font-weight:600;">Checklist:</span> <span id="cli-cname-label"></span>
         </div>
         <div class="code-block" id="cli-review-cmd">
           <button class="copy-btn" onclick="copyCode('cli-review-cmd')">Copy</button>
@@ -634,20 +656,22 @@ function updateCliCommands() {
   const cname = checklistSel?.options[checklistSel.selectedIndex]?.textContent?.trim() || '';
   const hasBoth = pid && cid;
 
-  const prefillBadge   = document.getElementById('cli-prefill-badge');
-  const noPrefillBadge = document.getElementById('cli-noprefill-badge');
-  if (prefillBadge)   prefillBadge.style.display   = hasBoth ? 'inline' : 'none';
-  if (noPrefillBadge) noPrefillBadge.style.display = hasBoth ? 'none'   : 'inline';
+  const noPrefillBadge  = document.getElementById('cli-noprefill-badge');
+  const prefillContext  = document.getElementById('cli-prefill-context');
+  const pnameLabel      = document.getElementById('cli-pname-label');
+  const cnameLabel      = document.getElementById('cli-cname-label');
+
+  if (noPrefillBadge)  noPrefillBadge.style.display  = hasBoth ? 'none'  : 'inline';
+  if (prefillContext)  prefillContext.style.display   = hasBoth ? 'block' : 'none';
+  if (pnameLabel)      pnameLabel.textContent         = pname;
+  if (cnameLabel)      cnameLabel.textContent         = cname;
 
   const cmdEl = document.getElementById('cli-review-cmd-text');
   if (!cmdEl) return;
-  const projectArg   = hasBoth ? pid  : '<project-id>';
-  const checklistArg = hasBoth ? cid  : '<checklist-id>';
-  const comment = hasBoth
-    ? `  # ${pname}\n  #   ${cname}\n`
-    : '';
+  const projectArg   = hasBoth ? pid : '<project-id>';
+  const checklistArg = hasBoth ? cid : '<checklist-id>';
   cmdEl.textContent =
-    `reviewbot review \\\n${comment}  --project-id ${projectArg} \\\n  --checklist-id ${checklistArg} \\\n  --source-path ./your-project \\\n  --output ./review-report.md`;
+    `reviewbot review \\\n  --project-id ${projectArg} \\\n  --checklist-id ${checklistArg} \\\n  --source-path ./your-project \\\n  --output ./review-report.md`;
 }
 
 async function onProjectChange() {
