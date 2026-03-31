@@ -205,7 +205,7 @@
       </div>
       <div class="form-group">
         <label>Checklist</label>
-        <select id="checklist-select">
+        <select id="checklist-select" onchange="updateCliCommands()">
           <option value="">— select checklist —</option>
         </select>
       </div>
@@ -339,7 +339,7 @@
     <div id="source-cli-panel" style="display:none;">
       <div class="tool-header">
         <div class="tool-title">
-          <div class="tool-icon" style="background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#38bdf8;font-weight:bold;font-family:monospace;">$_</div>
+          <div class="tool-icon" style="background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#38bdf8;font-weight:bold;font-family:monospace;font-size:13px;">$_</div>
           <h3>ReviewBot CLI Agent</h3>
         </div>
         <a href="/frontend_vanilla/downloads/reviewbot-agent.zip" class="download-btn" download>
@@ -348,47 +348,76 @@
         </a>
       </div>
 
-      <div class="tool-grid">
-        <div>
-          <p style="color:#94a3b8;font-size:14px;margin-bottom:16px;">The CLI agent is a versatile Python package designed for headless environments and local automation. Ideal for power users and CI/CD pipelines.</p>
-          <ul class="features-list">
-            <li><strong>Single Command Review</strong>: Run full audits with one line of bash/powershell.</li>
-            <li><strong>Secure Uploads</strong>: Only sends what's needed, respects your <code>.gitignore</code>.</li>
-            <li><strong>Live RAG Summary</strong>: Colour-coded findings printed directly to your terminal.</li>
-          </ul>
-          
-          <div class="setup-steps">
-            <div class="setup-step">
-              <div class="step-num">1</div>
-              <div class="step-text">Download and extract the <code>reviewbot-agent.zip</code>.</div>
-            </div>
-            <div class="setup-step">
-              <div class="step-num">2</div>
-              <div class="step-text">Open terminal in the folder and run installation:</div>
-            </div>
-          </div>
-          <div class="code-block" id="install-cmd">
-            <button class="copy-btn" onclick="copyCode('install-cmd')">Copy</button>
-            <code>pip install .</code>
-          </div>
+      <p style="color:#94a3b8;font-size:13px;margin:0 0 20px;">Run autonomous code reviews from your terminal or CI/CD pipeline. Commands below are <strong style="color:#38bdf8">pre-filled</strong> with your selected project and checklist.</p>
+
+      <!-- Step 1 — Install -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">1</span>
+          <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Install the agent</span>
+          <span style="font-size:11px;color:#475569;">— one time only</span>
         </div>
-
-        <div>
-          <label style="margin-bottom:8px; display:block; font-size:12px; color:#94a3b8; font-weight:600;">QUICK START COMMANDS</label>
-          <div class="code-block" id="quickstart-cmd">
-            <button class="copy-btn" onclick="copyCode('quickstart-cmd')">Copy</button>
-            <code># 1. Login to server
-reviewbot login --server http://localhost:8000
-
-# 2. Run review
-reviewbot review --project-id 1 --checklist-id 1 --source-path ./src</code>
-          </div>
-          
-          <div class="alert alert-info" style="margin-top:20px;">
-            💡 <strong>Tip:</strong> Use the <code>--output my-report.md</code> flag to save results locally.
-          </div>
+        <div class="code-block" id="cli-install-cmd">
+          <button class="copy-btn" onclick="copyCode('cli-install-cmd')">Copy</button>
+          <code>pip install reviewbot-agent</code>
         </div>
       </div>
+
+      <!-- Step 2 — Login -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">2</span>
+          <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Login</span>
+          <span style="font-size:11px;color:#475569;">— token lasts 8 hours, no prior auth needed</span>
+        </div>
+        <div class="code-block" id="cli-login-cmd">
+          <button class="copy-btn" onclick="copyCode('cli-login-cmd')">Copy</button>
+          <code id="cli-login-cmd-text">reviewbot login --server https://reviewbot-web-128263129038.us-central1.run.app</code>
+        </div>
+      </div>
+
+      <!-- Step 3 — Run Review -->
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">3</span>
+          <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Run a review</span>
+          <span id="cli-prefill-badge" style="display:none;font-size:11px;background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);border-radius:4px;padding:1px 7px;">IDs pre-filled from dropdowns above</span>
+          <span id="cli-noprefill-badge" style="font-size:11px;color:#f59e0b;">— select a project &amp; checklist above to pre-fill IDs</span>
+        </div>
+        <div class="code-block" id="cli-review-cmd">
+          <button class="copy-btn" onclick="copyCode('cli-review-cmd')">Copy</button>
+          <code id="cli-review-cmd-text">reviewbot review \
+  --project-id &lt;project-id&gt; \
+  --checklist-id &lt;checklist-id&gt; \
+  --source-path ./your-project \
+  --output ./review-report.md</code>
+        </div>
+      </div>
+
+      <!-- Additional commands -->
+      <details style="margin-top:4px;">
+        <summary style="cursor:pointer;font-size:12px;color:#64748b;user-select:none;padding:4px 0;">Other commands</summary>
+        <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Check login status</div>
+            <div class="code-block" id="cli-status-cmd" style="margin:0">
+              <button class="copy-btn" onclick="copyCode('cli-status-cmd')">Copy</button>
+              <code>reviewbot status</code>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Logout</div>
+            <div class="code-block" id="cli-logout-cmd" style="margin:0">
+              <button class="copy-btn" onclick="copyCode('cli-logout-cmd')">Copy</button>
+              <code>reviewbot logout</code>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:12px;font-size:12px;color:#475569;line-height:1.6;">
+          Token expires after <strong style="color:#94a3b8">8 hours</strong>. Re-run <code>reviewbot login</code> if you get a <code>401 Unauthorized</code> error.<br/>
+          Credentials stored at <code>~/.reviewbot/config.json</code> (Windows: <code>%USERPROFILE%\.reviewbot\config.json</code>).
+        </div>
+      </details>
     </div>
 
     <!-- Documents panel (coming soon) -->
@@ -583,10 +612,36 @@ async function loadProjects() {
   } catch(e) { showConfigError(e.message); }
 }
 
+function updateCliCommands() {
+  const projectSel   = document.getElementById('project-select');
+  const checklistSel = document.getElementById('checklist-select');
+  const pid  = projectSel?.value || '';
+  const cid  = checklistSel?.value || '';
+  const pname = projectSel?.options[projectSel.selectedIndex]?.textContent?.trim() || '';
+  const cname = checklistSel?.options[checklistSel.selectedIndex]?.textContent?.trim() || '';
+  const hasBoth = pid && cid;
+
+  const prefillBadge   = document.getElementById('cli-prefill-badge');
+  const noPrefillBadge = document.getElementById('cli-noprefill-badge');
+  if (prefillBadge)   prefillBadge.style.display   = hasBoth ? 'inline' : 'none';
+  if (noPrefillBadge) noPrefillBadge.style.display = hasBoth ? 'none'   : 'inline';
+
+  const cmdEl = document.getElementById('cli-review-cmd-text');
+  if (!cmdEl) return;
+  const projectArg   = hasBoth ? pid  : '<project-id>';
+  const checklistArg = hasBoth ? cid  : '<checklist-id>';
+  const comment = hasBoth
+    ? `  # ${pname}\n  #   ${cname}\n`
+    : '';
+  cmdEl.textContent =
+    `reviewbot review \\\n${comment}  --project-id ${projectArg} \\\n  --checklist-id ${checklistArg} \\\n  --source-path ./your-project \\\n  --output ./review-report.md`;
+}
+
 async function onProjectChange() {
   const pid = document.getElementById('project-select').value;
   const sel = document.getElementById('checklist-select');
   sel.innerHTML = '<option value="">— select checklist —</option>';
+  updateCliCommands();
   if (!pid) return;
 
   try {
