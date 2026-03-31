@@ -279,6 +279,7 @@
       loadTemplates();
     } catch(e) { errorEl.textContent = e.message; errorEl.style.display = 'block'; }
   }
+  window.login = login;
   function logout() { TOKEN = ''; localStorage.removeItem('rb_token'); location.reload(); }
   function parseTokenAndLoad() {
     if (window.updateSharedUserInfo) window.updateSharedUserInfo();
