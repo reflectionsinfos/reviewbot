@@ -184,6 +184,8 @@ window.updateSharedUserInfo = updateSharedUserInfo;
 
 /* ── Dev Auto-Login (local only) ─────────────────────────────────────────── */
 async function tryDevAutoLogin() {
+  const hostname = window.location.hostname;
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') return;
   try {
     const res = await fetch('/api/auth/dev-config');
     if (!res.ok) return; // 404 in production — silent, do nothing
