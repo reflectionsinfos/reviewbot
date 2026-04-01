@@ -32,6 +32,33 @@ echo "🚀 Deploying ReviewBot to Cloud Run in $PROJECT_ID..."
 
 IMAGE_TAG="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:latest"
 
+# 0. Rebuild reviewbot-cli .whl so the download link on the UI stays current
+echo "  -> Rebuilding reviewbot-cli .whl..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+AGENT_PATH="$(dirname "$REPO_ROOT")/reviewbot-cli"
+DOWNLOADS_PATH="$REPO_ROOT/frontend_vanilla/downloads"
+if [ -d "$AGENT_PATH" ]; then
+    pushd "$AGENT_PATH" > /dev/null
+    python -m build --wheel --quiet
+    WHL=$(ls dist/reviewbot_cli-*.whl 2>/dev/null | sort -t_ -k3 -V | tail -1)
+    if [ -n "$WHL" ]; then
+        cp "$WHL" "$DOWNLOADS_PATH/"
+        echo "    OK: Copied $(basename "$WHL") to frontend_vanilla/downloads/"
+    fi
+    # Regenerate source zip (exclude build artefacts)
+    ZIP_DEST="$DOWNLOADS_PATH/reviewbot-cli.zip"
+    TEMP_DIR=$(mktemp -d)
+    rsync -a --exclude=dist --exclude=build --exclude='*.egg-info' --exclude=__pycache__ --exclude=.git \
+        "$AGENT_PATH/" "$TEMP_DIR/reviewbot-cli/"
+    (cd "$TEMP_DIR" && zip -qr "$ZIP_DEST" reviewbot-cli/)
+    rm -rf "$TEMP_DIR"
+    echo "    OK: Regenerated reviewbot-cli.zip in frontend_vanilla/downloads/"
+    popd > /dev/null
+else
+    echo "    WARNING: reviewbot-cli not found at $AGENT_PATH - skipping .whl rebuild."
+fi
+
 # 1. Build and push image
 echo "  → Building image: $IMAGE_TAG..."
 docker build -t "$IMAGE_TAG" .

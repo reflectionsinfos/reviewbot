@@ -39,24 +39,32 @@ Write-Host "  → Region: $Region" -ForegroundColor Gray
 
 $imageTag = "${Region}-docker.pkg.dev/${ProjectID}/${RepoName}/${ImageName}:latest"
 
-# 0. Rebuild CLI agent .whl so the download link on the UI stays current
-Write-Host "  -> Rebuilding CLI agent .whl..." -ForegroundColor Gray
+# 0. Rebuild reviewbot-cli .whl so the download link on the UI stays current
+Write-Host "  -> Rebuilding reviewbot-cli .whl..." -ForegroundColor Gray
 # $PSScriptRoot = c:\projects\reviewbot\gcp_scripts
-# reviewbot-agent sits at   c:\projects\reviewbot-agent
-$repoRoot  = Split-Path -Parent $PSScriptRoot
-$agentPath = Join-Path (Split-Path -Parent $repoRoot) "reviewbot-agent"
+# reviewbot-cli sits at   c:\projects\reviewbot-cli
+$repoRoot      = Split-Path -Parent $PSScriptRoot
+$agentPath     = Join-Path (Split-Path -Parent $repoRoot) "reviewbot-cli"
 $downloadsPath = Join-Path $repoRoot "frontend_vanilla\downloads"
 if (Test-Path $agentPath) {
     Push-Location $agentPath
     python -m build --wheel --quiet
-    $whl = Get-ChildItem "dist\reviewbot_agent-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $whl = Get-ChildItem "dist\reviewbot_cli-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($whl) {
         Copy-Item $whl.FullName $downloadsPath -Force
         Write-Host "    OK: Copied $($whl.Name) to frontend_vanilla/downloads/" -ForegroundColor Gray
     }
+    # Regenerate source zip from repo contents (excludes build artefacts)
+    $zipDest = Join-Path $downloadsPath "reviewbot-cli.zip"
+    $tempDir = Join-Path $env:TEMP "reviewbot-cli-zip"
+    if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+    Copy-Item $agentPath $tempDir -Recurse -Exclude @("dist","build","*.egg-info","__pycache__",".git")
+    Compress-Archive -Path "$tempDir\*" -DestinationPath $zipDest -Force
+    Remove-Item $tempDir -Recurse -Force
+    Write-Host "    OK: Regenerated reviewbot-cli.zip in frontend_vanilla/downloads/" -ForegroundColor Gray
     Pop-Location
 } else {
-    Write-Host "    WARNING: reviewbot-agent not found at $agentPath - skipping .whl rebuild." -ForegroundColor Yellow
+    Write-Host "    WARNING: reviewbot-cli not found at $agentPath - skipping .whl rebuild." -ForegroundColor Yellow
 }
 
 # 1. Build and push image via Cloud Build
