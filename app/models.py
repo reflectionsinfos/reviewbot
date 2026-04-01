@@ -258,43 +258,6 @@ class AutoReviewStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
-class CodebaseSnapshot(Base):
-    """Persistent snapshot of a codebase uploaded by the reviewbot-agent CLI.
-    Decoupled from any specific review job so files can be reused across
-    multiple reviews, checklists, and models."""
-    __tablename__ = "codebase_snapshots"
-
-    id             = Column(Integer, primary_key=True, index=True)
-    project_id     = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    source_path    = Column(String, nullable=False)       # display label from agent (e.g. /home/user/app)
-    total_size_mb  = Column(Float, default=0.0)
-    language_stats = Column(JSON, nullable=True)          # {"Python": 42, "JavaScript": 10}
-    agent_metadata = Column(JSON, nullable=True)          # hostname, IP, OS, username, agent version
-    created_by     = Column(Integer, ForeignKey("users.id"), nullable=True)
-    created_at     = Column(DateTime, default=datetime.utcnow)
-
-    project  = relationship("Project")
-    files    = relationship("SnapshotFile", back_populates="snapshot", cascade="all, delete-orphan")
-    jobs     = relationship("AutonomousReviewJob", back_populates="snapshot")
-
-
-class SnapshotFile(Base):
-    """One file entry within a CodebaseSnapshot.
-    content is NULL until the agent uploads it via POST /{job_id}/file-content."""
-    __tablename__ = "snapshot_files"
-
-    id          = Column(Integer, primary_key=True, index=True)
-    snapshot_id = Column(Integer, ForeignKey("codebase_snapshots.id"), nullable=False)
-    path        = Column(String, nullable=False)    # relative path within codebase
-    size_bytes  = Column(Integer, default=0)
-    language    = Column(String, nullable=True)
-    hash        = Column(String, nullable=True)
-    line_count  = Column(Integer, default=0)
-    content     = Column(Text, nullable=True)       # NULL until uploaded
-
-    snapshot = relationship("CodebaseSnapshot", back_populates="files")
-
-
 class AutonomousReviewJob(Base):
     """Tracks an autonomous code review background job"""
     __tablename__ = "autonomous_review_jobs"
@@ -303,7 +266,6 @@ class AutonomousReviewJob(Base):
     project_id   = Column(Integer, ForeignKey("projects.id"), nullable=False)
     checklist_id = Column(Integer, ForeignKey("checklists.id"), nullable=False)
     source_path  = Column(String, nullable=False)
-    snapshot_id  = Column(Integer, ForeignKey("codebase_snapshots.id", ondelete="SET NULL"), nullable=True)
 
     status           = Column(String, default=AutoReviewStatus.QUEUED.value)
     total_items      = Column(Integer, default=0)
@@ -327,7 +289,6 @@ class AutonomousReviewJob(Base):
     # Relationships
     project  = relationship("Project")
     checklist = relationship("Checklist")
-    snapshot  = relationship("CodebaseSnapshot", back_populates="jobs")
     results  = relationship("AutonomousReviewResult", back_populates="job", cascade="all, delete-orphan")
     report   = relationship("Report", back_populates="autonomous_review_job", uselist=False)
 

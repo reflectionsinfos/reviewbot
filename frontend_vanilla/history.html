@@ -550,7 +550,6 @@
         <td>
           <div style="display:flex;gap:6px;flex-wrap:nowrap;">
             <button class="btn btn-ghost btn-sm" onclick="viewDetails(${r.id}, ${r.job_id || 'null'})">Details</button>
-            ${r.project_id && r.checklist_id ? `<button class="btn btn-ghost btn-sm" onclick="rerunReview(${r.project_id}, ${r.checklist_id}, '${esc(r.source_path||'').replace(/'/g,"\\'")}', this, ${r.snapshot_id || 'null'})" title="Re-run review with the same files and checklist">↻ Re-run</button>` : ''}
             ${['running','queued','pending'].includes((r.status||'').toLowerCase()) && r.job_id ? `<button class="btn btn-danger-ghost btn-sm" onclick="stopReviewFromTable(${r.job_id}, this)" title="Stop this review">⏹ Stop</button>` : ''}
           </div>
         </td>
@@ -617,27 +616,6 @@
       toast(`Regeneration started (job #${data.job_id})`, 'success');
     } catch (e) {
       toast(e.message, 'error');
-    }
-  }
-
-  async function rerunReview(projectId, checklistId, sourcePath, btn, snapshotId) {
-    const orig = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = '…';
-    try {
-      const payload = { project_id: projectId, checklist_id: checklistId, source_path: sourcePath || '' };
-      if (snapshotId) payload.snapshot_id = snapshotId;
-      const data = await apiFetch('/api/autonomous-reviews/', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      if (data === null) return;
-      toast(`New review started (job #${data.job_id})`, 'success');
-      window.location.href = `/history/${data.job_id}`;
-    } catch (e) {
-      toast(e.message, 'error');
-      btn.disabled = false;
-      btn.textContent = orig;
     }
   }
 
@@ -727,7 +705,6 @@
       const isRunning = ['running', 'queued', 'pending'].includes((r.status || '').toLowerCase());
       actionsEl.innerHTML = `
         ${isRunning && r.job_id ? `<button class="btn btn-danger-ghost btn-sm" id="btn-stop-review" onclick="stopReview(${r.job_id}, this)">⏹ Stop Review</button>` : ''}
-        ${r.project_id && r.checklist_id ? `<button class="btn btn-ghost btn-sm" id="btn-rerun-review" onclick="rerunReview(${r.project_id}, ${r.checklist_id}, '${(r.source_path||'').replace(/'/g,"\\'")}', this, ${r.snapshot_id || 'null'})">↻ Re-run Review</button>` : ''}
       `;
     }
 

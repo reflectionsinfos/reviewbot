@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.models import (
     AutonomousReviewJob, AutonomousReviewResult, AutonomousReviewOverride,
-    Project, Checklist, ChecklistItem, User, CodebaseSnapshot,
+    Project, Checklist, ChecklistItem, User,
 )
 from app.api.routes.auth import get_current_user
 from app.services.action_plan_generator import ActionPlanGenerator
@@ -44,8 +44,7 @@ router = APIRouter()
 class StartReviewRequest(BaseModel):
     project_id: int
     checklist_id: int
-    source_path: str = ""
-    snapshot_id: Optional[int] = None
+    source_path: str
 
 
 class JobStatusResponse(BaseModel):
@@ -139,27 +138,15 @@ async def start_autonomous_review(
     if not checklist.items:
         raise HTTPException(400, "Checklist has no items to review")
 
-    # Resolve source_path and validate the scan source
+    # Validate source path
     source_path = req.source_path or ""
-    use_snapshot = req.snapshot_id is not None
-    use_repo = source_path.startswith("__repo__::")
-
-    if not use_snapshot and not use_repo:
+    if not source_path.startswith("__repo__::"):
         raise HTTPException(
             400,
-            "Provide a snapshot_id (from a previous agent upload) "
-            "or a Git Repository URL (source_path starting with '__repo__::')."
+            "source_path must start with '__repo__::' followed by the Git repository URL."
         )
 
-    if use_snapshot:
-        snapshot = await db.get(CodebaseSnapshot, req.snapshot_id)
-        if not snapshot:
-            raise HTTPException(404, f"Snapshot {req.snapshot_id} not found")
-        if not source_path:
-            source_path = snapshot.source_path
-
     from app.services.autonomous_review.connectors.llm import validate_llm_connectivity
-    from app.services.autonomous_review.agent_orchestrator import run_agent_review
 
     # ── LLM Pre-flight check ──────────────────────────────
     is_ready, message = await validate_llm_connectivity(db)
@@ -171,22 +158,16 @@ async def start_autonomous_review(
         project_id=req.project_id,
         checklist_id=req.checklist_id,
         source_path=source_path,
-        snapshot_id=req.snapshot_id,
         status="queued",
     )
     db.add(job)
     await db.commit()
     await db.refresh(job)
 
-    # Kick off background task — agent-snapshot or git-repo flow
-    if use_snapshot:
-        background_tasks.add_task(run_agent_review, job.id)
-    else:
-        background_tasks.add_task(run_autonomous_review, job.id)
+    background_tasks.add_task(run_autonomous_review, job.id)
 
     return {
         "job_id": job.id,
-        "snapshot_id": job.snapshot_id,
         "status": "queued",
         "message": f"Autonomous review started. Connect to WS /ws/autonomous-reviews/{job.id} for live progress.",
         "total_checklist_items": len(checklist.items),

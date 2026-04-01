@@ -155,17 +155,6 @@ class ReviewTable {
 
         tbody.innerHTML = this.state.items.map(item => this.renderRow(item)).join('');
 
-        tbody.querySelectorAll('.rt-rerun-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const projectId = parseInt(btn.dataset.projectId);
-                const checklistId = parseInt(btn.dataset.checklistId);
-                const sourcePath = btn.dataset.sourcePath;
-                const snapshotId = btn.dataset.snapshotId ? parseInt(btn.dataset.snapshotId) : null;
-                this.rerunReview(btn, projectId, checklistId, sourcePath, snapshotId);
-            });
-        });
-
         tbody.querySelectorAll('.rt-stop-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -222,39 +211,6 @@ class ReviewTable {
         };
     }
 
-    async rerunReview(btn, projectId, checklistId, sourcePath, snapshotId) {
-        if (!projectId || !checklistId) {
-            this.toast('Cannot re-run: missing project or checklist information.');
-            return;
-        }
-        const originalText = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = '…';
-        try {
-            const token = localStorage.getItem('rb_token');
-            const payload = { project_id: projectId, checklist_id: checklistId, source_path: sourcePath || '' };
-            if (snapshotId) payload.snapshot_id = snapshotId;
-            const res = await fetch('/api/autonomous-reviews/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(payload),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || `HTTP ${res.status}`);
-            }
-            const data = await res.json();
-            window.location.href = `/history/${data.job_id}`;
-        } catch (err) {
-            this.toast(`Re-run failed: ${err.message}`);
-            btn.disabled = false;
-            btn.textContent = originalText;
-        }
-    }
-
     renderRow(item) {
         const date = item.generated_at ? new Date(item.generated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) : '–';
         const score = this.renderScore(item.compliance_score);
@@ -274,7 +230,6 @@ class ReviewTable {
                 <td style="color:#64748b;font-size:12px;white-space:nowrap">${date}</td>
                 <td style="text-align:right;white-space:nowrap">
                     <div style="display:flex;gap:6px;justify-content:flex-end">
-                        ${item.project_id && item.checklist_id ? `<button class="btn btn-ghost btn-sm rt-rerun-btn" data-project-id="${item.project_id}" data-checklist-id="${item.checklist_id}" data-source-path="${this.esc(item.source_path || '')}" data-snapshot-id="${item.snapshot_id || ''}" title="Re-run review with the same files and checklist">↻ Re-run</button>` : ''}
                         ${['running','queued','pending'].includes((item.status||'').toLowerCase()) ? `<button class="btn btn-ghost btn-sm rt-stop-btn" data-job-id="${item.job_id}" style="color:#f87171;border-color:#991b1b;" title="Stop this review">⏹ Stop</button>` : ''}
                     </div>
                 </td>

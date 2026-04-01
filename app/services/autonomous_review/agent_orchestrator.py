@@ -15,7 +15,6 @@ from app.db.session import AsyncSessionLocal
 from app.models import (
     AutonomousReviewJob, AutonomousReviewResult,
     ChecklistItem, Checklist,
-    CodebaseSnapshot, SnapshotFile,
 )
 from .connectors.agent_scan import AgentFileIndex
 from app.agents.strategy_router_agent import StrategyRouter
@@ -75,8 +74,7 @@ async def run_agent_review(job_id: int) -> None:
 
 
 async def _execute_agent_review(job_id: int, db) -> None:
-    # add_file_request is the only import needed from agent routes now
-    from app.api.routes.agent import add_file_request
+    from app.api.routes.agent import add_file_request, get_file_content
 
     # ── Load job ──────────────────────────────────────────────────────────────
     result = await db.execute(
@@ -95,39 +93,18 @@ async def _execute_agent_review(job_id: int, db) -> None:
     job.started_at = datetime.utcnow()
     await db.commit()
 
-    # ── Load file metadata and content from DB snapshot ───────────────────────
-    content_map: dict[str, str | None] = {}
+    # ── Load file metadata from job.agent_metadata, content from in-memory cache ─
     metadata: dict = {"files": [], "total_size_mb": 0, "language_stats": {}}
 
-    if job.snapshot_id:
-        snap_result = await db.execute(
-            select(CodebaseSnapshot).where(CodebaseSnapshot.id == job.snapshot_id)
-        )
-        snapshot = snap_result.scalar_one_or_none()
+    scan_data = (job.agent_metadata or {}).get("scan_result", {})
+    if scan_data:
+        metadata["files"] = scan_data.get("files", [])
+        metadata["total_size_mb"] = scan_data.get("total_size_mb", 0)
+        metadata["language_stats"] = scan_data.get("language_stats", {})
 
-        if snapshot:
-            metadata["total_size_mb"] = snapshot.total_size_mb or 0
-            metadata["language_stats"] = snapshot.language_stats or {}
-
-            files_result = await db.execute(
-                select(SnapshotFile).where(SnapshotFile.snapshot_id == snapshot.id)
-            )
-            snapshot_files = files_result.scalars().all()
-            metadata["files"] = [
-                {
-                    "path": f.path,
-                    "size_bytes": f.size_bytes,
-                    "language": f.language,
-                    "hash": f.hash,
-                    "line_count": f.line_count,
-                }
-                for f in snapshot_files
-            ]
-            content_map = {f.path: f.content for f in snapshot_files}
-
-    class _ContentProxy(dict):
+    class _ContentProxy:
         def get(self, key, default=None):
-            return content_map.get(key) or default
+            return get_file_content(job_id, key) or default
 
     file_index = AgentFileIndex(metadata, _ContentProxy())
     fs = file_index.summary()
@@ -186,7 +163,7 @@ async def _execute_agent_review(job_id: int, db) -> None:
                     max_files=5,
                 )
                 has_content = any(
-                    content_map.get(p) is not None for p in relevant
+                    get_file_content(job_id, p) is not None for p in relevant
                 )
 
                 if has_content:
