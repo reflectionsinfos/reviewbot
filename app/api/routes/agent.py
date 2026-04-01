@@ -1,6 +1,6 @@
 """
 Agent API Bridge
-Endpoints consumed by the reviewbot-agent CLI (pip package).
+Endpoints consumed by the reviewbot-cli CLI (pip package).
 
 POST   /api/v1/agent/scan/upload                               – receive scan metadata, create job
 GET    /api/v1/agent/scan/{job_id}                             – job status
@@ -131,7 +131,7 @@ async def upload_scan(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Receive file-system metadata from the local reviewbot-agent CLI.
+    Receive file-system metadata from the local reviewbot-cli CLI.
     Creates an AutonomousReviewJob and starts analysis in the background.
     Analysis uses file paths from the metadata (no file content required for
     file-presence and metadata-check items). Pattern-scan and LLM items are

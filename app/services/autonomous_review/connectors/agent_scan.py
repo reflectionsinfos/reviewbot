@@ -1,7 +1,7 @@
 """
 Agent Scan Connector
 Builds a FileIndex-compatible object from the metadata uploaded by the
-reviewbot-agent CLI — no actual files on the server required.
+reviewbot-cli CLI — no actual files on the server required.
 
 File-presence and metadata-check strategies work fully.
 Pattern-scan and LLM strategies are degraded: they check only the files

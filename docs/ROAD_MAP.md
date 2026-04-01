@@ -227,7 +227,7 @@
   - Status: ✅ Done (docs/MICROSERVICES_REVIEW_PLAN.md — 5-phase plan; current support: one service at a time via /host-projects/ path)
 - [x] **1.8.10** Report History UI at /history (view all reports, edit source path, override RAG)
   - Status: ✅ Done
-- [x] **1.8.11** Agent bridge API (7 endpoints at /api/v1/agent/scan/) for reviewbot-agent CLI
+- [x] **1.8.11** Agent bridge API (7 endpoints at /api/v1/agent/scan/) for reviewbot-cli CLI
   - Status: ✅ Done (upload, start, status, results, override, file-content, file-requests)
 - [x] **1.8.12** V2 database schema (23 tables including 11 new v2 tables via models.py)
   - Status: ✅ Done
@@ -235,7 +235,7 @@
   - Status: ✅ Done
 - [x] **1.8.14** Multi-provider LLM support in autonomous review (Groq, OpenAI, Anthropic, Google, Azure)
   - Status: ✅ Done (llm_analyzer.py — provider-aware client + model selection via ACTIVE_LLM_PROVIDER)
-- [x] **1.8.15** reviewbot-agent CLI: 2-phase upload (metadata → file content → start)
+- [x] **1.8.15** reviewbot-cli CLI: 2-phase upload (metadata → file content → start)
   - Status: ✅ Done — fixes race condition where LLM items were skipped before files arrived
 - [x] **1.8.16** Agent metadata capture + storage (hostname, IP, OS, username, agent version)
   - Status: ✅ Done (agent_metadata JSONB column on autonomous_review_jobs; displayed in Details UI)
@@ -353,8 +353,8 @@ Transform raw review results into actionable, developer-ready output — structu
 - Branch/tag/commit selection
 - Auto-detect provider from URL
 - PAT generation guide per provider
-- VS Code Extension (replaces reviewbot-agent CLI for developer use)
-- reviewbot-agent CLI: fix login to use JWT (email/password) instead of API key
+- VS Code Extension (replaces reviewbot-cli CLI for developer use)
+- reviewbot-cli CLI: fix login to use JWT (email/password) instead of API key
 
 ### Tasks
 - [ ] 1b.1 Repo connector service (clone/fetch via URL + token)
@@ -372,7 +372,7 @@ VS Code Extension capabilities:
 - Inline code annotations for red/amber items
 - No install beyond VS Code marketplace
 
-- [ ] 1b.7 Fix reviewbot-agent login: use email/password → JWT (no API key)
+- [ ] 1b.7 Fix reviewbot-cli login: use email/password → JWT (no API key)
 
 ---
 
@@ -680,9 +680,9 @@ Week 7-8:  ████████████████████ 100% (So
 - Assessed microservices support: one service at a time works; full fleet scanning needs Phase 2+ work
 - Created `docs/MICROSERVICES_REVIEW_PLAN.md` — 5-phase roadmap (~8–9 days to full fleet support)
 
-### Session 3 — March 28, 2026 (reviewbot-agent CLI + LLM Fix + Security)
+### Session 3 — March 28, 2026 (reviewbot-cli CLI + LLM Fix + Security)
 
-- **reviewbot-agent CLI integration**: Full end-to-end working. 2-phase upload (metadata scan → file content → start trigger) eliminates race condition. 192 files uploaded in ~3 s; 26 LLM items now properly analyzed.
+- **reviewbot-cli CLI integration**: Full end-to-end working. 2-phase upload (metadata scan → file content → start trigger) eliminates race condition. 192 files uploaded in ~3 s; 26 LLM items now properly analyzed.
 - **Multi-provider LLM**: llm_analyzer.py now routes to correct API client + model per provider (Groq → llama-3.3-70b-versatile, OpenAI → gpt-4o-mini, etc.). Fixed "Connection error" caused by always using AsyncOpenAI with empty OPENAI_API_KEY.
 - **Agent metadata**: Hostname, IP, OS, username, agent version captured at scan time and stored in DB (JSONB column). Displayed as chips in the Details panel.
 - **Security hardening**: JWT expiry increased 30 min → 8 hours. Agent info logged per job for auditability.

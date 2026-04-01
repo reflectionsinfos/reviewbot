@@ -28,7 +28,7 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(find /c/projects/reviewbot-agent -not -path */.git/* -type f)",
+      "Bash(find /c/projects/reviewbot-cli -not -path */.git/* -type f)",
       "Bash(docker compose:*)",
       "Bash(python -c \"from app.models import *; print\\(''models OK -'', len\\(Base.metadata.tables\\), ''tables''\\)\")",
       "Bash(python -c \"from app.api.routes import reports; print\\(''reports OK''\\)\")",
@@ -51,7 +51,11 @@
       "Bash(python -c \"import sys; sys.path.insert\\(0, ''.''\\); from app.api.routes import checklists; print\\(''OK''\\)\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''templates count:'''', len\\(d.get\\(''''templates'''',[]\\)\\)\\)\")",
-      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''checklist name:'''', d.get\\(''''name''''\\)\\)\")"
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''checklist name:'''', d.get\\(''''name''''\\)\\)\")",
+      "Bash(grep -E \"\\\\.py$|\\\\.md$|\\\\.toml$|\\\\.txt$\")",
+      "Bash(python -c \"import zipfile; z=zipfile.ZipFile\\(''reviewbot-cli.zip''\\); print\\(''\\\\n''.join\\(z.namelist\\(\\)[:30]\\)\\)\")",
+      "Bash(python -m build --wheel)",
+      "Bash(powershell -Command \"Get-Content ''''c:/projects/reviewbot/gcp_scripts/05_deploy_app.ps1'''' | Out-Null; Write-Host ''''syntax ok''''\")"
     ]
   }
 }

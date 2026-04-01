@@ -249,7 +249,7 @@ Download from the AI Review page → **VS CODE EXTENSION** button. Reviews your 
 ### CLI Agent
 
 ```bash
-pip install reviewbot-agent
+pip install reviewbot-cli
 
 reviewbot login --server https://reviewbot-web-128263129038.us-central1.run.app
 
@@ -260,7 +260,7 @@ reviewbot review \
   --output ./report.md
 ```
 
-The AI Review page → **CLI AGENT** tab pre-fills the project and checklist IDs from the dropdowns. See [`reviewbot-agent/README.md`](../reviewbot-agent/README.md).
+The AI Review page → **CLI AGENT** tab pre-fills the project and checklist IDs from the dropdowns. See [`reviewbot-cli/README.md`](../reviewbot-cli/README.md).
 
 ---
 
