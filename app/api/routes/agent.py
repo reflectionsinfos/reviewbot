@@ -104,6 +104,11 @@ def get_file_content(job_id: int, rel_path: str) -> str | None:
     return _file_cache.get((job_id, rel_path))
 
 
+def count_file_content(job_id: int) -> int:
+    """Return the number of file contents uploaded for a given job."""
+    return sum(1 for (jid, _) in _file_cache if jid == job_id)
+
+
 def add_file_request(job_id: int, file_path: str, reason: str) -> None:
     if job_id not in _file_requests:
         _file_requests[job_id] = []

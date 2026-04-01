@@ -74,7 +74,7 @@ async def run_agent_review(job_id: int) -> None:
 
 
 async def _execute_agent_review(job_id: int, db) -> None:
-    from app.api.routes.agent import add_file_request, get_file_content
+    from app.api.routes.agent import add_file_request, get_file_content, count_file_content
 
     # ── Load job ──────────────────────────────────────────────────────────────
     result = await db.execute(
@@ -105,6 +105,9 @@ async def _execute_agent_review(job_id: int, db) -> None:
     class _ContentProxy:
         def get(self, key, default=None):
             return get_file_content(job_id, key) or default
+
+        def __len__(self) -> int:
+            return count_file_content(job_id)
 
     file_index = AgentFileIndex(metadata, _ContentProxy())
     fs = file_index.summary()
