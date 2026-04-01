@@ -9,6 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, RedirectResponse
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.core.config import settings
 from app.api.routes import projects, reviews, reports, checklists, auth
@@ -37,6 +38,9 @@ app = FastAPI(
     description="Conversational AI agent for technical and delivery project reviews",
     lifespan=lifespan,
 )
+
+# Trust proxy headers from Cloud Run / load balancers (fixes https→http redirect downgrade)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # CORS Middleware
 app.add_middleware(

@@ -276,8 +276,13 @@
     <button class="back-btn" onclick="showHistory()">← Back to History</button>
 
     <div class="details-header">
-      <h2 id="det-title">Report Details</h2>
-      <div class="details-meta" id="det-meta"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:0;">
+          <h2 id="det-title">Report Details</h2>
+          <div class="details-meta" id="det-meta"></div>
+        </div>
+        <div id="det-actions" style="display:flex;gap:8px;flex-shrink:0;margin-top:4px;"></div>
+      </div>
       <div class="agent-meta-bar" id="det-agent-meta" style="display:none;"></div>
       <div class="details-stats" id="det-stats"></div>
     </div>
@@ -543,9 +548,10 @@
         <td>${ragHtml}</td>
         <td>${overrideHtml}</td>
         <td>
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;flex-wrap:nowrap;">
             <button class="btn btn-ghost btn-sm" onclick="viewDetails(${r.id}, ${r.job_id || 'null'})">Details</button>
-            ${r.job_id ? `<button class="btn btn-ghost btn-sm" onclick="regenerate(${r.id})">↻</button>` : ''}
+            ${r.project_id && r.checklist_id ? `<button class="btn btn-ghost btn-sm" onclick="rerunReview(${r.project_id}, ${r.checklist_id}, '${esc(r.source_path||'').replace(/'/g,"\\'")}', this, ${r.snapshot_id || 'null'})" title="Re-run review with the same files and checklist">↻ Re-run</button>` : ''}
+            ${['running','queued','pending'].includes((r.status||'').toLowerCase()) && r.job_id ? `<button class="btn btn-danger-ghost btn-sm" onclick="stopReviewFromTable(${r.job_id}, this)" title="Stop this review">⏹ Stop</button>` : ''}
           </div>
         </td>
       </tr>`;
@@ -614,6 +620,71 @@
     }
   }
 
+  async function rerunReview(projectId, checklistId, sourcePath, btn, snapshotId) {
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const payload = { project_id: projectId, checklist_id: checklistId, source_path: sourcePath || '' };
+      if (snapshotId) payload.snapshot_id = snapshotId;
+      const data = await apiFetch('/api/autonomous-reviews/', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (data === null) return;
+      toast(`New review started (job #${data.job_id})`, 'success');
+      window.location.href = `/history/${data.job_id}`;
+    } catch (e) {
+      toast(e.message, 'error');
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  }
+
+  function inlineStopConfirm(btn, onConfirm) {
+    btn.style.display = 'none';
+    const wrapper = btn.parentElement;
+    const el = document.createElement('span');
+    el.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+    el.innerHTML = `
+      <span style="font-size:11px;color:#f87171;white-space:nowrap;">Stop review?</span>
+      <button style="background:#ef4444;color:#fff;padding:3px 10px;font-size:11px;border:none;border-radius:6px;cursor:pointer;font-weight:600;">Yes, stop</button>
+      <button style="background:transparent;border:1px solid #334155;color:#94a3b8;padding:3px 8px;font-size:11px;border-radius:6px;cursor:pointer;">Cancel</button>
+    `;
+    wrapper.appendChild(el);
+    const [yesBtn, cancelBtn] = el.querySelectorAll('button');
+    cancelBtn.onclick = () => { el.remove(); btn.style.display = ''; };
+    yesBtn.onclick = async () => {
+      yesBtn.disabled = true; cancelBtn.disabled = true; yesBtn.textContent = 'Stopping…';
+      try {
+        await onConfirm();
+        el.remove();
+      } catch(e) {
+        el.remove(); btn.style.display = '';
+        toast(e.message, 'error');
+      }
+    };
+  }
+
+  function stopReview(jobId, btn) {
+    inlineStopConfirm(btn, async () => {
+      await apiFetch(`/api/autonomous-reviews/${jobId}`, { method: 'DELETE' });
+      toast('Review stopped.', 'success');
+      document.getElementById('btn-stop-review')?.remove();
+      allReports = allReports.map(r => r.job_id === jobId ? { ...r, status: 'cancelled' } : r);
+      renderTable(allReports);
+    });
+  }
+
+  function stopReviewFromTable(jobId, btn) {
+    inlineStopConfirm(btn, async () => {
+      await apiFetch(`/api/autonomous-reviews/${jobId}`, { method: 'DELETE' });
+      toast('Review stopped.', 'success');
+      allReports = allReports.map(r => r.job_id === jobId ? { ...r, status: 'cancelled' } : r);
+      renderTable(allReports);
+    });
+  }
+
   // ── Details ────────────────────────────────────────────────────────────────
   async function viewDetails(reportId, jobId, pushState = true) {
     currentReportId = reportId;
@@ -649,6 +720,16 @@
       `${r.project_name || '—'} · ${r.checklist_name || '—'}`;
     document.getElementById('det-meta').textContent =
       `Generated: ${r.generated_at ? new Date(r.generated_at).toLocaleString() : '—'}  ·  Source: ${r.source_path || '—'}`;
+
+    // Action buttons
+    const actionsEl = document.getElementById('det-actions');
+    if (actionsEl) {
+      const isRunning = ['running', 'queued', 'pending'].includes((r.status || '').toLowerCase());
+      actionsEl.innerHTML = `
+        ${isRunning && r.job_id ? `<button class="btn btn-danger-ghost btn-sm" id="btn-stop-review" onclick="stopReview(${r.job_id}, this)">⏹ Stop Review</button>` : ''}
+        ${r.project_id && r.checklist_id ? `<button class="btn btn-ghost btn-sm" id="btn-rerun-review" onclick="rerunReview(${r.project_id}, ${r.checklist_id}, '${(r.source_path||'').replace(/'/g,"\\'")}', this, ${r.snapshot_id || 'null'})">↻ Re-run Review</button>` : ''}
+      `;
+    }
 
     // Agent metadata banner
     const am = r.agent_metadata;

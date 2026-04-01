@@ -24,6 +24,7 @@ from app.db.session import get_db
 from app.models import (
     AutonomousReviewJob, AutonomousReviewResult, AutonomousReviewOverride,
     Project, Checklist, ChecklistItem, User,
+    CodebaseSnapshot, SnapshotFile,
 )
 from app.services.autonomous_review.agent_orchestrator import run_agent_review
 
@@ -86,27 +87,16 @@ class AgentOverrideRequest(BaseModel):
     reason: Optional[str] = None
 
 
-# ── In-memory file content cache (agent-uploaded files) ───────────────────────
-# key: (job_id, rel_path), value: str content
-# For production, use Redis or a DB table; this is sufficient for single-process.
-_file_cache: Dict[tuple, str] = {}
-
+# ── Transient file-request queue (in-memory, upload window only) ──────────────
+# Tracks which files the server needs from the agent before /start is called.
+# Intentionally not persisted — this state only lives during the upload phase.
 # key: job_id, value: list of {file_path, reason}
 _file_requests: Dict[int, List[Dict[str, str]]] = {}
-
-
-def store_file_content(job_id: int, rel_path: str, content: str) -> None:
-    _file_cache[(job_id, rel_path)] = content
-
-
-def get_file_content(job_id: int, rel_path: str) -> Optional[str]:
-    return _file_cache.get((job_id, rel_path))
 
 
 def add_file_request(job_id: int, file_path: str, reason: str) -> None:
     if job_id not in _file_requests:
         _file_requests[job_id] = []
-    # Avoid duplicates
     existing = [r["file_path"] for r in _file_requests[job_id]]
     if file_path not in existing:
         _file_requests[job_id].append({"file_path": file_path, "reason": reason})
@@ -149,12 +139,33 @@ async def upload_scan(
     if not checklist.items:
         raise HTTPException(status_code=400, detail="Checklist has no items")
 
-    # Store scan metadata as JSON in source_path field (prefixed marker)
-    # Full metadata is stored in the in-memory cache keyed by job_id
+    # Persist a CodebaseSnapshot with file metadata stubs (content=NULL until uploaded)
+    snapshot = CodebaseSnapshot(
+        project_id=body.project_id,
+        source_path=body.source_path or "__agent_scan__",
+        total_size_mb=body.scan_result.total_size_mb,
+        language_stats=body.scan_result.language_stats,
+        agent_metadata=body.agent_info.model_dump() if body.agent_info else None,
+        created_by=current_user.id,
+    )
+    db.add(snapshot)
+    await db.flush()  # get snapshot.id
+
+    for f in body.scan_result.files:
+        db.add(SnapshotFile(
+            snapshot_id=snapshot.id,
+            path=f.path,
+            size_bytes=f.size_bytes,
+            language=f.language,
+            hash=f.hash,
+            line_count=f.line_count,
+        ))
+
     job = AutonomousReviewJob(
         project_id=body.project_id,
         checklist_id=body.checklist_id,
         source_path=body.source_path or "__agent_scan__",
+        snapshot_id=snapshot.id,
         agent_metadata=body.agent_info.model_dump() if body.agent_info else None,
         status="queued",
         total_items=len(checklist.items),
@@ -165,17 +176,15 @@ async def upload_scan(
     await db.commit()
     await db.refresh(job)
 
-    # Stash scan metadata in memory (keyed by job_id)
-    _file_cache[(job.id, "__meta__")] = body.scan_result.model_dump_json()
-
     # NOTE: analysis does NOT start here — caller must POST /{job_id}/start
-    # after uploading all required file content.
+    # after uploading all required file content via POST /{job_id}/file-content.
 
     return ScanUploadResponse(
         job_id=job.id,
         status="queued",
         total_items=len(checklist.items),
-        message=f"Job created. Upload file content then POST /{job.id}/start to begin analysis.",
+        message=f"Snapshot {snapshot.id} created with {len(body.scan_result.files)} files. "
+                f"Upload content then POST /{job.id}/start to begin analysis.",
     )
 
 
@@ -219,6 +228,7 @@ async def get_job_status(
         "job_id": job.id,
         "project_id": job.project_id,
         "checklist_id": job.checklist_id,
+        "snapshot_id": job.snapshot_id,
         "status": job.status,
         "total_items": job.total_items,
         "completed_items": job.completed_items,
@@ -353,10 +363,23 @@ async def upload_file_content(
     job = await db.get(AutonomousReviewJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if not job.snapshot_id:
+        raise HTTPException(status_code=400, detail="No snapshot associated with this job")
 
-    store_file_content(job_id, body.file_path, body.content)
+    file_result = await db.execute(
+        select(SnapshotFile).where(
+            SnapshotFile.snapshot_id == job.snapshot_id,
+            SnapshotFile.path == body.file_path,
+        )
+    )
+    file_row = file_result.scalar_one_or_none()
+    if not file_row:
+        raise HTTPException(status_code=404, detail=f"File '{body.file_path}' not found in snapshot")
 
-    # Remove from pending requests
+    file_row.content = body.content
+    await db.commit()
+
+    # Remove from transient pending-request queue
     if job_id in _file_requests:
         _file_requests[job_id] = [
             r for r in _file_requests[job_id]
@@ -366,6 +389,7 @@ async def upload_file_content(
     return {
         "status": "stored",
         "file_path": body.file_path,
+        "snapshot_id": job.snapshot_id,
         "size_chars": len(body.content),
         "pending_requests": len(get_file_requests(job_id)),
     }

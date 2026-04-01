@@ -154,9 +154,104 @@ class ReviewTable {
         }
 
         tbody.innerHTML = this.state.items.map(item => this.renderRow(item)).join('');
-        
+
+        tbody.querySelectorAll('.rt-rerun-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const projectId = parseInt(btn.dataset.projectId);
+                const checklistId = parseInt(btn.dataset.checklistId);
+                const sourcePath = btn.dataset.sourcePath;
+                const snapshotId = btn.dataset.snapshotId ? parseInt(btn.dataset.snapshotId) : null;
+                this.rerunReview(btn, projectId, checklistId, sourcePath, snapshotId);
+            });
+        });
+
+        tbody.querySelectorAll('.rt-stop-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const jobId = parseInt(btn.dataset.jobId);
+                this.stopReview(btn, jobId);
+            });
+        });
+
         if (this.options.paginate) {
             this.renderPagination();
+        }
+    }
+
+    stopReview(btn, jobId) {
+        // Replace button with inline confirm UI
+        const wrapper = btn.parentElement;
+        btn.style.display = 'none';
+        const confirmEl = document.createElement('span');
+        confirmEl.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+        confirmEl.innerHTML = `
+            <span style="font-size:11px;color:#f87171;white-space:nowrap;">Stop review?</span>
+            <button class="btn btn-sm" style="background:#ef4444;color:#fff;padding:3px 8px;font-size:11px;border:none;border-radius:6px;cursor:pointer;">Yes</button>
+            <button class="btn btn-ghost btn-sm" style="padding:3px 8px;font-size:11px;">No</button>
+        `;
+        wrapper.appendChild(confirmEl);
+
+        const [yesBtn, noBtn] = confirmEl.querySelectorAll('button');
+
+        noBtn.onclick = () => {
+            confirmEl.remove();
+            btn.style.display = '';
+        };
+
+        yesBtn.onclick = async () => {
+            yesBtn.disabled = true;
+            noBtn.disabled = true;
+            yesBtn.textContent = '…';
+            try {
+                const token = localStorage.getItem('rb_token');
+                const res = await fetch(`/api/autonomous-reviews/${jobId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${res.status}`);
+                }
+                await this.fetchData();
+            } catch (err) {
+                confirmEl.remove();
+                btn.style.display = '';
+                this.toast(`Stop failed: ${err.message}`);
+            }
+        };
+    }
+
+    async rerunReview(btn, projectId, checklistId, sourcePath, snapshotId) {
+        if (!projectId || !checklistId) {
+            this.toast('Cannot re-run: missing project or checklist information.');
+            return;
+        }
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '…';
+        try {
+            const token = localStorage.getItem('rb_token');
+            const payload = { project_id: projectId, checklist_id: checklistId, source_path: sourcePath || '' };
+            if (snapshotId) payload.snapshot_id = snapshotId;
+            const res = await fetch('/api/autonomous-reviews/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            window.location.href = `/history/${data.job_id}`;
+        } catch (err) {
+            this.toast(`Re-run failed: ${err.message}`);
+            btn.disabled = false;
+            btn.textContent = originalText;
         }
     }
 
@@ -168,7 +263,7 @@ class ReviewTable {
         return `
             <tr>
                 <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${this.esc(item.project_name)}">${this.esc(item.project_name)}</td>
-                <td>${this.esc(item.checklist_name)}</td>
+                <td><a href="/history/${item.job_id}" style="color:inherit;text-decoration:none;">${this.esc(item.checklist_name)}</a></td>
                 <td>${status}</td>
                 <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:32px;justify-content:center;color:#e2e8f0;font-family:monospace">${item.total_items || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-green" style="background:#14532d22;min-width:24px;justify-content:center">${item.green_count || 0}</span></td>
@@ -177,8 +272,11 @@ class ReviewTable {
                 <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:24px;justify-content:center">${item.skipped_count || 0}</span></td>
                 <td style="text-align:center">${score}</td>
                 <td style="color:#64748b;font-size:12px;white-space:nowrap">${date}</td>
-                <td style="text-align:right">
-                    <a href="/history/${item.job_id}" class="btn btn-ghost btn-sm">View Report</a>
+                <td style="text-align:right;white-space:nowrap">
+                    <div style="display:flex;gap:6px;justify-content:flex-end">
+                        ${item.project_id && item.checklist_id ? `<button class="btn btn-ghost btn-sm rt-rerun-btn" data-project-id="${item.project_id}" data-checklist-id="${item.checklist_id}" data-source-path="${this.esc(item.source_path || '')}" data-snapshot-id="${item.snapshot_id || ''}" title="Re-run review with the same files and checklist">↻ Re-run</button>` : ''}
+                        ${['running','queued','pending'].includes((item.status||'').toLowerCase()) ? `<button class="btn btn-ghost btn-sm rt-stop-btn" data-job-id="${item.job_id}" style="color:#f87171;border-color:#991b1b;" title="Stop this review">⏹ Stop</button>` : ''}
+                    </div>
                 </td>
             </tr>
         `;
@@ -238,6 +336,26 @@ class ReviewTable {
     refresh() {
         this.state.skip = 0;
         return this.fetchData();
+    }
+
+    toast(msg, type = 'error') {
+        if (typeof window.toast === 'function') {
+            window.toast(msg, type);
+            return;
+        }
+        let el = document.getElementById('rt-toast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'rt-toast';
+            el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;z-index:9999;pointer-events:none;transition:opacity .3s;max-width:480px;text-align:center;';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg;
+        el.style.background = type === 'error' ? '#7f1d1d' : type === 'success' ? '#14532d' : '#1e3a5f';
+        el.style.color = '#f1f5f9';
+        el.style.opacity = '1';
+        clearTimeout(el._t);
+        el._t = setTimeout(() => { el.style.opacity = '0'; }, 3500);
     }
 
     esc(str) {

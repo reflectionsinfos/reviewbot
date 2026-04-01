@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.models import (
     AutonomousReviewJob, AutonomousReviewResult, AutonomousReviewOverride,
-    Project, Checklist, ChecklistItem, User,
+    Project, Checklist, ChecklistItem, User, CodebaseSnapshot,
 )
 from app.api.routes.auth import get_current_user
 from app.services.action_plan_generator import ActionPlanGenerator
@@ -44,7 +44,8 @@ router = APIRouter()
 class StartReviewRequest(BaseModel):
     project_id: int
     checklist_id: int
-    source_path: str
+    source_path: str = ""
+    snapshot_id: Optional[int] = None
 
 
 class JobStatusResponse(BaseModel):
@@ -138,17 +139,28 @@ async def start_autonomous_review(
     if not checklist.items:
         raise HTTPException(400, "Checklist has no items to review")
 
-    # Validate source path: Local folder scanning is disabled for security/cloud-run.
-    # Only allow repository-based scans (__repo__ marker).
-    if not req.source_path.startswith("__repo__::"):
+    # Resolve source_path and validate the scan source
+    source_path = req.source_path or ""
+    use_snapshot = req.snapshot_id is not None
+    use_repo = source_path.startswith("__repo__::")
+
+    if not use_snapshot and not use_repo:
         raise HTTPException(
-            400, 
-            "Local folder scanning is deprecated. Please use the ReviewBot Agent to upload "
-            "codebase metadata, or provide a Git Repository URL."
+            400,
+            "Provide a snapshot_id (from a previous agent upload) "
+            "or a Git Repository URL (source_path starting with '__repo__::')."
         )
 
+    if use_snapshot:
+        snapshot = await db.get(CodebaseSnapshot, req.snapshot_id)
+        if not snapshot:
+            raise HTTPException(404, f"Snapshot {req.snapshot_id} not found")
+        if not source_path:
+            source_path = snapshot.source_path
+
     from app.services.autonomous_review.connectors.llm import validate_llm_connectivity
-    
+    from app.services.autonomous_review.agent_orchestrator import run_agent_review
+
     # ── LLM Pre-flight check ──────────────────────────────
     is_ready, message = await validate_llm_connectivity(db)
     if not is_ready:
@@ -158,18 +170,23 @@ async def start_autonomous_review(
     job = AutonomousReviewJob(
         project_id=req.project_id,
         checklist_id=req.checklist_id,
-        source_path=req.source_path,
+        source_path=source_path,
+        snapshot_id=req.snapshot_id,
         status="queued",
     )
     db.add(job)
     await db.commit()
     await db.refresh(job)
 
-    # Kick off background task
-    background_tasks.add_task(run_autonomous_review, job.id)
+    # Kick off background task — agent-snapshot or git-repo flow
+    if use_snapshot:
+        background_tasks.add_task(run_agent_review, job.id)
+    else:
+        background_tasks.add_task(run_autonomous_review, job.id)
 
     return {
         "job_id": job.id,
+        "snapshot_id": job.snapshot_id,
         "status": "queued",
         "message": f"Autonomous review started. Connect to WS /ws/autonomous-reviews/{job.id} for live progress.",
         "total_checklist_items": len(checklist.items),

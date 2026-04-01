@@ -101,6 +101,9 @@ async def get_report_history(
         reports.append({
             "id": job.id,
             "job_id": job.id,
+            "project_id": job.project_id,
+            "checklist_id": job.checklist_id,
+            "snapshot_id": job.snapshot_id,
             "project_name": job.project.name if job.project else "—",
             "checklist_name": job.checklist.name if job.checklist else "—",
             "source_path": job.source_path,
@@ -563,6 +566,11 @@ async def get_report_details(
     return {
         "report": {
             "id": job.id,
+            "job_id": job.id,
+            "project_id": job.project_id,
+            "checklist_id": job.checklist_id,
+            "snapshot_id": job.snapshot_id,
+            "status": job.status,
             "project_name": job.project.name if job.project else "—",
             "checklist_name": job.checklist.name if job.checklist else "—",
             "source_path": job.source_path,
