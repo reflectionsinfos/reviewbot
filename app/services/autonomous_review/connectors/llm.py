@@ -58,8 +58,13 @@ async def get_config_chain(
                 .order_by(LLMConfig.priority)
             )
             configs = result.scalars().all()
-        except Exception:
-            # Pre-migration fallback — is_enabled column doesn't exist yet
+        except (AttributeError, Exception) as exc:
+            # Pre-migration fallback — is_enabled/priority columns don't exist yet.
+            # Only catch DB-level column errors, not programming mistakes.
+            exc_str = str(exc).lower()
+            if "is_enabled" not in exc_str and "priority" not in exc_str and "column" not in exc_str:
+                raise
+            logger.warning("is_enabled/priority columns missing — falling back to is_active (run migration)")
             result = await session.execute(
                 select(LLMConfig).where(LLMConfig.is_active == True)
             )

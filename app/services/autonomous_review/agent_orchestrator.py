@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from openai import RateLimitError
+from openai import RateLimitError, APIConnectionError, APITimeoutError, APIStatusError
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -380,8 +380,14 @@ async def _build_routing_plan(
         plan_list = json.loads(raw)
         return _validate_plan(plan_list, items, file_index)
 
+    except json.JSONDecodeError as exc:
+        logger.warning("Phase 1 planning returned invalid JSON — all items default to complex llm_analysis: %s", exc)
+        return {item.id: PlanEntry(strategy="llm_analysis", complexity="complex") for item in items}
+    except LLMChainExhaustedError as exc:
+        logger.warning("Phase 1 planning: no LLM available — all items default to complex llm_analysis: %s", exc)
+        return {item.id: PlanEntry(strategy="llm_analysis", complexity="complex") for item in items}
     except Exception as exc:
-        logger.warning("Phase 1 planning failed (%s) — all items default to complex llm_analysis", exc)
+        logger.warning("Phase 1 planning failed unexpectedly — all items default to complex llm_analysis", exc_info=True)
         return {item.id: PlanEntry(strategy="llm_analysis", complexity="complex") for item in items}
 
 
@@ -486,8 +492,8 @@ async def _execute_item(
                                    get_file_content, add_file_request, db)
 
     except Exception as exc:
-        logger.warning("Analyzer failed for item %s: %s", item.item_code, exc)
-        return AnalysisResult(rag_status="na", evidence=f"Analyzer error: {exc}", confidence=0.0)
+        logger.warning("Analyzer failed for item %s: %s", item.item_code, exc, exc_info=True)
+        return AnalysisResult(rag_status="na", evidence=f"Analyzer error: {type(exc).__name__}: {exc}", confidence=0.0)
 
 
 async def _run_llm_item(
@@ -542,16 +548,26 @@ async def _run_llm_item(
                 item.item_code, cfg.name, cfg.provider, complexity,
             )
             return result
-        except RateLimitError:
+        except RateLimitError as exc:
             logger.warning(
                 "Rate limit on '%s' for item %s — trying next in chain",
                 cfg.name, item.item_code,
             )
             last_error = f"Rate limit on {cfg.name}"
             continue
-        except Exception as exc:
-            logger.warning("LLM config '%s' failed for item %s: %s", cfg.name, item.item_code, exc)
-            last_error = str(exc)
+        except (APIConnectionError, APITimeoutError) as exc:
+            logger.warning("Network error on '%s' for item %s: %s", cfg.name, item.item_code, exc)
+            last_error = f"Network error on {cfg.name}: {exc}"
+            continue
+        except APIStatusError as exc:
+            if exc.status_code >= 500:
+                # Server-side error — try next config
+                logger.warning("Server error %d on '%s' for item %s", exc.status_code, cfg.name, item.item_code)
+                last_error = f"Server error {exc.status_code} on {cfg.name}"
+                continue
+            # 4xx client errors (bad key, bad model name) — stop trying this config but log clearly
+            logger.error("Client error %d on '%s' for item %s: %s", exc.status_code, cfg.name, item.item_code, exc)
+            last_error = f"Client error {exc.status_code} on {cfg.name}"
             continue
 
     logger.error("All LLM configs exhausted for item %s: %s", item.item_code, last_error)
