@@ -235,12 +235,17 @@ async def _execute_agent_review(job_id: int, db) -> None:
         })
 
     # ── Finalise ──────────────────────────────────────────────────────────────
-    job.status = "completed"
-    job.completed_at = datetime.utcnow()
-    await db.commit()
-
     auto_total = counters["green"] + counters["amber"] + counters["red"]
     compliance = round(counters["green"] / auto_total * 100, 1) if auto_total else 0.0
+
+    job.status = "completed"
+    job.completed_at = datetime.utcnow()
+    job.green_count = counters["green"]
+    job.amber_count = counters["amber"]
+    job.red_count = counters["red"]
+    job.skipped_count = counters["skipped"]
+    job.compliance_score = compliance
+    await db.commit()
 
     await progress_manager.broadcast(job_id, {
         "type": "completed",
