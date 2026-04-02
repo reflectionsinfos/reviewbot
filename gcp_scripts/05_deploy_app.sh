@@ -76,7 +76,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --port 8000 \
     --allow-unauthenticated \
     --add-cloudsql-instances "$PROJECT_ID:$REGION:$INSTANCE_NAME" \
-    --set-secrets="DATABASE_URL=DATABASE_URL:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,GROQ_API_KEY=GROQ_API_KEY:latest,SECRET_KEY=SECRET_KEY:latest,ACTIVE_LLM_PROVIDER=ACTIVE_LLM_PROVIDER:latest" \
+    --set-secrets="DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest" \
     --set-env-vars="DEBUG=false,VOICE_ENABLED=true,REQUIRE_HUMAN_APPROVAL=true"
 
 echo "✅ App deployment complete."

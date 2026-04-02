@@ -164,5 +164,5 @@ class AgentFileIndex:
                 for fi in self.files
             ),
             "agent_mode": True,
-            "uploaded_content_files": len(self._content_store),
+            "uploaded_content_files": len(self._content_store) if hasattr(self._content_store, "__len__") else 0,
         }

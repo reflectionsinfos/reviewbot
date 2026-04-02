@@ -23,7 +23,7 @@ if ($null -ne $existingSA -and $existingSA -eq $saEmail) {
 $roles = @(
     "roles/cloudsql.client",
     "roles/secretmanager.secretAccessor",
-    "roles/storage.objectAdmin",
+    "roles/storage.objectViewer",
     "roles/logging.logWriter",
     "roles/monitoring.metricWriter"
 )

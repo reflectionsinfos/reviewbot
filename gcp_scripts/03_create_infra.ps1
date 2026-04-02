@@ -28,8 +28,8 @@ if ($null -ne $repoExists -and $repoExists.Contains($RepoName)) {
 Write-Host "  → Cloud Storage Bucket: $BucketName" -ForegroundColor Gray
 $bucketExists = $false
 try {
-    $null = gsutil ls -b "gs://$BucketName" 2>$null
-    $bucketExists = $?
+    $null = gsutil ls -b "gs://$BucketName" 2>&1
+    $bucketExists = $true
 } catch {
     $bucketExists = $false
 }
@@ -44,10 +44,7 @@ if ($bucketExists) {
 # 3. Secret Manager placeholders
 $secrets = @(
     "DATABASE_URL",
-    "OPENAI_API_KEY",
-    "GROQ_API_KEY",
-    "SECRET_KEY",
-    "ACTIVE_LLM_PROVIDER"
+    "SECRET_KEY"
 )
 
 foreach ($secret in $secrets) {

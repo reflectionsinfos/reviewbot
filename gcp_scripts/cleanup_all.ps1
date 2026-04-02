@@ -5,7 +5,8 @@ param (
     [string]$ServiceName = "reviewbot-web",
     [string]$SA_NAME = "reviewbot-runtime",
     [string]$InstanceName = "reviewbot-db",
-    [string]$RepoName = "reviewbot-repo"
+    [string]$RepoName = "reviewbot-repo",
+    [string]$BucketName = "reviewbot-491619-artifacts"
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,32 +22,57 @@ gcloud config set project "$ProjectID" --quiet
 
 # 1. Delete Cloud Run
 Write-Host "🗑️ Deleting Cloud Run service: $ServiceName..." -ForegroundColor Gray
-gcloud run services delete "$ServiceName" --region="$Region" --quiet
+try {
+    gcloud run services delete "$ServiceName" --region="$Region" --quiet
+} catch {
+    Write-Host "    - Skipped (not found or already deleted)." -ForegroundColor DarkGray
+}
 
 # 2. Delete Cloud SQL
 Write-Host "🗑️ Deleting Cloud SQL instance: $InstanceName..." -ForegroundColor Gray
-gcloud sql instances delete "$InstanceName" --quiet
+try {
+    gcloud sql instances delete "$InstanceName" --quiet
+} catch {
+    Write-Host "    - Skipped (not found or already deleted)." -ForegroundColor DarkGray
+}
 
 # 3. Delete Artifact Registry
 Write-Host "🗑️ Deleting Artifact Registry: $RepoName..." -ForegroundColor Gray
-gcloud artifacts repositories delete "$RepoName" --location="$Region" --quiet
+try {
+    gcloud artifacts repositories delete "$RepoName" --location="$Region" --quiet
+} catch {
+    Write-Host "    - Skipped (not found or already deleted)." -ForegroundColor DarkGray
+}
 
 # 4. Delete Service Account
 $saEmail = "$SA_NAME@$ProjectID.iam.gserviceaccount.com"
 Write-Host "🗑️ Deleting Service Account: $saEmail..." -ForegroundColor Gray
-gcloud iam service-accounts delete "$saEmail" --quiet
+try {
+    gcloud iam service-accounts delete "$saEmail" --quiet
+} catch {
+    Write-Host "    - Skipped (not found or already deleted)." -ForegroundColor DarkGray
+}
 
 # 5. Delete Secrets
 $secrets = @(
     "DATABASE_URL",
-    "OPENAI_API_KEY",
-    "GROQ_API_KEY",
-    "SECRET_KEY",
-    "ACTIVE_LLM_PROVIDER"
+    "SECRET_KEY"
 )
 foreach ($secret in $secrets) {
     Write-Host "🗑️ Deleting Secret: $secret..." -ForegroundColor Gray
-    gcloud secrets delete "$secret" --quiet
+    try {
+        gcloud secrets delete "$secret" --quiet
+    } catch {
+        Write-Host "    - Skipped (not found or already deleted)." -ForegroundColor DarkGray
+    }
+}
+
+# 6. Delete GCS Bucket
+Write-Host "🗑️ Deleting GCS Bucket: gs://$BucketName..." -ForegroundColor Gray
+try {
+    gsutil rm -r "gs://$BucketName"
+} catch {
+    Write-Host "    - Skipped (not found or already deleted)." -ForegroundColor DarkGray
 }
 
 Write-Host "✅ Cleanup complete." -ForegroundColor Green

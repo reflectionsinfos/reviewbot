@@ -63,9 +63,19 @@ if ($userList.Contains($DatabaseUser)) {
 }
 
 Write-Host "✅ Cloud SQL instance and database ready." -ForegroundColor Green
+
+# Populate DATABASE_URL secret via temp file (avoids plaintext in logs/history)
+Write-Host "  → Storing DATABASE_URL in Secret Manager..." -ForegroundColor Gray
+$dbUrl = "postgresql+asyncpg://${DatabaseUser}:${DatabasePassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
+$tempFile = [System.IO.Path]::GetTempFileName()
+try {
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $False
+    [System.IO.File]::WriteAllText($tempFile, $dbUrl, $utf8NoBom)
+    gcloud secrets versions add DATABASE_URL --data-file="$tempFile" --project="$ProjectID" --quiet
+    Write-Host "  → DATABASE_URL secret updated in Secret Manager." -ForegroundColor Gray
+} finally {
+    Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+}
 Write-Host ""
-Write-Host "   DATABASE_URL for Cloud Run (copy into env.non-prod.gcp):" -ForegroundColor Yellow
-Write-Host "   postgresql+asyncpg://${DatabaseUser}:${DatabasePassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "   Next step: populate Secret Manager with the DATABASE_URL above:" -ForegroundColor Yellow
-Write-Host "   echo -n 'postgresql+asyncpg://${DatabaseUser}:${DatabasePassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}' | gcloud secrets versions add DATABASE_URL --data-file=-" -ForegroundColor Gray
+Write-Host "   DATABASE_URL saved to Secret Manager as 'DATABASE_URL:latest'." -ForegroundColor Green
+Write-Host "   Connection: postgresql+asyncpg://${DatabaseUser}:***@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}" -ForegroundColor Gray
