@@ -65,6 +65,8 @@ class LLMAnalyzer:
         item: Any,
         file_index: FileIndex,
         config: StrategyConfig,
+        client=None,      # optional: injected by hybrid orchestrator
+        model: str = "",  # optional: injected by hybrid orchestrator
     ) -> AnalysisResult:
         keywords = config.context_keywords or []
         question = item.question or ""
@@ -104,9 +106,12 @@ class LLMAnalyzer:
         )
 
         try:
-            client = await self._get_client()
+            if client is None:
+                client = await self._get_client()
+            if not model:
+                model = await pick_model()
             response = await client.chat.completions.create(
-                model=await pick_model(),
+                model=model,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},

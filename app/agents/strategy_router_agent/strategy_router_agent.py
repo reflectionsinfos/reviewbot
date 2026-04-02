@@ -3,10 +3,15 @@ Strategy Router
 Maps checklist items to analysis strategies and provides the configuration
 for the chosen analyzer.
 
-Current operating model:
-- default every checklist item to LLM analysis
-- let reviewers override specific items to human_required or ai_and_human
-- keep legacy deterministic strategies available only when explicitly selected
+Execution model (3-phase hybrid routing):
+- Phase 0: Deterministic pre-filter — keyword/area rules classify ~25-35 items
+  instantly with zero LLM calls (file_presence, pattern_scan, metadata_check,
+  human_required). All existing rule tables (_FILE_PRESENCE_RULES,
+  _PATTERN_SCAN_RULES, _METADATA_RULES) are applied here.
+- Phase 1: Planning LLM — one LLM call assigns strategy + complexity + file hints
+  to all remaining items (handled in agent_orchestrator.py).
+- Phase 2: Execution — deterministic items run immediately; llm_analysis items
+  split by complexity (simple → local Ollama, complex → cloud LLM chain).
 """
 from __future__ import annotations
 import re
@@ -620,10 +625,60 @@ class StrategyRouter:
         return self._auto_route(item)
 
     def _auto_route(self, item) -> StrategyConfig:
-        """Default to LLM analysis unless a reviewer override says otherwise."""
+        """
+        Phase 0: Deterministic pre-filter.
+        Apply keyword/area rule tables before falling back to llm_analysis.
+        Rules are checked in order: human_required → file_presence →
+        pattern_scan → metadata_check → llm_analysis (needs planning).
+        """
         area = (item.area or "").strip()
         question = (item.question or "").strip()
+        combined = f"{area} {question}"
         keywords = _extract_keywords(area, question)
+
+        # 1. Human-required detection (survey/org/process items)
+        human_cfg = _is_human_required(area, question)
+        if human_cfg:
+            return human_cfg
+
+        # 2. File presence rules
+        for compiled_patterns, config in _FILE_RULES_COMPILED:
+            if any(p.search(combined) for p in compiled_patterns):
+                cfg = StrategyConfig(
+                    strategy=config.strategy,
+                    file_patterns=config.file_patterns,
+                    dir_patterns=config.dir_patterns,
+                    context_keywords=config.context_keywords or keywords,
+                    focus_prompt=question,
+                )
+                return cfg
+
+        # 3. Pattern scan rules
+        for compiled_patterns, config in _PATTERN_RULES_COMPILED:
+            if any(p.search(combined) for p in compiled_patterns):
+                cfg = StrategyConfig(
+                    strategy=config.strategy,
+                    scan_patterns=config.scan_patterns,
+                    scan_extensions=config.scan_extensions,
+                    invert_match=config.invert_match,
+                    context_keywords=keywords,
+                    focus_prompt=question,
+                )
+                return cfg
+
+        # 4. Metadata check rules
+        for compiled_patterns, config in _META_RULES_COMPILED:
+            if any(p.search(combined) for p in compiled_patterns):
+                cfg = StrategyConfig(
+                    strategy=config.strategy,
+                    metadata_check=config.metadata_check,
+                    metadata_files=config.metadata_files,
+                    context_keywords=keywords,
+                    focus_prompt=question,
+                )
+                return cfg
+
+        # 5. Default — needs Phase 1 planning LLM to decide complexity + files
         return StrategyConfig(
             strategy="llm_analysis",
             context_keywords=keywords,
