@@ -109,6 +109,25 @@ async def create_llm_config(
     return db_config
 
 
+@router.get("/{config_id}", response_model=LLMConfigRead)
+async def get_llm_config(
+    config_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get a specific LLM configuration by ID. Admin only."""
+    if current_user.role not in ["admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized to manage LLM configurations")
+
+    result = await db.execute(select(LLMConfig).filter(LLMConfig.id == config_id))
+    db_config = result.scalar_one_or_none()
+
+    if not db_config:
+        raise HTTPException(status_code=404, detail="Configuration not found")
+
+    return db_config
+
+
 @router.patch("/{config_id}", response_model=LLMConfigRead)
 async def update_llm_config(
     config_id: int,
@@ -180,11 +199,6 @@ async def activate_llm_config(
     if not db_config:
         raise HTTPException(status_code=404, detail="Configuration not found")
     
-    db_config.is_active = True
-    await db.commit()
-    await db.refresh(db_config)
-    return db_config
-
     db_config.is_active = True
     await db.commit()
     await db.refresh(db_config)

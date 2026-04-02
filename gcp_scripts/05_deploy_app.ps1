@@ -85,8 +85,11 @@ if (Test-Path $agentPath) {
         exit $LASTEXITCODE
     }
     $whl = Get-ChildItem "dist\reviewbot_cli-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not (Test-Path $downloadsPath)) {
+        New-Item -ItemType Directory -Path $downloadsPath -Force | Out-Null
+    }
     if ($whl) {
-        Copy-Item $whl.FullName $downloadsPath -Force
+        Copy-Item $whl.FullName "$downloadsPath\" -Force
         Write-Host "    OK: Copied $($whl.Name) to frontend_vanilla/downloads/" -ForegroundColor Gray
     }
     # Regenerate source zip from repo contents (excludes build artefacts)
