@@ -12,7 +12,9 @@ Hybrid routing support:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
+from urllib.parse import urlparse, urlunparse
 from openai import AsyncOpenAI
 from openai import RateLimitError
 from sqlalchemy import select
@@ -32,11 +34,112 @@ _PROVIDER_BASE_URLS: dict[str, str] = {
     "anthropic": "https://api.anthropic.com/v1",
     "ollama":   "http://localhost:11434/v1",
 }
+_LOCALHOST_HOSTS = {"localhost", "127.0.0.1", "::1"}
+_OLLAMA_DOCKER_HOST = os.getenv("OLLAMA_DOCKER_HOST", "host.docker.internal")
 
 
 class LLMChainExhaustedError(Exception):
     """Raised when every config in the priority chain has been tried and failed."""
     pass
+
+
+def _running_in_container() -> bool:
+    """Best-effort check for Docker-style container execution."""
+    return os.path.exists("/.dockerenv")
+
+
+def _normalize_base_url(url: Optional[str], default_url: str) -> str:
+    """Ensure provider URLs have a scheme and no trailing slash quirks."""
+    candidate = (url or default_url or "").strip()
+    if not candidate:
+        return default_url
+    if "://" not in candidate:
+        candidate = f"http://{candidate}"
+    return candidate.rstrip("/")
+
+
+def _swap_hostname(parsed, new_hostname: str) -> str:
+    """Rebuild a URL with a different hostname while preserving credentials and port."""
+    auth = ""
+    if parsed.username:
+        auth = parsed.username
+        if parsed.password:
+            auth += f":{parsed.password}"
+        auth += "@"
+    port = f":{parsed.port}" if parsed.port else ""
+    netloc = f"{auth}{new_hostname}{port}"
+    return urlunparse(parsed._replace(netloc=netloc))
+
+
+def _normalize_ollama_base_url(base_url: Optional[str]) -> str:
+    """
+    Normalize Ollama to its OpenAI-compatible endpoint.
+
+    - Converts bare host URLs to `/v1`
+    - Rewrites `/api` to `/v1` for this client's usage
+    - Rewrites localhost to the Docker host alias when running in a container
+    """
+    candidate = _normalize_base_url(base_url, _PROVIDER_BASE_URLS["ollama"])
+    parsed = urlparse(candidate)
+    path = (parsed.path or "").rstrip("/")
+    if path in {"", "/"}:
+        parsed = parsed._replace(path="/v1")
+    elif path == "/api":
+        parsed = parsed._replace(path="/v1")
+    elif path != "/v1":
+        parsed = parsed._replace(path=path)
+
+    normalized = urlunparse(parsed)
+    parsed = urlparse(normalized)
+    hostname = (parsed.hostname or "").lower()
+    if _running_in_container() and hostname in _LOCALHOST_HOSTS and _OLLAMA_DOCKER_HOST:
+        normalized = _swap_hostname(parsed, _OLLAMA_DOCKER_HOST)
+    return normalized.rstrip("/")
+
+
+def _effective_base_url(config: LLMConfig) -> Optional[str]:
+    """Resolve the base URL the client should actually use."""
+    default_url = _PROVIDER_BASE_URLS.get(config.provider)
+    if config.provider == "ollama":
+        return _normalize_ollama_base_url(config.base_url or default_url)
+    if default_url or config.base_url:
+        return _normalize_base_url(config.base_url, default_url or "")
+    return config.base_url
+
+
+def _format_ollama_error(config: LLMConfig, exc: Exception) -> str:
+    """Turn generic Ollama connectivity failures into actionable guidance."""
+    resolved_url = _effective_base_url(config) or _PROVIDER_BASE_URLS["ollama"]
+    configured_url = (config.base_url or _PROVIDER_BASE_URLS["ollama"]).strip()
+    hints: list[str] = []
+
+    if configured_url.rstrip("/").endswith("/api"):
+        hints.append(
+            f"Use the OpenAI-compatible Ollama base URL `{resolved_url}` instead of `{configured_url}`."
+        )
+
+    parsed = urlparse(_normalize_base_url(configured_url, _PROVIDER_BASE_URLS["ollama"]))
+    if _running_in_container() and (parsed.hostname or "").lower() in _LOCALHOST_HOSTS:
+        hints.append(
+            "ReviewBot is running in Docker, so `localhost` points to the container. "
+            f"Use `{resolved_url}` or set `OLLAMA_DOCKER_HOST` if your Docker host alias differs."
+        )
+
+    base_message = f"Could not reach Ollama at `{resolved_url}`."
+    if hints:
+        return " ".join([base_message, *hints])
+    return f"{base_message} Original error: {exc}"
+
+
+async def _list_ollama_models(client: AsyncOpenAI) -> list[str]:
+    """Fetch available Ollama models through the OpenAI-compatible API."""
+    response = await client.models.list()
+    models: list[str] = []
+    for model in getattr(response, "data", []) or []:
+        model_id = getattr(model, "id", None)
+        if model_id:
+            models.append(model_id)
+    return models
 
 
 # ── Chain helpers ─────────────────────────────────────────────────────────────
@@ -86,7 +189,7 @@ async def get_config_chain(
 
 def build_client(config: LLMConfig) -> AsyncOpenAI:
     """Build an OpenAI-compatible async client from a LLMConfig row."""
-    base_url = config.base_url or _PROVIDER_BASE_URLS.get(config.provider)
+    base_url = _effective_base_url(config)
     return AsyncOpenAI(
         api_key=(config.api_key or "").strip() or "ollama",
         base_url=base_url,
@@ -212,8 +315,12 @@ async def pick_model(
 async def provider_is_configured(db: Optional[AsyncSession] = None) -> bool:
     chain = await get_config_chain(db)
     if chain:
-        return bool(chain[0].api_key)
+        primary = chain[0]
+        if primary.provider == "ollama":
+            return True
+        return bool(primary.api_key)
     provider = getattr(settings, "ACTIVE_LLM_PROVIDER", "openai").lower()
+    if provider == "ollama":    return True
     if provider == "groq":      return bool(settings.GROQ_API_KEY)
     if provider == "anthropic": return bool(settings.ANTHROPIC_API_KEY)
     if provider == "google":    return bool(settings.GOOGLE_API_KEY)
@@ -234,6 +341,16 @@ async def validate_llm_connectivity(
     try:
         client = await get_llm_client(db, overriding_config=overriding_config)
         model = await pick_model(db, overriding_config=overriding_config)
+        if config and config.provider == "ollama":
+            available_models = await _list_ollama_models(client)
+            if available_models and model not in available_models:
+                available = ", ".join(sorted(available_models)[:5])
+                return (
+                    False,
+                    f"Ollama is reachable at `{_effective_base_url(config)}`, but model "
+                    f"'{model}' is not installed. Available models: {available}. "
+                    f"Run `ollama pull {model}` or update the configured model name.",
+                )
         resp = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "Respond with 'Connectivity Verified'"}],
@@ -242,6 +359,8 @@ async def validate_llm_connectivity(
         return True, resp.choices[0].message.content.strip()
     except Exception as exc:
         logger.error("LLM connectivity validation failed: %s", exc)
+        if config and config.provider == "ollama":
+            return False, _format_ollama_error(config, exc)
         return False, f"LLM validation failed: {exc}"
 
 

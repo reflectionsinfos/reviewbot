@@ -1,7 +1,7 @@
 """
 Projects API Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -11,7 +11,7 @@ import logging
 import re
 import json
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.db.session import get_db
 from app.models import Project, Checklist, ChecklistItem, User
@@ -21,16 +21,36 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-class ProjectWithChecklistsCreate(BaseModel):
-    """Request model for creating a project with checklists"""
+class ProjectCreate(BaseModel):
+    """Request model for creating a project."""
     name: str
     domain: Optional[str] = None
     description: Optional[str] = None
     tech_stack: Optional[List[str]] = None
     stakeholders: Optional[Dict] = None
     status: str = "active"
+
+
+class ProjectWithChecklistsCreate(ProjectCreate):
+    """Request model for creating a project with checklists."""
     checklist_ids: Optional[List[int]] = []
     checklist_names: Optional[Dict[str, str]] = None
+
+
+def _validate_project_fields(name: Optional[str], status: str) -> None:
+    """Validate common project inputs and raise a user-facing error when invalid."""
+    if not name or len(name.strip()) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Project name cannot be empty"
+        )
+
+    valid_statuses = ["active", "completed", "on_hold"]
+    if status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
+        )
 
 
 @router.get("/")
@@ -105,47 +125,62 @@ async def get_project(
 
 @router.post("/")
 async def create_project(
-    name: str = Form(..., min_length=1, max_length=200),
-    domain: str = Form(None, max_length=100),
-    description: str = Form(None, max_length=2000),
-    tech_stack: str = Form(None),
-    stakeholders: str = Form(None),
-    status: str = Form("active"),
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
-    """Create a new project with validation"""
-    # Validate project name
-    if not name or len(name.strip()) == 0:
-        raise HTTPException(
-            status_code=400,
-            detail="Project name cannot be empty"
-        )
+    """Create a new project from either JSON or form-data."""
+    content_type = request.headers.get("content-type", "").lower()
 
-    # Validate status
-    valid_statuses = ["active", "completed", "on_hold"]
-    if status not in valid_statuses:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
-        )
+    if "application/json" in content_type:
+        try:
+            raw_payload = await request.json()
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=400,
+                detail="Request body must be valid JSON when using Content-Type: application/json"
+            )
 
-    # Parse JSON fields
+        if not isinstance(raw_payload, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="Request JSON body must be an object"
+            )
+    else:
+        form_data = await request.form()
+        try:
+            tech_stack = form_data.get("tech_stack")
+            stakeholders = form_data.get("stakeholders")
+            tech_stack_list = json.loads(tech_stack) if tech_stack else None
+            stakeholders_dict = json.loads(stakeholders) if stakeholders else None
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid JSON format in tech_stack or stakeholders: {str(e)}"
+            )
+
+        raw_payload = {
+            "name": form_data.get("name") or "",
+            "domain": form_data.get("domain"),
+            "description": form_data.get("description"),
+            "tech_stack": tech_stack_list,
+            "stakeholders": stakeholders_dict,
+            "status": form_data.get("status") or "active",
+        }
+
     try:
-        tech_stack_list = json.loads(tech_stack) if tech_stack else None
-        stakeholders_dict = json.loads(stakeholders) if stakeholders else None
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid JSON format in tech_stack or stakeholders: {str(e)}"
-        )
+        payload = ProjectCreate(**raw_payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors())
+
+    _validate_project_fields(payload.name, payload.status)
 
     project = Project(
-        name=name.strip(),
-        domain=domain.strip() if domain else None,
-        description=description.strip() if description else None,
-        tech_stack=tech_stack_list,
-        stakeholders=stakeholders_dict,
-        status=status
+        name=payload.name.strip(),
+        domain=payload.domain.strip() if payload.domain else None,
+        description=payload.description.strip() if payload.description else None,
+        tech_stack=payload.tech_stack,
+        stakeholders=payload.stakeholders,
+        status=payload.status
     )
 
     db.add(project)
@@ -156,8 +191,12 @@ async def create_project(
 
     return {
         "message": "Project created successfully",
+        "id": project.id,
         "project_id": project.id,
-        "name": project.name
+        "name": project.name,
+        "domain": project.domain,
+        "description": project.description,
+        "status": project.status,
     }
 
 
@@ -171,20 +210,7 @@ async def create_project_with_checklists(
     Create a new project and clone one or more global checklists into it in a single transaction.
     """
     try:
-        # Validate project name
-        if not req.name or len(req.name.strip()) == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="Project name cannot be empty"
-            )
-
-        # Validate status
-        valid_statuses = ["active", "completed", "on_hold"]
-        if req.status not in valid_statuses:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}"
-            )
+        _validate_project_fields(req.name, req.status)
 
         # Create the project
         project = Project(

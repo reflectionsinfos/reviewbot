@@ -397,7 +397,7 @@ def _validate_plan(
     file_index: AgentFileIndex,
 ) -> dict[int, PlanEntry]:
     """Cross-check plan file paths against actual file index; fill missing items."""
-    valid_paths = set(getattr(file_index, "_paths", {}).keys())
+    valid_paths = {fi.rel_path for fi in getattr(file_index, "files", [])}
     item_ids = {i.id for i in items}
     result: dict[int, PlanEntry] = {}
 
@@ -425,6 +425,11 @@ def _validate_plan(
             result[item.id] = PlanEntry(strategy="llm_analysis", complexity="complex")
 
     return result
+
+
+def _fallback_text_files(file_index, max_files: int = 6) -> list[str]:
+    """Pick a small deterministic file set when keyword routing finds nothing."""
+    return [fi.rel_path for fi in getattr(file_index, "files", []) if fi.is_text][:max_files]
 
 
 # ── Phase 2: Item execution ───────────────────────────────────────────────────
@@ -513,13 +518,17 @@ async def _run_llm_item(
     # Use plan-specified files if valid
     if plan_entry.files:
         relevant = plan_entry.files[:6]
+    elif not relevant:
+        relevant = _fallback_text_files(file_index, max_files=6)
 
     has_content = any(get_file_content(job_id, p) is not None for p in relevant)
     if not has_content:
         for p in (relevant or [])[:3]:
             add_file_request(job_id, p, f"Required for llm_analysis on {item.item_code}")
-        return _skipped("File content not yet uploaded for llm_analysis",
-                        strategy_cfg.evidence_hint or "")
+        reason = "File content not yet uploaded for llm_analysis"
+        if not relevant:
+            reason = "No candidate text files available for llm_analysis"
+        return _skipped(reason, strategy_cfg.evidence_hint or "")
 
     tried_ids: set[int] = set()
     last_error = "No configs available"

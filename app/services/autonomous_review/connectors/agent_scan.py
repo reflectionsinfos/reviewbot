@@ -18,6 +18,11 @@ from app.services.autonomous_review.connectors.local_folder import (
 )
 
 
+def _normalize_rel_path(path: str) -> str:
+    """Normalize agent-reported paths to forward-slash form."""
+    return (path or "").replace("\\", "/").strip()
+
+
 class AgentFileIndex:
     """
     Wraps agent-uploaded scan metadata to satisfy the FileIndex interface
@@ -41,11 +46,12 @@ class AgentFileIndex:
         # Build FileInfo list from metadata
         self.files: list[FileInfo] = []
         for f in metadata.get("files", []):
-            ext = "." + f["path"].rsplit(".", 1)[-1].lower() if "." in f["path"] else ""
+            rel_path = _normalize_rel_path(f["path"])
+            ext = "." + rel_path.rsplit(".", 1)[-1].lower() if "." in rel_path else ""
             is_text = ext in TEXT_EXTENSIONS
             self.files.append(FileInfo(
-                rel_path=f["path"],
-                abs_path=f["path"],  # not a real path
+                rel_path=rel_path,
+                abs_path=rel_path,  # not a real path
                 extension=ext,
                 size_bytes=f.get("size_bytes", 0),
                 is_text=is_text,
@@ -81,7 +87,7 @@ class AgentFileIndex:
 
     def get_content(self, rel_path: str) -> Optional[str]:
         """Return uploaded file content, or None if not yet uploaded."""
-        return self._content_store.get(rel_path)
+        return self._content_store.get(_normalize_rel_path(rel_path))
 
     def search_content(self, pattern: str, extensions: Optional[list[str]] = None,
                        max_matches: int = 20) -> list[SearchMatch]:

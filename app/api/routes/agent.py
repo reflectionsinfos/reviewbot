@@ -96,12 +96,17 @@ _file_cache: Dict[tuple, str] = {}
 _file_requests: Dict[int, List[Dict[str, str]]] = {}
 
 
+def _normalize_rel_path(rel_path: str) -> str:
+    """Store agent paths consistently so Windows and POSIX separators match."""
+    return (rel_path or "").replace("\\", "/").strip()
+
+
 def store_file_content(job_id: int, rel_path: str, content: str) -> None:
-    _file_cache[(job_id, rel_path)] = content
+    _file_cache[(job_id, _normalize_rel_path(rel_path))] = content
 
 
 def get_file_content(job_id: int, rel_path: str) -> str | None:
-    return _file_cache.get((job_id, rel_path))
+    return _file_cache.get((job_id, _normalize_rel_path(rel_path)))
 
 
 def count_file_content(job_id: int) -> int:
@@ -110,11 +115,12 @@ def count_file_content(job_id: int) -> int:
 
 
 def add_file_request(job_id: int, file_path: str, reason: str) -> None:
+    normalized_path = _normalize_rel_path(file_path)
     if job_id not in _file_requests:
         _file_requests[job_id] = []
     existing = [r["file_path"] for r in _file_requests[job_id]]
-    if file_path not in existing:
-        _file_requests[job_id].append({"file_path": file_path, "reason": reason})
+    if normalized_path not in existing:
+        _file_requests[job_id].append({"file_path": normalized_path, "reason": reason})
 
 
 def get_file_requests(job_id: int) -> List[Dict[str, str]]:
@@ -155,13 +161,20 @@ async def upload_scan(
         raise HTTPException(status_code=400, detail="Checklist has no items")
 
     # Store scan metadata on the job for use by the orchestrator
+    normalized_files = []
+    for file_info in body.scan_result.files:
+        normalized_files.append({
+            **file_info.model_dump(),
+            "path": _normalize_rel_path(file_info.path),
+        })
+
     job = AutonomousReviewJob(
         project_id=body.project_id,
         checklist_id=body.checklist_id,
         source_path=body.source_path or "__agent_scan__",
         agent_metadata={
             "scan_result": {
-                "files": [f.model_dump() for f in body.scan_result.files],
+                "files": normalized_files,
                 "total_size_mb": body.scan_result.total_size_mb,
                 "language_stats": body.scan_result.language_stats,
             },
@@ -364,17 +377,18 @@ async def upload_file_content(
         raise HTTPException(status_code=404, detail="Job not found")
 
     store_file_content(job_id, body.file_path, body.content)
+    normalized_path = _normalize_rel_path(body.file_path)
 
     # Remove from pending-request queue
     if job_id in _file_requests:
         _file_requests[job_id] = [
             r for r in _file_requests[job_id]
-            if r["file_path"] != body.file_path
+            if r["file_path"] != normalized_path
         ]
 
     return {
         "status": "stored",
-        "file_path": body.file_path,
+        "file_path": normalized_path,
         "size_chars": len(body.content),
         "pending_requests": len(get_file_requests(job_id)),
     }
