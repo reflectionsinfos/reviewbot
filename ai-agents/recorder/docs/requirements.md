@@ -55,20 +55,34 @@ OBS is configured to produce continuous 2-minute mp4 segments into a watched fol
 
 This enables the agent to answer questions about anything said earlier in the meeting, even before it ends.
 
-### F3 — Real-Time Q&A During Meeting
+### F3 — Real-Time Q&A During Meeting (Text + Voice)
 
-During the meeting (while OBS is still recording), humans can ask the agent questions via the chat UI. The agent answers using:
+During the meeting (while OBS is still recording), humans can ask the agent questions via **text or voice**. Voice is the primary interaction mode — typing during a meeting is disruptive and breaks focus.
+
+The agent answers using:
 
 - All transcript chunks processed so far
 - Pre-loaded domain and project knowledge
 - Its running summary of the meeting context
 
-Example mid-meeting queries:
-- "What did they decide about the auth service?"
+**Voice interaction flow:**
+1. Human activates the agent with a wake word or hotkey (e.g., "Hey Nexus" or `Ctrl+Space`)
+2. Agent opens a short STT listening window (captures the question)
+3. Question is transcribed using Whisper (same model already running)
+4. Agent generates a response
+5. Response is spoken back via TTS — quietly, through the user's earphone, not into the meeting audio
+6. Optionally, the response also appears in the chat UI for reference
+
+**Critical design constraint:** The agent's spoken responses must never bleed into the meeting's microphone or OBS capture. This is achieved by routing TTS output to a separate audio device (earphones/headset), not the system speaker.
+
+Example mid-meeting voice queries:
+- "Hey Nexus, what did they decide about the auth service?"
 - "Is the approach they're proposing consistent with our architecture?"
 - "What are the risks in what was just discussed?"
 
 The agent should clearly indicate if a question references content not yet captured (e.g., "I haven't processed audio past [timestamp] yet").
+
+**Voice STT:** Reuses the Faster-Whisper model already loaded — no additional model needed for question transcription.
 
 ### F4 — Post-Meeting Collaborative Understanding Document
 
@@ -107,14 +121,24 @@ Generate on demand or post-meeting:
 - Gap analysis
 - Answers to arbitrary user queries
 
-### F7 — Chat Interface
+### F7 — Chat & Voice Interface
 
-Two modes:
+Two interaction modes, two session states:
 
-- **During Meeting**: answers based on transcript so far + pre-loaded knowledge. Labeled with a "live" indicator.
-- **Post-Meeting**: full transcript available. Deeper analysis, synthesis, and brainstorming supported.
+**Input:**
+- **Text**: typed query in the chat UI (available always)
+- **Voice**: wake word or hotkey → STT → agent response spoken via TTS (primary during-meeting mode)
 
-Supports multi-turn conversation — the agent remembers what was discussed in the chat session.
+**Session state:**
+- **During Meeting** (live): answers based on transcript so far + pre-loaded knowledge. Chat UI shows a live indicator with timestamp of latest processed segment.
+- **Post-Meeting**: full transcript available. Deeper analysis, synthesis, and brainstorming supported. Voice still available for hands-free post-meeting review.
+
+**Voice output routing:**
+- TTS audio routed exclusively to headset/earphone output device
+- Never routed to system speakers or meeting microphone
+- Volume and voice (speed, pitch) configurable
+
+Supports multi-turn conversation — the agent maintains context across the chat/voice session.
 
 ### F8 — Knowledge Integration (RAG)
 
@@ -161,10 +185,12 @@ Knowledge is separated into two namespaces within the vector store:
 - Watchdog — folder watcher for OBS mp4 segments
 
 ### AI / ML
-- Faster-Whisper — GPU-accelerated transcription
+- Faster-Whisper — GPU-accelerated transcription (meeting audio + voice query STT)
 - WhisperX / pyannote — speaker diarization
 - Claude / OpenAI / Llama — LLM reasoning
 - LangChain / LangGraph — agent orchestration
+- OpenAI TTS / ElevenLabs / Kokoro — spoken agent responses (routed to earphone only)
+- Pynput / keyboard — hotkey detection for voice activation
 
 ### Audio Processing
 - FFmpeg — audio extraction from mp4 segments
@@ -193,14 +219,14 @@ Knowledge is separated into two namespaces within the vector store:
 ### During Meeting (Local Agent)
 
 ```
-OBS mp4 segments (every 2 min)
-    → File Watcher detects new file
-    → FFmpeg extracts audio
-    → Faster-Whisper transcribes
-    → Chunks embedded → Session Vector Store
-    → Rolling summary updated
-    → Chat UI reflects latest context
-    → Human asks question → LLM answers using transcript + domain knowledge
+OBS mp4 segments (every 2 min)                 Human voice query (wake word / hotkey)
+    → File Watcher detects new file                 → STT (Faster-Whisper, mic input)
+    → FFmpeg extracts audio                         → Text question
+    → Faster-Whisper transcribes                    ↓
+    → Chunks embedded → Session Vector Store   LLM Agent (transcript + domain knowledge)
+    → Rolling summary updated                       ↓
+    → Chat UI reflects latest context          TTS response → earphone only (not meeting audio)
+                                               + response shown in chat UI
 ```
 
 ### Post-Meeting (Collaborative Understanding)
@@ -231,9 +257,10 @@ Meeting Join → Record via Graph API → Process segments → Transcript
 - Post-meeting chat UI
 - Basic LLM Q&A over full transcript
 
-### Phase 2 — Real-Time During Meeting
+### Phase 2 — Real-Time During Meeting (Text + Voice)
 - Incremental transcript accumulation
 - Mid-meeting chat with live context
+- Voice query via wake word / hotkey → STT → TTS response to earphone
 - Rolling summary updates per segment
 - Agent persona with pre-loaded domain knowledge
 

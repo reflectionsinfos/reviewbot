@@ -186,7 +186,48 @@ This rolling summary is injected into the system prompt for every query — givi
 
 ---
 
-### 7. Agent Persona & Pre-Meeting Knowledge Loading
+### 7. Voice Interface (STT + TTS)
+
+Voice is the primary interaction mode during a meeting. The agent listens for a wake word or hotkey, captures the question, and speaks the response back — all without disrupting the meeting.
+
+```
+Activation:
+  Option A — Wake word: "Hey Nexus" (using Porcupine or Vosk keyword detection)
+  Option B — Hotkey: Ctrl+Space (using pynput, always-listening in background)
+
+STT (question capture):
+  - Open mic capture for 5–10 seconds after activation
+  - Transcribe using Faster-Whisper (same model already loaded)
+  - No extra model cost — reuses the transcription service
+
+TTS (spoken response):
+  - Generate spoken response via OpenAI TTS / ElevenLabs / Kokoro (local)
+  - Route audio output ONLY to headset/earphone output device
+  - Never route to system speakers or the OBS/meeting capture device
+  - Use sounddevice or pyaudio with explicit output device selection
+
+Audio device isolation (critical):
+  - OBS captures: virtual audio cable or specific input device (meeting audio)
+  - TTS output device: headset output (separate from OBS input)
+  - Mic for voice queries: same or different mic from meeting mic — configurable
+    Recommended: use a separate push-to-talk approach so query mic doesn't
+    bleed into the meeting when you speak to the agent
+
+Config:
+  wake_word: str                  # e.g., "hey nexus"
+  activation_hotkey: str          # e.g., "ctrl+space"
+  stt_listen_duration_secs: int   # default 8
+  tts_output_device: str          # e.g., "Headphones (Realtek Audio)"
+  tts_provider: str               # openai | elevenlabs | kokoro (local)
+  tts_voice: str                  # e.g., "alloy", "nova"
+  also_show_in_chat: bool         # default true — display response in UI too
+```
+
+**Response length for voice:** TTS responses are automatically condensed to 2–3 sentences. The full detailed response is still shown in the chat UI. The agent is prompted: "Give a concise spoken answer (2-3 sentences). Full detail will be shown in the chat."
+
+---
+
+### 8. Agent Persona & Pre-Meeting Knowledge Loading
 
 Before the meeting starts, the agent is configured with a **persona** and **knowledge brief**.
 
@@ -329,20 +370,35 @@ Chunking Service → [{chunk_id, start, end, text}, ...]
 ### Mid-Meeting Query Flow
 
 ```
-Human types query in Chat UI (meeting IN_PROGRESS)
-    │
-    ▼
-FastAPI POST /sessions/{id}/chat
-    │
-    ▼
-LangGraph Agent
-    ├── inject:   rolling_summary (always prepended)
-    ├── retrieve: top-K from session_transcript (what was said)
-    ├── retrieve: top-K from static_knowledge (domain/project context)
-    └── generate: LLM call → response with source timestamps
-    │
-    ▼
-Chat UI displays response + "Context current as of [timestamp]" indicator
+                    ┌─────────────────────────────────┐
+                    │         Human Input              │
+                    │                                  │
+  Wake word /       │  Voice query        Text query   │
+  hotkey            │  (mic capture)      (chat UI)    │
+    │               └────────┬────────────────┬────────┘
+    │                        │                │
+    ▼                        ▼                │
+Activation            Faster-Whisper          │
+listener              STT → text query        │
+                             │                │
+                             └────────┬───────┘
+                                      │
+                                      ▼
+                          FastAPI POST /sessions/{id}/chat
+                                      │
+                                      ▼
+                              LangGraph Agent
+                          ├── inject:   rolling_summary
+                          ├── retrieve: top-K session_transcript
+                          ├── retrieve: top-K static_knowledge
+                          └── generate: LLM → full response
+                                      │
+                    ┌─────────────────┴──────────────────┐
+                    │                                     │
+                    ▼                                     ▼
+           TTS (condensed 2-3 sentences)        Chat UI (full response)
+           → routed to earphone only            + "Context as of [timestamp]"
+           (never into meeting audio)
 ```
 
 ### Post-Meeting Brainstorming Flow
@@ -420,4 +476,7 @@ Flow:
 | Embedding + vector store indexing | < 5s per segment |
 | Total segment-to-searchable latency | < 30s per segment |
 | LLM chat response | < 5s p95 |
+| Voice STT (question transcription) | < 2s for 8-second clip |
+| TTS generation + playback start | < 3s after LLM response |
+| End-to-end voice round trip | < 10s (activation → spoken answer) |
 | Rolling summary update | < 10s (background, non-blocking to chat) |
