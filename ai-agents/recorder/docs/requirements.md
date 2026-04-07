@@ -1,140 +1,254 @@
-🧭 Objective
+# AI Meeting Recorder Agent — Requirements
 
-Build an LLM-powered Meeting Intelligence System that:
+## Objective
 
-    Captures meeting audio/video
-    Generates detailed transcripts
-    Applies reasoning using project + domain knowledge
-    Enables interactive chat over meeting content
-    Supports both:
-        Local Agent (real-time + UI)
-        Bot Participant (Teams-based automation)
+Build an LLM-powered Meeting Intelligence Agent that joins meetings as an **expert participant** — with pre-loaded domain knowledge, industry awareness, and project context — captures the meeting, provides real-time Q&A during the meeting, and collaborates with humans after the meeting to produce a structured understanding document.
 
+The agent operates like a senior expert who was in the room: it understands what was said, can answer questions about it, identifies gaps, flags risks, and helps the team arrive at shared understanding.
 
-🧩 System Variants
+---
 
-1️⃣ Local Agent (Primary MVP)
+## System Variants
 
-    A locally running Python/Node app that:
+### 1. Local Agent (Primary MVP)
 
-    Captures system audio
-    Transcribes in near real-time or post-meeting
-    Provides a chat UI
-    Connects to LLM for reasoning
+A locally running Python app that:
 
-2️⃣ Teams Bot Account (Automation Layer)
+- Monitors OBS-generated mp4 segments (2-min chunks) from a folder
+- Transcribes each chunk incrementally as it arrives
+- Maintains a rolling meeting context window
+- Answers questions in real-time via a chat UI (during or after the meeting)
+- Produces a collaborative understanding document post-meeting
 
-    Joins meetings automatically
-    Records meeting
-    Generates transcript + insights
-    Posts output to Teams channel
-    Creates discussion thread
+### 2. Teams Bot Participant (Automation Layer — Phase 3)
 
+- Joins meetings automatically as a named bot participant
+- Records the meeting via Microsoft Graph API
+- Processes transcript and posts insights to a Teams channel
+- Creates a dedicated discussion thread with gaps and open questions
 
-🧱 Functional Requirements
-    
-    🎤 Audio/Video Capture
-        
-    Capture system audio (Teams/Zoom/etc.)
-    Optional mic capture (user voice)
-    Store recordings (mp4/mkv)
+---
 
-🧾 Transcription
-    Full detailed transcription (not summary)
-    Timestamped segments
-    Optional speaker diarization
+## Functional Requirements
 
-🧠 LLM Reasoning
-    Generate:
-        Detailed summaries
-        Decisions
-        Action items
-        Risks
-    Answer user queries via chat
+### F1 — Agent Persona & Pre-Meeting Knowledge Loading
 
-💬 Chat Interface
-    
-    Ask questions like:
-        “What decisions were made?”
-        “What are the risks?”
-    Context-aware answers using transcript + knowledge
+The agent must be configurable with **prior knowledge** before the meeting starts, acting like a human expert who prepared for the call.
 
+- **Domain Knowledge**: industry concepts, terminology, architectural patterns, best practices
+- **Industry Trends**: recent developments, emerging technologies relevant to the meeting topic
+- **Project Context**: project docs, architecture decisions, codebase summaries, prior meeting notes
+- **Meeting Brief**: agenda, attendees, stated objectives, known open questions
 
-🗂 Knowledge Integration (RAG)
-    Integrate:
-        Project docs
-        Code summaries
-        Domain knowledge
-    Use vector DB for retrieval
+The agent loads this knowledge into a vector store before the meeting and uses it to reason about what is said — not just transcribe it.
 
+### F2 — OBS Chunked Video Pipeline
 
-🧑‍💻 Teams Bot Features
-    Auto-join meeting
-    Record session
-    Upload transcript
-    
-    Create:
-        Summary message
-        Dedicated discussion thread/channel
+OBS is configured to produce continuous 2-minute mp4 segments into a watched folder. The agent must:
 
-⚙️ Non-Functional Requirements
-    
-    Low latency (for local agent)
-    High transcription accuracy
-    Scalable (cloud-ready)
-    Secure (no data leaks)
-    Modular architecture
+- **Watch** the output folder for new mp4 files (file watcher with debounce)
+- **Extract audio** from each new segment using FFmpeg
+- **Transcribe** the audio using Faster-Whisper, producing timestamped segments
+- **Accumulate** the transcript across all segments into a growing meeting context
+- **Re-embed and index** new transcript chunks into the session's vector store after each segment
+- **Maintain a rolling summary** of the meeting so far, updated every N segments
 
-🏗️ Tech Stack
+This enables the agent to answer questions about anything said earlier in the meeting, even before it ends.
 
-    🟢 Backend
-        Python (FastAPI) → transcription + AI
-        Node.js (optional) → UI backend / orchestration
+### F3 — Real-Time Q&A During Meeting
 
-    🟢 Frontend
-        React / Next.js (lightweight UI)
-        Electron (for desktop app)
-    
-    🟢 AI / ML
-        Whisper / Faster-Whisper → transcription
-        WhisperX / pyannote → diarization
-        OpenAI / Llama / Mixtral → LLM
+During the meeting (while OBS is still recording), humans can ask the agent questions via the chat UI. The agent answers using:
 
-    🟢 Audio Processing
-        FFmpeg → audio extraction
-        Virtual Audio Cable → system audio capture
+- All transcript chunks processed so far
+- Pre-loaded domain and project knowledge
+- Its running summary of the meeting context
 
-    🟢 Storage
-        PostgreSQL → metadata
-        S3 / Local FS → recordings
-        Vector DB:
-            FAISS (local)
-            Pinecone / Weaviate (cloud)
-    🟢 Integration
-        Microsoft Graph API → Teams bot
-        Azure Bot Service       
+Example mid-meeting queries:
+- "What did they decide about the auth service?"
+- "Is the approach they're proposing consistent with our architecture?"
+- "What are the risks in what was just discussed?"
 
-🔄 High-Level Flow
+The agent should clearly indicate if a question references content not yet captured (e.g., "I haven't processed audio past [timestamp] yet").
 
-Local Agent
-    Audio Capture → Whisper → Transcript → Chunk → Embed → Vector DB → LLM → UI Chat
+### F4 — Post-Meeting Collaborative Understanding Document
 
-Teams Bot
-    Meeting Join → Record → Process → Transcript → LLM → Post to Teams   
+After the meeting ends, the agent collaborates interactively with the humans present to produce a structured **Meeting Understanding Document**. This is not an automatic summary — it is a co-created artifact built through dialogue.
 
-🚀 Approach Strategy
-    Phase 1 (MVP)
-        Local agent
-        Post-meeting transcription
-        Chat UI
+The document includes:
 
-    Phase 2
-        Speaker diarization
-        Knowledge integration (RAG)
+| Section | Description |
+|---|---|
+| Context & Objectives | What the meeting was about and why it was held |
+| Key Decisions | Decisions made, with rationale and owners |
+| Action Items | Tasks, owners, and deadlines |
+| Open Questions | Questions raised but not resolved |
+| Gaps Identified | Topics that needed more depth or were skipped |
+| Risks & Concerns | Risks flagged during discussion |
+| Expert Commentary | Agent's perspective based on domain/industry knowledge |
+| Next Steps | Agreed follow-up path |
 
-    Phase 3
-        Teams bot integration
-        Auto workflows
+The agent actively asks clarifying questions to fill gaps: "You mentioned migrating the database — was the target platform decided?" It does not just passively summarize.
 
-    Phase 4
-        Real-time streaming AI agent
+### F5 — Transcription
+
+- Full verbatim transcription with timestamps (not summaries)
+- Per-segment transcription as each mp4 chunk arrives
+- Optional speaker diarization (who said what)
+- Transcript stored persistently per session
+
+### F6 — LLM Reasoning
+
+Generate on demand or post-meeting:
+
+- Detailed summaries
+- Decisions log
+- Action items with owners
+- Risk register
+- Gap analysis
+- Answers to arbitrary user queries
+
+### F7 — Chat Interface
+
+Two modes:
+
+- **During Meeting**: answers based on transcript so far + pre-loaded knowledge. Labeled with a "live" indicator.
+- **Post-Meeting**: full transcript available. Deeper analysis, synthesis, and brainstorming supported.
+
+Supports multi-turn conversation — the agent remembers what was discussed in the chat session.
+
+### F8 — Knowledge Integration (RAG)
+
+Integrates knowledge from multiple sources into a vector store:
+
+- Project documentation and architecture docs
+- Codebase summaries
+- Domain knowledge corpus (manually curated or imported)
+- Industry knowledge and trends (can be seeded from curated documents)
+- Prior meeting transcripts and notes
+
+Knowledge is separated into two namespaces within the vector store:
+- **Static knowledge** (pre-meeting, persists across sessions)
+- **Session knowledge** (this meeting's transcript, only for this session)
+
+### F9 — Teams Bot Features (Phase 3)
+
+- Auto-join meeting as named participant
+- Record session via Microsoft Graph API
+- Upload and process transcript
+- Post structured summary to Teams channel
+- Create discussion thread with open questions and gaps
+
+---
+
+## Non-Functional Requirements
+
+| Requirement | Target |
+|---|---|
+| Segment processing latency | < 30 seconds per 2-min mp4 chunk |
+| Transcription accuracy | > 90% WER on clear audio |
+| Chat response time | < 5 seconds for mid-meeting queries |
+| Storage | Local FS for MVP; S3-compatible for cloud |
+| Security | No audio/transcript leaves local machine in MVP |
+| Modularity | Each component (watcher, transcriber, embedder, LLM) independently replaceable |
+| Scalability | Cloud-ready architecture for Phase 3+ |
+
+---
+
+## Tech Stack
+
+### Backend
+- Python (FastAPI) — transcription pipeline + agent API
+- Watchdog — folder watcher for OBS mp4 segments
+
+### AI / ML
+- Faster-Whisper — GPU-accelerated transcription
+- WhisperX / pyannote — speaker diarization
+- Claude / OpenAI / Llama — LLM reasoning
+- LangChain / LangGraph — agent orchestration
+
+### Audio Processing
+- FFmpeg — audio extraction from mp4 segments
+- OBS 3.11 — capture source (configured for 2-min segment output)
+
+### Storage
+- PostgreSQL — session metadata, transcript storage
+- Local FS / S3 — mp4 segment storage
+- Vector DB:
+  - FAISS (local MVP)
+  - ChromaDB (local, persistent)
+  - Pinecone / Weaviate (cloud, Phase 3+)
+
+### Frontend
+- React / Next.js — chat UI
+- Electron (optional) — desktop app wrapper
+
+### Integration
+- Microsoft Graph API — Teams bot (Phase 3)
+- Azure Bot Service — Teams bot hosting (Phase 3)
+
+---
+
+## High-Level Flows
+
+### During Meeting (Local Agent)
+
+```
+OBS mp4 segments (every 2 min)
+    → File Watcher detects new file
+    → FFmpeg extracts audio
+    → Faster-Whisper transcribes
+    → Chunks embedded → Session Vector Store
+    → Rolling summary updated
+    → Chat UI reflects latest context
+    → Human asks question → LLM answers using transcript + domain knowledge
+```
+
+### Post-Meeting (Collaborative Understanding)
+
+```
+Full transcript available
+    → Agent generates initial understanding document draft
+    → Human reviews → asks questions → agent elaborates
+    → Agent identifies gaps → asks clarifying questions
+    → Co-created understanding document finalized
+    → Exported as Markdown / PDF
+```
+
+### Teams Bot (Phase 3)
+
+```
+Meeting Join → Record via Graph API → Process segments → Transcript
+    → LLM → Post summary + gaps to Teams channel → Create discussion thread
+```
+
+---
+
+## Delivery Phases
+
+### Phase 1 — MVP (Local Agent, Post-Meeting)
+- OBS folder watcher + FFmpeg audio extraction
+- Faster-Whisper transcription per segment
+- Post-meeting chat UI
+- Basic LLM Q&A over full transcript
+
+### Phase 2 — Real-Time During Meeting
+- Incremental transcript accumulation
+- Mid-meeting chat with live context
+- Rolling summary updates per segment
+- Agent persona with pre-loaded domain knowledge
+
+### Phase 3 — Knowledge Integration (RAG)
+- Pre-meeting knowledge loading (project docs, domain corpus)
+- Static + session vector store namespaces
+- Speaker diarization
+- Gap and risk detection
+
+### Phase 4 — Collaborative Understanding Document
+- Post-meeting brainstorming dialogue
+- Co-created understanding document with gaps, risks, expert commentary
+- Export to Markdown / PDF
+
+### Phase 5 — Teams Bot Integration
+- Auto-join meeting as participant
+- Graph API recording
+- Post to Teams channel with structured output
