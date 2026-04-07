@@ -2,9 +2,11 @@
 
 ## Objective
 
-Build an LLM-powered Meeting Intelligence Agent that joins meetings as an **expert participant** — with pre-loaded domain knowledge, industry awareness, and project context — captures the meeting, provides real-time Q&A during the meeting, and collaborates with humans after the meeting to produce a structured understanding document.
+Build an LLM-powered **Multi-Agent Meeting Intelligence System** where multiple specialist agents — each embodying a distinct professional role — participate in meetings as expert observers. An orchestrator coordinates them, routes queries to the right specialist, surfaces inter-agent conflicts, and synthesizes a shared understanding.
 
-The agent operates like a senior expert who was in the room: it understands what was said, can answer questions about it, identifies gaps, flags risks, and helps the team arrive at shared understanding.
+Each participant (human or async) selects a role. The system interviews them to understand their responsibilities and accountability before the meeting. During the meeting, each agent maintains a role-filtered view of what was discussed. After the meeting, every role receives a personalised briefing — and a shared collaborative understanding document is co-created across all agents.
+
+A **Default Expert Agent** is always present as a generalist fallback.
 
 ---
 
@@ -14,153 +16,300 @@ The agent operates like a senior expert who was in the room: it understands what
 
 A locally running Python app that:
 
-- Monitors OBS-generated mp4 segments (2-min chunks) from a folder
+- Monitors OBS-generated mp4 segments (2-min chunks) from a watched folder
 - Transcribes each chunk incrementally as it arrives
-- Maintains a rolling meeting context window
-- Answers questions in real-time via a chat UI (during or after the meeting)
-- Produces a collaborative understanding document post-meeting
+- Distributes transcript chunks to all active persona agents for role-filtered processing
+- Answers questions in real-time via text or voice (during or after the meeting)
+- Produces role-specific briefings and a shared collaborative understanding document post-meeting
 
 ### 2. Teams Bot Participant (Automation Layer — Phase 3)
 
 - Joins meetings automatically as a named bot participant
-- Records the meeting via Microsoft Graph API
-- Processes transcript and posts insights to a Teams channel
-- Creates a dedicated discussion thread with gaps and open questions
+- Records via Microsoft Graph API
+- Runs the full multi-agent pipeline
+- Posts a shared summary + per-role threads to a Teams channel
 
 ---
 
 ## Functional Requirements
 
-### F1 — Agent Persona & Pre-Meeting Knowledge Loading
+### F1 — Role Onboarding Interview
 
-The agent must be configurable with **prior knowledge** before the meeting starts, acting like a human expert who prepared for the call.
+Before the meeting starts, the agent **interviews** each participant — it does not present a static form. The conversation establishes the persona's context.
 
-- **Domain Knowledge**: industry concepts, terminology, architectural patterns, best practices
-- **Industry Trends**: recent developments, emerging technologies relevant to the meeting topic
-- **Project Context**: project docs, architecture decisions, codebase summaries, prior meeting notes
-- **Meeting Brief**: agenda, attendees, stated objectives, known open questions
+**Interview questions (conversational, not a form):**
+- "What's your role in this meeting?"
+- "What are you accountable for in this project or team?"
+- "What decisions fall within your domain?"
+- "What would make this meeting a success for you?"
+- "Are there topics you already know are irrelevant to your role?"
+- "Any open questions you're hoping this meeting will resolve?"
 
-The agent loads this knowledge into a vector store before the meeting and uses it to reason about what is said — not just transcribe it.
+The answers become the persona's system prompt and accountability map. They also seed the relevance scoring model for that agent — topics marked irrelevant by the user are downweighted in that agent's processing.
 
-### F2 — OBS Chunked Video Pipeline
+Returning users can reuse a saved persona profile or update it before each meeting.
 
-OBS is configured to produce continuous 2-minute mp4 segments into a watched folder. The agent must:
+---
 
-- **Watch** the output folder for new mp4 files (file watcher with debounce)
+### F2 — Multi-Agent Architecture
+
+The system supports multiple concurrent persona agents per session, coordinated by an orchestrator.
+
+**Orchestrator Agent:**
+- Receives all incoming queries (voice or text)
+- Classifies the query and routes it to the most relevant specialist agent(s)
+- For cross-cutting queries, collects responses from multiple agents and synthesizes
+- Monitors for inter-agent conflicts and surfaces them explicitly
+- Manages the shared understanding document
+- Runs the Meeting Health Monitor in the background
+
+**Persona Agents (specialist, role-scoped):**
+- Each agent has its own: system prompt, rolling summary, relevance filter, and accountability map
+- Processes only transcript chunks that score above a relevance threshold for its domain
+- Maintains its own action item and risk register, scoped to its role
+- Can be queried directly or through the orchestrator
+
+**Built-in persona templates (pre-configured, user-customisable):**
+
+| Persona | Domain focus |
+|---|---|
+| Solutions Architect | System design, trade-offs, integration patterns, scalability |
+| Security Engineer | Threats, compliance, data exposure, auth/authz |
+| Product Manager | Scope, timelines, stakeholder impact, feature decisions |
+| Data Engineer | Data flows, pipelines, schema, storage, quality |
+| DevOps / SRE | Deployment, reliability, observability, infra |
+| Business Analyst | Requirements clarity, process gaps, user stories |
+| Default Expert | Generalist fallback — always active, handles anything unrouted |
+
+Users can define fully custom personas with any role description, domain, and accountability scope.
+
+**Session cap:** Maximum 6 active agents per session to avoid incoherent output. The orchestrator merges agents with heavily overlapping domains.
+
+---
+
+### F3 — Agent Persona & Pre-Meeting Knowledge Loading
+
+Each active persona agent loads its own knowledge before the meeting starts.
+
+- **Domain Knowledge**: concepts, terminology, patterns, best practices specific to the role
+- **Industry Trends**: recent developments relevant to the role's domain
+- **Project Context**: architecture docs, ADRs, codebase summaries, prior meeting notes
+- **Meeting Brief**: agenda, attendees, objectives, known open questions
+
+Knowledge is loaded into a **per-persona namespace** in the vector store. The orchestrator has access to all namespaces. Persona agents only retrieve from their own namespace plus the shared session transcript.
+
+---
+
+### F4 — OBS Chunked Video Pipeline
+
+OBS is configured to produce continuous 2-minute mp4 segments into a watched folder.
+
+- **Watch** the folder for new mp4 files (file watcher with debounce)
 - **Extract audio** from each new segment using FFmpeg
-- **Transcribe** the audio using Faster-Whisper, producing timestamped segments
-- **Accumulate** the transcript across all segments into a growing meeting context
-- **Re-embed and index** new transcript chunks into the session's vector store after each segment
-- **Maintain a rolling summary** of the meeting so far, updated every N segments
+- **Transcribe** using Faster-Whisper, producing timestamped segments
+- **Score relevance** of each chunk against each active persona's domain
+- **Distribute** chunks to each agent's processing queue based on relevance score
+- **Re-embed and index** chunks into the shared session vector store
+- **Update each agent's rolling summary** independently every N segments
 
-This enables the agent to answer questions about anything said earlier in the meeting, even before it ends.
+This enables both global context (orchestrator) and role-filtered context (persona agents).
 
-### F3 — Real-Time Q&A During Meeting (Text + Voice)
+---
 
-During the meeting (while OBS is still recording), humans can ask the agent questions via **text or voice**. Voice is the primary interaction mode — typing during a meeting is disruptive and breaks focus.
+### F5 — Role-Filtered Transcript Attention
 
-The agent answers using:
+Each persona agent scores every incoming transcript chunk for relevance to its domain. This determines what the agent deeply processes vs skims.
 
-- All transcript chunks processed so far
-- Pre-loaded domain and project knowledge
-- Its running summary of the meeting context
+- **High relevance (>0.7):** Full embedding, included in agent's rolling summary, flagged for its briefing
+- **Medium relevance (0.4–0.7):** Embedded but not in rolling summary; retrievable on query
+- **Low relevance (<0.4):** Skipped by this agent; still in shared session store for the orchestrator
+
+This gives users role-specific value: a Security Engineer doesn't have their summary polluted with UX copy discussions. A PM doesn't wade through database schema debates unless they ask.
+
+**Late joiner / replay mode:** A user who joins late or starts listening to an already-recorded meeting selects their role, and the system immediately generates a role-filtered catch-up summary: "Here's what was discussed that's relevant to you as a [Security Engineer]."
+
+---
+
+### F6 — Real-Time Q&A During Meeting (Text + Voice)
+
+During the meeting, humans interact via **text or voice**. Voice is the primary mode — typing is disruptive.
 
 **Voice interaction flow:**
-1. Human activates the agent with a wake word or hotkey (e.g., "Hey Nexus" or `Ctrl+Space`)
-2. Agent opens a short STT listening window (captures the question)
-3. Question is transcribed using Whisper (same model already running)
-4. Agent generates a response
-5. Response is spoken back via TTS — quietly, through the user's earphone, not into the meeting audio
-6. Optionally, the response also appears in the chat UI for reference
+1. Wake word (`"Hey Nexus"`) or hotkey (`Ctrl+Space`) activates the agent
+2. STT captures the question (Faster-Whisper, same model already running)
+3. Orchestrator classifies and routes to the best specialist agent
+4. Response spoken back via TTS — through earphone only, never into meeting audio
+5. Full response shown in chat UI for reference
 
-**Critical design constraint:** The agent's spoken responses must never bleed into the meeting's microphone or OBS capture. This is achieved by routing TTS output to a separate audio device (earphones/headset), not the system speaker.
+**Critical constraint:** TTS output must never bleed into the meeting microphone or OBS capture. Routed exclusively to a configured headset output device.
 
-Example mid-meeting voice queries:
-- "Hey Nexus, what did they decide about the auth service?"
-- "Is the approach they're proposing consistent with our architecture?"
-- "What are the risks in what was just discussed?"
+**Fast path for voice:** Mid-meeting voice queries route to a single most-relevant agent (low latency). Multi-agent synthesis only happens post-meeting or on explicit user request.
 
-The agent should clearly indicate if a question references content not yet captured (e.g., "I haven't processed audio past [timestamp] yet").
+Example queries and routing:
+- "What are the risks in this approach?" → Security Agent
+- "Is this consistent with our architecture?" → Solutions Architect Agent
+- "What did they commit to and by when?" → PM Agent
+- "What does this mean for our data pipeline?" → Data Engineer Agent
+- "Summarise everything so far" → Orchestrator (synthesizes all agents)
 
-**Voice STT:** Reuses the Faster-Whisper model already loaded — no additional model needed for question transcription.
+---
 
-### F4 — Post-Meeting Collaborative Understanding Document
+### F7 — Inter-Agent Conflict Detection
 
-After the meeting ends, the agent collaborates interactively with the humans present to produce a structured **Meeting Understanding Document**. This is not an automatic summary — it is a co-created artifact built through dialogue.
+When two or more persona agents reach conflicting conclusions about the same topic, the orchestrator **surfaces the conflict explicitly** rather than silently resolving it.
 
-The document includes:
+Conflicts appear in the chat UI immediately and are recorded in the understanding document as open questions.
+
+**Example conflicts:**
+> **Conflict — Caching Strategy [14:32]**
+> Solutions Architect Agent: Accepted the Redis caching approach as proposed.
+> Security Agent: Flagged this as a potential data exposure risk — session tokens may be cached without TTL.
+> → Not resolved in meeting. → **Open Question**
+
+> **Conflict — API Contract [22:15]**
+> Backend Agent: Proposed breaking change to the `/auth/token` endpoint.
+> Frontend Agent: Current implementation depends on this contract.
+> → Cross-role dependency not acknowledged. → **Action Item: Backend + Frontend to align.**
+
+---
+
+### F8 — Role-Specific Post-Meeting Briefings
+
+After the meeting, each persona receives a **personalised briefing** tailored to its domain — not one shared dump.
+
+Each briefing contains:
 
 | Section | Description |
 |---|---|
-| Context & Objectives | What the meeting was about and why it was held |
-| Key Decisions | Decisions made, with rationale and owners |
-| Action Items | Tasks, owners, and deadlines |
-| Open Questions | Questions raised but not resolved |
-| Gaps Identified | Topics that needed more depth or were skipped |
-| Risks & Concerns | Risks flagged during discussion |
-| Expert Commentary | Agent's perspective based on domain/industry knowledge |
-| Next Steps | Agreed follow-up path |
+| What Matters to You | High-relevance discussion filtered for this role |
+| Your Action Items | Tasks assigned to or owned by this role |
+| Decisions in Your Domain | Decisions made that fall within your accountability |
+| Risks in Your Area | Risks identified relevant to your domain |
+| Open Questions for You | Unresolved questions you need to answer |
+| Safe to Ignore | Topics discussed that are not relevant to your role |
+| Cross-Role Dependencies | Things others committed to that affect your work |
 
-The agent actively asks clarifying questions to fill gaps: "You mentioned migrating the database — was the target platform decided?" It does not just passively summarize.
+Briefings are generated automatically after the meeting ends and are available before the shared understanding document is co-created.
 
-### F5 — Transcription
+---
+
+### F9 — Shared Collaborative Understanding Document
+
+After individual briefings are generated, the orchestrator facilitates a **shared understanding document** co-created across all active agents and the human participants.
+
+The orchestrator actively asks clarifying questions to fill gaps:
+- "You mentioned migrating the database — was the target platform decided?"
+- "The Security Agent flagged a risk at 14:32. Was this acknowledged by the team?"
+- "I noticed three open questions from the last meeting on this topic were not addressed."
+
+The document includes all role perspectives, surfaced conflicts, and expert commentary from each agent.
+
+---
+
+### F10 — Asynchronous Agent Participation
+
+A stakeholder who **cannot attend** sends their persona agent ahead of time. The agent:
+
+- Monitors the transcript passively during the meeting
+- Applies its relevance filter to flag what falls in the stakeholder's domain
+- After the meeting, generates a personalised briefing for the absent stakeholder
+- Flags anything that requires the stakeholder's input or decision as a priority item
+
+This extends the value of the system to people who were not in the room.
+
+---
+
+### F11 — Accountability Mapping
+
+The role onboarding interview captures the user's accountability scope. The system maps every decision, action item, and risk to an accountability owner based on this.
+
+Output: automatic lightweight **RACI summary** per meeting.
+
+- **Responsible**: who does the task
+- **Accountable**: whose domain owns the outcome
+- **Consulted**: who was asked for input
+- **Informed**: who needs to know the decision
+
+This is derived from transcript + role definitions, not manually filled.
+
+---
+
+### F12 — Meeting Health Monitor
+
+The orchestrator runs a background health monitor during the meeting and surfaces gentle nudges in the chat UI. These are informational — not intrusive.
+
+**Trigger conditions:**
+- 15+ minutes with no decisions or action items captured
+- Scope expanded significantly from the stated agenda
+- Open questions from a prior meeting on this topic were not addressed
+- A topic was tabled without a resolution or owner assigned
+- Two or more agents have flagged the same risk independently
+
+Health alerts appear as a sidebar notification, not as spoken interruptions.
+
+---
+
+### F13 — Transcription
 
 - Full verbatim transcription with timestamps (not summaries)
 - Per-segment transcription as each mp4 chunk arrives
-- Optional speaker diarization (who said what)
-- Transcript stored persistently per session
+- Speaker diarization (who said what) — Phase 2
+- Transcript stored persistently per session and reusable for replay
 
-### F6 — LLM Reasoning
+---
 
-Generate on demand or post-meeting:
+### F14 — LLM Reasoning (per agent)
 
-- Detailed summaries
-- Decisions log
+Each persona agent generates on demand or post-meeting:
+
+- Role-filtered summary
+- Decisions in its domain
 - Action items with owners
-- Risk register
-- Gap analysis
-- Answers to arbitrary user queries
+- Risks in its domain
+- Gap analysis from its perspective
+- Expert commentary from its domain and industry knowledge
 
-### F7 — Chat & Voice Interface
+The orchestrator synthesizes across all agents into the shared output.
 
-Two interaction modes, two session states:
+---
 
-**Input:**
-- **Text**: typed query in the chat UI (available always)
-- **Voice**: wake word or hotkey → STT → agent response spoken via TTS (primary during-meeting mode)
+### F15 — Chat & Voice Interface
 
-**Session state:**
-- **During Meeting** (live): answers based on transcript so far + pre-loaded knowledge. Chat UI shows a live indicator with timestamp of latest processed segment.
-- **Post-Meeting**: full transcript available. Deeper analysis, synthesis, and brainstorming supported. Voice still available for hands-free post-meeting review.
+**Input modes:**
+- **Text**: typed query in the chat UI (always available)
+- **Voice**: wake word or hotkey → STT → routed via orchestrator → TTS response to earphone
+
+**Session states:**
+- **During Meeting** (live): answers based on transcript processed so far. Live badge + "context current as of [timestamp]" shown.
+- **Post-Meeting**: full transcript available. Multi-agent synthesis, brainstorming, and conflict resolution supported.
 
 **Voice output routing:**
-- TTS audio routed exclusively to headset/earphone output device
+- TTS routed exclusively to configured headset/earphone output device
 - Never routed to system speakers or meeting microphone
-- Volume and voice (speed, pitch) configurable
+- Spoken responses condensed to 2–3 sentences; full response shown in chat UI
 
-Supports multi-turn conversation — the agent maintains context across the chat/voice session.
+---
 
-### F8 — Knowledge Integration (RAG)
+### F16 — Knowledge Integration (RAG)
 
-Integrates knowledge from multiple sources into a vector store:
+Vector store namespaces:
 
-- Project documentation and architecture docs
-- Codebase summaries
-- Domain knowledge corpus (manually curated or imported)
-- Industry knowledge and trends (can be seeded from curated documents)
-- Prior meeting transcripts and notes
+| Namespace | Contents | Scope |
+|---|---|---|
+| `static_knowledge_{persona}` | Domain docs, industry trends, project context per persona | Persists across sessions |
+| `session_transcript` | This meeting's chunks (shared across all agents) | Session-scoped |
+| `prior_meetings` | Transcripts and understanding docs from previous meetings | Project-scoped |
 
-Knowledge is separated into two namespaces within the vector store:
-- **Static knowledge** (pre-meeting, persists across sessions)
-- **Session knowledge** (this meeting's transcript, only for this session)
+---
 
-### F9 — Teams Bot Features (Phase 3)
+### F17 — Teams Bot Features (Phase 3)
 
 - Auto-join meeting as named participant
 - Record session via Microsoft Graph API
-- Upload and process transcript
-- Post structured summary to Teams channel
-- Create discussion thread with open questions and gaps
+- Run full multi-agent pipeline
+- Post shared summary to Teams channel
+- Create per-role threads with tailored briefings
+- Tag relevant team members in their respective threads
 
 ---
 
@@ -168,13 +317,18 @@ Knowledge is separated into two namespaces within the vector store:
 
 | Requirement | Target |
 |---|---|
-| Segment processing latency | < 30 seconds per 2-min mp4 chunk |
+| Segment processing latency | < 30s per 2-min mp4 chunk |
 | Transcription accuracy | > 90% WER on clear audio |
-| Chat response time | < 5 seconds for mid-meeting queries |
+| Voice round-trip (activation → spoken answer) | < 10s |
+| LLM chat response (single agent) | < 5s p95 |
+| Multi-agent synthesis response | < 15s p95 |
+| Relevance scoring per chunk per agent | < 1s per agent |
+| Post-meeting briefing generation | < 60s per persona |
+| Max active agents per session | 6 |
 | Storage | Local FS for MVP; S3-compatible for cloud |
 | Security | No audio/transcript leaves local machine in MVP |
-| Modularity | Each component (watcher, transcriber, embedder, LLM) independently replaceable |
-| Scalability | Cloud-ready architecture for Phase 3+ |
+| Modularity | Each component independently replaceable |
+| Scalability | Cloud-ready for Phase 3+ |
 
 ---
 
@@ -183,29 +337,32 @@ Knowledge is separated into two namespaces within the vector store:
 ### Backend
 - Python (FastAPI) — transcription pipeline + agent API
 - Watchdog — folder watcher for OBS mp4 segments
+- Celery / asyncio — parallel agent processing
 
 ### AI / ML
 - Faster-Whisper — GPU-accelerated transcription (meeting audio + voice query STT)
 - WhisperX / pyannote — speaker diarization
-- Claude / OpenAI / Llama — LLM reasoning
-- LangChain / LangGraph — agent orchestration
-- OpenAI TTS / ElevenLabs / Kokoro — spoken agent responses (routed to earphone only)
+- Claude / OpenAI / Llama — LLM reasoning (per agent + orchestrator)
+- LangGraph — multi-agent orchestration and state graph
+- Sentence-Transformers — relevance scoring (lightweight, fast)
+- OpenAI TTS / ElevenLabs / Kokoro — TTS for spoken responses (earphone only)
 - Pynput / keyboard — hotkey detection for voice activation
+- Porcupine / Vosk — wake word detection
 
 ### Audio Processing
 - FFmpeg — audio extraction from mp4 segments
-- OBS 3.11 — capture source (configured for 2-min segment output)
+- OBS 3.11 — capture source (2-min segment output)
+- sounddevice / pyaudio — TTS output device routing
 
 ### Storage
-- PostgreSQL — session metadata, transcript storage
+- PostgreSQL — session metadata, persona profiles, transcript, understanding docs
 - Local FS / S3 — mp4 segment storage
 - Vector DB:
-  - FAISS (local MVP)
-  - ChromaDB (local, persistent)
+  - ChromaDB (local, persistent, per-persona namespaces)
   - Pinecone / Weaviate (cloud, Phase 3+)
 
 ### Frontend
-- React / Next.js — chat UI
+- React / Next.js — chat UI with multi-agent panel
 - Electron (optional) — desktop app wrapper
 
 ### Integration
@@ -216,66 +373,103 @@ Knowledge is separated into two namespaces within the vector store:
 
 ## High-Level Flows
 
-### During Meeting (Local Agent)
+### Pre-Meeting Setup
 
 ```
-OBS mp4 segments (every 2 min)                 Human voice query (wake word / hotkey)
-    → File Watcher detects new file                 → STT (Faster-Whisper, mic input)
-    → FFmpeg extracts audio                         → Text question
-    → Faster-Whisper transcribes                    ↓
-    → Chunks embedded → Session Vector Store   LLM Agent (transcript + domain knowledge)
-    → Rolling summary updated                       ↓
-    → Chat UI reflects latest context          TTS response → earphone only (not meeting audio)
-                                               + response shown in chat UI
+User opens session
+    → Agent conducts role onboarding interview (conversational)
+    → Persona profile created (role, accountability, relevance filters)
+    → Domain knowledge + project docs loaded → per-persona vector store namespace
+    → OBS folder watcher activated
+    → Orchestrator initialised with all active personas
 ```
 
-### Post-Meeting (Collaborative Understanding)
+### During Meeting (Multi-Agent Pipeline)
 
 ```
-Full transcript available
-    → Agent generates initial understanding document draft
-    → Human reviews → asks questions → agent elaborates
-    → Agent identifies gaps → asks clarifying questions
-    → Co-created understanding document finalized
-    → Exported as Markdown / PDF
+OBS mp4 segment (every 2 min)
+    → File Watcher → FFmpeg → Faster-Whisper → transcript chunks
+    → Relevance scorer: scores chunks against each active persona
+    → Chunks distributed to relevant agents + shared session store
+    → Each agent updates its own rolling summary
+    → Orchestrator monitors for conflicts across agent summaries
+    → Meeting Health Monitor runs in background
+
+Human voice query (wake word / hotkey)
+    → STT → Orchestrator classifies query
+    → Routes to best specialist agent (fast path)
+    → TTS response → earphone only
+    → Full response in chat UI
 ```
 
-### Teams Bot (Phase 3)
+### Post-Meeting (Briefings + Shared Understanding)
 
 ```
-Meeting Join → Record via Graph API → Process segments → Transcript
-    → LLM → Post summary + gaps to Teams channel → Create discussion thread
+Meeting ends
+    → Each persona agent generates its role-specific briefing (parallel)
+    → Orchestrator collects all briefings + identifies conflicts + cross-role dependencies
+    → Shared understanding document draft created
+    → Collaborative dialogue: humans + agents refine, fill gaps, resolve conflicts
+    → Final document exported as Markdown / PDF
+    → Absent stakeholders receive their async briefings
+```
+
+### Async Participant
+
+```
+Absent stakeholder registers persona before meeting
+    → Agent runs passively during meeting (no voice interaction)
+    → Post-meeting: generates personalised briefing + priority flags
+    → Briefing delivered to stakeholder (email / Teams / chat)
+```
+
+### Late Joiner / Replay Mode
+
+```
+User joins late or starts replay of recorded meeting
+    → Selects role (or onboarded via interview)
+    → Agent generates role-filtered catch-up summary: "Here's what matters to you"
+    → Full Q&A available over the already-processed transcript
 ```
 
 ---
 
 ## Delivery Phases
 
-### Phase 1 — MVP (Local Agent, Post-Meeting)
+### Phase 1 — MVP (Single Agent, Post-Meeting)
 - OBS folder watcher + FFmpeg audio extraction
 - Faster-Whisper transcription per segment
-- Post-meeting chat UI
-- Basic LLM Q&A over full transcript
+- Default Expert Agent only
+- Post-meeting text chat over full transcript
+- Basic role onboarding interview
 
-### Phase 2 — Real-Time During Meeting (Text + Voice)
-- Incremental transcript accumulation
-- Mid-meeting chat with live context
-- Voice query via wake word / hotkey → STT → TTS response to earphone
+### Phase 2 — Real-Time + Voice (Single Agent)
+- Incremental transcript accumulation during meeting
+- Mid-meeting voice Q&A (wake word / hotkey → earphone response)
 - Rolling summary updates per segment
-- Agent persona with pre-loaded domain knowledge
+- Pre-loaded domain knowledge per persona
 
-### Phase 3 — Knowledge Integration (RAG)
-- Pre-meeting knowledge loading (project docs, domain corpus)
-- Static + session vector store namespaces
+### Phase 3 — Multi-Agent Architecture
+- Orchestrator + multiple specialist persona agents
+- Role-filtered transcript attention and relevance scoring
+- Inter-agent conflict detection and surfacing
+- Meeting Health Monitor
+
+### Phase 4 — Role-Specific Briefings + Understanding Document
+- Per-persona post-meeting briefings (parallel generation)
+- Accountability mapping and RACI output
+- Shared collaborative understanding document via orchestrator
+- Cross-role dependency detection
+- Async agent participation for absent stakeholders
+
+### Phase 5 — Late Joiner / Replay + RAG
+- Role-filtered catch-up for late joiners
+- Prior meeting transcript retrieval (cross-session RAG)
 - Speaker diarization
-- Gap and risk detection
-
-### Phase 4 — Collaborative Understanding Document
-- Post-meeting brainstorming dialogue
-- Co-created understanding document with gaps, risks, expert commentary
 - Export to Markdown / PDF
 
-### Phase 5 — Teams Bot Integration
-- Auto-join meeting as participant
+### Phase 6 — Teams Bot Integration
+- Auto-join as named participant
 - Graph API recording
-- Post to Teams channel with structured output
+- Per-role Teams threads with tailored briefings
+- Tag relevant team members automatically
