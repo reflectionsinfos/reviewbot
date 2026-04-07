@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import json
 import logging
+from time import perf_counter
 from typing import Any, List
 
 from .base import AnalysisResult
 from ..connectors.llm import get_llm_client, pick_model
 from ..connectors.local_folder import FileIndex
+from ..llm_audit import build_summary, usage_counts
 from app.agents.strategy_router_agent import StrategyConfig
 
 logger = logging.getLogger(__name__)
@@ -67,10 +69,12 @@ class LLMAnalyzer:
         config: StrategyConfig,
         client=None,      # optional: injected by hybrid orchestrator
         model: str = "",  # optional: injected by hybrid orchestrator
+        audit_context: dict[str, Any] | None = None,
     ) -> AnalysisResult:
         keywords = config.context_keywords or []
         question = item.question or ""
         area = item.area or ""
+        audit_context = audit_context or {}
 
         relevant_files = self._select_relevant_files(file_index, keywords)
         if not relevant_files:
@@ -104,6 +108,8 @@ class LLMAnalyzer:
             "Repository files:\n\n"
             + "\n".join(file_sections)
         )
+        request_text = f"SYSTEM\n{SYSTEM_PROMPT}\n\nUSER\n{user_prompt}"
+        started_at = perf_counter()
 
         try:
             if client is None:
@@ -122,10 +128,11 @@ class LLMAnalyzer:
             )
 
             raw = response.choices[0].message.content or "{}"
+            usage = usage_counts(getattr(response, "usage", None))
             
             # Increment usage
             from ..connectors.llm import increment_llm_usage
-            await increment_llm_usage(tokens=response.usage.total_tokens)
+            await increment_llm_usage(tokens=usage["total_tokens"] or 0)
             
             data = json.loads(raw)
 
@@ -142,6 +149,30 @@ class LLMAnalyzer:
                 evidence=evidence,
                 confidence=confidence,
                 files_checked=relevant_files,
+                audit_payload={
+                    "phase": audit_context.get("phase", "item_analysis"),
+                    "status": "completed",
+                    "provider": audit_context.get("provider"),
+                    "model_name": audit_context.get("model_name") or model,
+                    "config_name": audit_context.get("config_name"),
+                    "prompt_summary": (
+                        f"Evaluate {item.item_code or 'checklist item'} using {len(relevant_files)} repository files."
+                    ),
+                    "response_summary": build_summary(
+                        f"Returned {rag.upper()} with confidence {confidence:.2f}. {data.get('evidence') or evidence}"
+                    ),
+                    "prompt_text": request_text,
+                    "response_text": raw,
+                    "prompt_tokens": usage["prompt_tokens"],
+                    "completion_tokens": usage["completion_tokens"],
+                    "total_tokens": usage["total_tokens"],
+                    "latency_ms": int((perf_counter() - started_at) * 1000),
+                    "metadata_json": {
+                        "files_checked": relevant_files,
+                        "strategy": audit_context.get("strategy") or "llm_analysis",
+                        "complexity": audit_context.get("complexity"),
+                    },
+                },
             )
 
         except json.JSONDecodeError as exc:
@@ -151,6 +182,24 @@ class LLMAnalyzer:
                 evidence="LLM response could not be parsed.",
                 confidence=0.0,
                 files_checked=relevant_files,
+                audit_payload={
+                    "phase": audit_context.get("phase", "item_analysis"),
+                    "status": "error",
+                    "provider": audit_context.get("provider"),
+                    "model_name": audit_context.get("model_name") or model,
+                    "config_name": audit_context.get("config_name"),
+                    "prompt_summary": (
+                        f"Evaluate {item.item_code or 'checklist item'} using {len(relevant_files)} repository files."
+                    ),
+                    "response_summary": "Model response could not be parsed as JSON.",
+                    "prompt_text": request_text,
+                    "response_text": raw,
+                    "latency_ms": int((perf_counter() - started_at) * 1000),
+                    "metadata_json": {
+                        "files_checked": relevant_files,
+                        "error_type": "json_decode",
+                    },
+                },
             )
         except Exception as exc:
             logger.error("LLM analysis failed for item %s: %s", item.item_code, exc)
@@ -159,6 +208,24 @@ class LLMAnalyzer:
                 evidence=f"LLM analysis error: {exc}",
                 confidence=0.0,
                 files_checked=relevant_files,
+                audit_payload={
+                    "phase": audit_context.get("phase", "item_analysis"),
+                    "status": "error",
+                    "provider": audit_context.get("provider"),
+                    "model_name": audit_context.get("model_name") or model,
+                    "config_name": audit_context.get("config_name"),
+                    "prompt_summary": (
+                        f"Evaluate {item.item_code or 'checklist item'} using {len(relevant_files)} repository files."
+                    ),
+                    "response_summary": f"LLM analysis failed: {type(exc).__name__}: {exc}",
+                    "prompt_text": request_text,
+                    "response_text": None,
+                    "latency_ms": int((perf_counter() - started_at) * 1000),
+                    "metadata_json": {
+                        "files_checked": relevant_files,
+                        "error_type": type(exc).__name__,
+                    },
+                },
             )
 
     def _select_relevant_files(self, file_index: FileIndex, keywords: list[str]) -> list[str]:

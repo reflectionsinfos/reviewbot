@@ -1,6 +1,6 @@
 /**
  * ReviewTable Component
- * 
+ *
  * A reusable, paginated table for displaying autonomous review jobs.
  * Supports "dashboard mode" (simple list) and "full mode" (pagination + filters).
  */
@@ -80,7 +80,6 @@ class ReviewTable {
             </div>
         `;
 
-        // Add internal styles if not present
         if (!document.getElementById('rt-styles')) {
             const style = document.createElement('style');
             style.id = 'rt-styles';
@@ -121,7 +120,7 @@ class ReviewTable {
             });
 
             if (!res.ok) throw new Error('Failed to fetch reviews');
-            
+
             const data = await res.json();
             this.state.items = data.reports || [];
             this.state.total = data.total || 0;
@@ -146,7 +145,7 @@ class ReviewTable {
 
     render() {
         const tbody = this.container.querySelector('.rt-body');
-        
+
         if (this.state.items.length === 0 && !this.state.loading) {
             tbody.innerHTML = `<tr><td colspan="11" class="empty-state"><div class="icon">&#128196;</div><p>No reviews found.</p></td></tr>`;
             if (this.options.paginate) this.container.querySelector('.rt-pagination').style.display = 'none';
@@ -158,7 +157,7 @@ class ReviewTable {
         tbody.querySelectorAll('.rt-stop-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
-                const jobId = parseInt(btn.dataset.jobId);
+                const jobId = parseInt(btn.dataset.jobId, 10);
                 this.stopReview(btn, jobId);
             });
         });
@@ -169,7 +168,6 @@ class ReviewTable {
     }
 
     stopReview(btn, jobId) {
-        // Replace button with inline confirm UI
         const wrapper = btn.parentElement;
         btn.style.display = 'none';
         const confirmEl = document.createElement('span');
@@ -191,7 +189,7 @@ class ReviewTable {
         yesBtn.onclick = async () => {
             yesBtn.disabled = true;
             noBtn.disabled = true;
-            yesBtn.textContent = '…';
+            yesBtn.textContent = '...';
             try {
                 const token = localStorage.getItem('rb_token');
                 const res = await fetch(`/api/autonomous-reviews/${jobId}`, {
@@ -212,14 +210,20 @@ class ReviewTable {
     }
 
     renderRow(item) {
-        const date = item.generated_at ? new Date(item.generated_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }) : '–';
+        const date = item.generated_at
+            ? new Date(item.generated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+            : '-';
         const score = this.renderScore(item.compliance_score);
         const status = this.renderStatus(item.status);
-        
+        const traceCount = item.llm_audit_count || 0;
+        const summaryHref = `/history/${item.job_id}`;
+        const traceHref = `/history/${item.job_id}?tab=ai-trace`;
+        const dateTooltip = this.formatDateTooltip(item);
+
         return `
             <tr>
                 <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${this.esc(item.project_name)}">${this.esc(item.project_name)}</td>
-                <td><a href="/history/${item.job_id}" style="color:inherit;text-decoration:none;">${this.esc(item.checklist_name)}</a></td>
+                <td><a href="${summaryHref}" style="color:inherit;text-decoration:none;">${this.esc(item.checklist_name)}</a></td>
                 <td>${status}</td>
                 <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:32px;justify-content:center;color:#e2e8f0;font-family:monospace">${item.total_items || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-green" style="background:#14532d22;min-width:24px;justify-content:center">${item.green_count || 0}</span></td>
@@ -227,10 +231,12 @@ class ReviewTable {
                 <td style="text-align:center"><span class="badge badge-red" style="background:#7f1d1d22;min-width:24px;justify-content:center">${item.red_count || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:24px;justify-content:center">${item.skipped_count || 0}</span></td>
                 <td style="text-align:center">${score}</td>
-                <td style="color:#64748b;font-size:12px;white-space:nowrap">${date}</td>
+                <td style="color:#64748b;font-size:12px;white-space:nowrap" title="${this.esc(dateTooltip)}">${date}</td>
                 <td style="text-align:right;white-space:nowrap">
                     <div style="display:flex;gap:6px;justify-content:flex-end">
-                        ${['running','queued','pending'].includes((item.status||'').toLowerCase()) ? `<button class="btn btn-ghost btn-sm rt-stop-btn" data-job-id="${item.job_id}" style="color:#f87171;border-color:#991b1b;" title="Stop this review">⏹ Stop</button>` : ''}
+                        <a href="${summaryHref}" class="btn btn-ghost btn-sm" style="text-decoration:none;" title="View review summary">Summary</a>
+                        ${traceCount > 0 ? `<a href="${traceHref}" class="btn btn-ghost btn-sm" style="text-decoration:none;" title="View AI trace">AI Trace (${traceCount})</a>` : ''}
+                        ${['running', 'queued', 'pending'].includes((item.status || '').toLowerCase()) ? `<button class="btn btn-ghost btn-sm rt-stop-btn" data-job-id="${item.job_id}" style="color:#f87171;border-color:#991b1b;" title="Stop this review">Stop</button>` : ''}
                     </div>
                 </td>
             </tr>
@@ -246,30 +252,78 @@ class ReviewTable {
             failed: ['badge-red', 'Failed'],
             error: ['badge-red', 'Error'],
         };
-        const [cls, label] = map[(status || '').toLowerCase()] || ['badge-gray', status || '–'];
+        const [cls, label] = map[(status || '').toLowerCase()] || ['badge-gray', status || '-'];
         return `<span class="badge ${cls}">${label}</span>`;
     }
 
     renderScore(score) {
-        if (score === null || score === undefined) return '<span class="rt-score-na">–</span>';
+        if (score === null || score === undefined) return '<span class="rt-score-na">-</span>';
         const pct = Math.round(score);
         const cls = pct >= 75 ? 'rt-score-green' : pct >= 50 ? 'rt-score-amber' : 'rt-score-red';
         return `<span class="rt-score-val ${cls}">${pct}%</span>`;
     }
 
+    formatDateTooltip(item) {
+        const lines = [];
+        const startedAt = this.formatDateTime(item.started_at || item.created_at);
+        const completedAt = this.formatDateTime(item.completed_at);
+        const duration = this.formatDuration(item.duration_seconds);
+
+        if (startedAt) lines.push(`Started: ${startedAt}`);
+        if (completedAt) lines.push(`Completed: ${completedAt}`);
+        if (duration) lines.push(`Duration: ${duration}`);
+
+        if (lines.length === 0) {
+            const generatedAt = this.formatDateTime(item.generated_at);
+            return generatedAt ? `Recorded: ${generatedAt}` : 'Time details unavailable';
+        }
+
+        return lines.join('\n');
+    }
+
+    formatDateTime(value) {
+        if (!value) return '';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return '';
+        return parsed.toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        });
+    }
+
+    formatDuration(seconds) {
+        if (!Number.isFinite(seconds) || seconds < 0) return '';
+        if (seconds < 60) return `${seconds}s`;
+
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = seconds % 60;
+        const parts = [];
+
+        if (hours > 0) parts.push(`${hours}h`);
+        if (minutes > 0) parts.push(`${minutes}m`);
+        if (remainingSeconds > 0 || parts.length === 0) parts.push(`${remainingSeconds}s`);
+
+        return parts.join(' ');
+    }
+
     renderPagination() {
         const pag = this.container.querySelector('.rt-pagination');
         pag.style.display = 'flex';
-        
+
         const start = this.state.skip + 1;
         const end = Math.min(this.state.skip + this.options.limit, this.state.total);
-        
+
         this.container.querySelector('.rt-range').textContent = `${start}-${end}`;
         this.container.querySelector('.rt-total').textContent = this.state.total;
-        
+
         const prevBtn = this.container.querySelector('.rt-prev');
         const nextBtn = this.container.querySelector('.rt-next');
-        
+
         prevBtn.disabled = this.state.skip === 0;
         nextBtn.disabled = end >= this.state.total;
     }
@@ -314,6 +368,10 @@ class ReviewTable {
     }
 
     esc(str) {
-        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return String(str || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 }

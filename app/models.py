@@ -290,6 +290,7 @@ class AutonomousReviewJob(Base):
     project  = relationship("Project")
     checklist = relationship("Checklist")
     results  = relationship("AutonomousReviewResult", back_populates="job", cascade="all, delete-orphan")
+    llm_audits = relationship("AutonomousReviewLLMAudit", back_populates="job", cascade="all, delete-orphan")
     report   = relationship("Report", back_populates="autonomous_review_job", uselist=False)
 
 
@@ -316,6 +317,43 @@ class AutonomousReviewResult(Base):
     job = relationship("AutonomousReviewJob", back_populates="results")
     checklist_item = relationship("ChecklistItem")
     overrides = relationship("AutonomousReviewOverride", back_populates="result", cascade="all, delete-orphan")
+    llm_audits = relationship("AutonomousReviewLLMAudit", back_populates="result", cascade="all, delete-orphan")
+
+
+class AutonomousReviewLLMAudit(Base):
+    """Redacted audit trail for LLM activity during autonomous reviews."""
+    __tablename__ = "autonomous_review_llm_audits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("autonomous_review_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    result_id = Column(Integer, ForeignKey("autonomous_review_results.id", ondelete="SET NULL"), nullable=True, index=True)
+    checklist_item_id = Column(Integer, ForeignKey("checklist_items.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    phase = Column(String, nullable=False)          # planning | item_analysis | action_plan_enhance
+    status = Column(String, default="completed")    # completed | error
+    provider = Column(String, nullable=True)
+    model_name = Column(String, nullable=True)
+    config_name = Column(String, nullable=True)
+
+    item_code = Column(String, nullable=True)
+    item_area = Column(String, nullable=True)
+    item_question = Column(Text, nullable=True)
+
+    prompt_summary = Column(Text, nullable=True)
+    response_summary = Column(Text, nullable=True)
+    prompt_text = Column(Text, nullable=True)       # redacted + truncated
+    response_text = Column(Text, nullable=True)     # redacted + truncated
+
+    prompt_tokens = Column(Integer, nullable=True)
+    completion_tokens = Column(Integer, nullable=True)
+    total_tokens = Column(Integer, nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    metadata_json = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    job = relationship("AutonomousReviewJob", back_populates="llm_audits")
+    result = relationship("AutonomousReviewResult", back_populates="llm_audits")
+    checklist_item = relationship("ChecklistItem")
 
 
 class AutonomousReviewOverride(Base):

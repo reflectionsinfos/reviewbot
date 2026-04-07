@@ -141,6 +141,25 @@
     .dtab:hover { color: #e2e8f0; }
     .dtab.active { color: #38bdf8; border-bottom-color: #38bdf8; }
 
+    .ai-trace-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+    .ai-trace-summary { display:flex; gap:10px; flex-wrap:wrap; }
+    .trace-chip { background:#0f172a; border:1px solid #334155; border-radius:999px; padding:6px 12px; font-size:12px; color:#94a3b8; }
+    .trace-note { font-size:12px; color:#64748b; }
+    .trace-list { display:flex; flex-direction:column; gap:12px; }
+    .trace-card { background:#1e293b; border:1px solid #334155; border-radius:12px; padding:16px; }
+    .trace-card.error { border-color:#7f1d1d; }
+    .trace-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+    .trace-title { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .trace-phase { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#38bdf8; }
+    .trace-meta { font-size:12px; color:#64748b; }
+    .trace-body { display:grid; gap:10px; }
+    .trace-field { background:#0f172a; border:1px solid #334155; border-radius:8px; padding:12px; }
+    .trace-label { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.06em; margin-bottom:6px; }
+    .trace-text { font-size:13px; color:#e2e8f0; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
+    .trace-raw { margin-top:10px; }
+    .trace-raw pre { background:#020617; border:1px solid #334155; border-radius:8px; padding:12px; color:#cbd5e1; font-size:12px; line-height:1.55; white-space:pre-wrap; word-break:break-word; max-height:280px; overflow:auto; }
+    .trace-empty { text-align:center; padding:48px 20px; color:#64748b; background:#1e293b; border:1px dashed #334155; border-radius:12px; }
+
     /* ── Action Plan toolbar ───────────────────────────────────────────────── */
     .action-plan-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
     .action-plan-toolbar label { font-size: 12px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -310,6 +329,7 @@
     <div id="details-tabs" style="display:flex;gap:0;border-bottom:1px solid #334155;margin-bottom:16px;">
       <button class="dtab active" data-tab="items" onclick="switchDetailsTab('items', this)">Review Items</button>
       <button class="dtab" data-tab="action-plan" onclick="switchDetailsTab('action-plan', this)">Action Plan</button>
+      <button class="dtab" data-tab="ai-trace" onclick="switchDetailsTab('ai-trace', this)">AI Trace</button>
     </div>
     <div id="tab-items">
       <div class="items-container" id="det-items"></div>
@@ -317,6 +337,7 @@
     <div id="tab-action-plan" style="display:none;">
       <!-- Action Plan content rendered here -->
     </div>
+    <div id="tab-ai-trace" style="display:none;"></div>
   </div>
 </main>
 
@@ -399,6 +420,7 @@
   let allDetailItems = [];       // full flat item list for the current report
   let activeStatusFilter = 'all';
   let sortAsc = true;            // sort by item_code ascending
+  window._llmAuditData = null;
 
   // ── Auth ───────────────────────────────────────────────────────────────────
   let _logoutInProgress = false;
@@ -669,7 +691,8 @@
     currentJobId = jobId;
     window._currentJobId = jobId;
     window._actionPlanData = null;
-    switchDetailsTab('items');
+    window._llmAuditData = null;
+    switchDetailsTab('items', null, false);
     document.getElementById('history-section').style.display = 'none';
     document.getElementById('details-section').style.display = 'block';
 
@@ -685,6 +708,10 @@
       const data = await apiFetch(`/api/reports/${reportId}/details`);
       if (data === null) return;
       renderDetails(data);
+      const requestedTab = new URLSearchParams(window.location.search).get('tab');
+      if (requestedTab === 'action-plan' || requestedTab === 'ai-trace') {
+        switchDetailsTab(requestedTab, null, false);
+      }
     } catch (e) {
       document.getElementById('det-title').textContent = 'Error loading details: ' + e.message;
     }
@@ -744,6 +771,7 @@
       statBox(strategyCounts['pattern_scan'] || 0, 'Pattern', 'gray', 'strategy-pattern'),
       statBox(strategyCounts['llm_analysis'] || 0, 'LLM', 'blue', 'strategy-llm'),
       statBox(strategyCounts['metadata_check'] || 0, 'Meta', 'gray', 'strategy-meta'),
+      statBox(r.llm_audit_count || 0, 'AI Trace', 'blue', 'all'),
       statBox(r.override_count ?? 0, 'Overrides', 'blue', 'overridden'),
       statBox(allDetailItems.filter(i => i.needs_human_sign_off).length, 'Sign-off', 'blue', 'signoff'),
     ].join('');
@@ -1261,7 +1289,106 @@
     }
   }
 
-  function switchDetailsTab(tab, triggerEl = null) {
+  async function loadLlmAudit(jobId) {
+    try {
+      const data = await apiFetch(`/api/reports/${jobId}/llm-audit`);
+      window._llmAuditData = data;
+      renderLlmAudit();
+    } catch (e) {
+      document.getElementById('tab-ai-trace').innerHTML =
+        `<div class="trace-empty"><p style="color:#f87171;">Failed to load AI trace: ${esc(e.message)}</p></div>`;
+    }
+  }
+
+  function renderLlmAudit() {
+    const data = window._llmAuditData;
+    const container = document.getElementById('tab-ai-trace');
+    if (!data || !container) return;
+
+    const summary = data.summary || {};
+    const phaseCounts = summary.phase_counts || {};
+    const chips = [
+      `<span class="trace-chip">${summary.total_executions || 0} executions</span>`,
+      `<span class="trace-chip">${summary.total_tokens || 0} tokens</span>`,
+      `<span class="trace-chip">Planning: ${phaseCounts.planning || 0}</span>`,
+      `<span class="trace-chip">Analysis: ${phaseCounts.item_analysis || 0}</span>`,
+      `<span class="trace-chip">Action Plan: ${phaseCounts.action_plan_enhance || 0}</span>`,
+    ].join('');
+
+    if (!data.entries || data.entries.length === 0) {
+      const emptyMessage = data.capture_enabled
+        ? 'No AI trace entries were captured for this review yet.'
+        : 'AI trace capture is currently off in System Config, so new runs will not store prompt/response summaries.';
+      container.innerHTML = `
+        <div class="ai-trace-toolbar">
+          <div class="ai-trace-summary">${chips}</div>
+          <div class="trace-note">${data.can_view_full ? 'Expanded redacted prompt/response content is available for your role.' : 'Your role sees summary-only AI trace data.'}</div>
+        </div>
+        <div class="trace-empty">${esc(emptyMessage)}</div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="ai-trace-toolbar">
+        <div class="ai-trace-summary">${chips}</div>
+        <div class="trace-note">${data.can_view_full ? 'Expanded redacted prompt/response content is available for your role.' : 'Your role sees summary-only AI trace data.'}</div>
+      </div>
+      <div class="trace-list">
+        ${data.entries.map(renderTraceCard).join('')}
+      </div>
+    `;
+  }
+
+  function renderTraceCard(entry) {
+    const when = entry.created_at ? new Date(entry.created_at).toLocaleString() : '—';
+    const metaBits = [
+      entry.provider || null,
+      entry.model_name || null,
+      entry.config_name || null,
+      entry.total_tokens ? `${entry.total_tokens} tokens` : null,
+      entry.latency_ms ? `${entry.latency_ms} ms` : null,
+      when,
+    ].filter(Boolean).join(' · ');
+    const rawSections = [];
+    if (entry.prompt_text) {
+      rawSections.push(`
+        <details class="trace-raw">
+          <summary class="trace-note">Prompt</summary>
+          <pre>${esc(entry.prompt_text)}</pre>
+        </details>
+      `);
+    }
+    if (entry.response_text) {
+      rawSections.push(`
+        <details class="trace-raw">
+          <summary class="trace-note">Response</summary>
+          <pre>${esc(entry.response_text)}</pre>
+        </details>
+      `);
+    }
+
+    return `
+      <div class="trace-card ${entry.status === 'error' ? 'error' : ''}">
+        <div class="trace-head">
+          <div class="trace-title">
+            <span class="trace-phase">${esc(entry.phase || 'execution')}</span>
+            ${entry.item_code ? `<span class="item-code">${esc(entry.item_code)}</span>` : ''}
+            <span class="badge badge-${entry.status === 'error' ? 'red' : 'blue'}" style="font-size:10px;padding:2px 8px;">${esc((entry.status || 'completed').toUpperCase())}</span>
+          </div>
+          <div class="trace-meta">${esc(metaBits)}</div>
+        </div>
+        <div class="trace-body">
+          ${entry.item_question ? `<div class="trace-field"><div class="trace-label">Checklist Context</div><div class="trace-text">${esc(entry.item_question)}</div></div>` : ''}
+          <div class="trace-field"><div class="trace-label">Prompt Summary</div><div class="trace-text">${esc(entry.prompt_summary || '—')}</div></div>
+          <div class="trace-field"><div class="trace-label">Response Summary</div><div class="trace-text">${esc(entry.response_summary || '—')}</div></div>
+          ${rawSections.join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  function switchDetailsTab(tab, triggerEl = null, syncUrl = true) {
     // Update tab buttons
     document.querySelectorAll('.dtab').forEach(t => t.classList.remove('active'));
     const activeBtn = triggerEl || document.querySelector(`.dtab[data-tab="${tab}"]`);
@@ -1270,18 +1397,34 @@
     // Show/hide content
     const itemsTab = document.getElementById('tab-items');
     const actionPlanTab = document.getElementById('tab-action-plan');
+    const aiTraceTab = document.getElementById('tab-ai-trace');
     
     if (tab === 'items') {
       itemsTab.style.display = 'block';
       actionPlanTab.style.display = 'none';
-    } else {
+      aiTraceTab.style.display = 'none';
+    } else if (tab === 'action-plan') {
       itemsTab.style.display = 'none';
       actionPlanTab.style.display = 'block';
+      aiTraceTab.style.display = 'none';
       
       // Load action plan if not already loaded
       if (!window._actionPlanData && window._currentJobId) {
         loadActionPlan(window._currentJobId);
       }
+    } else {
+      itemsTab.style.display = 'none';
+      actionPlanTab.style.display = 'none';
+      aiTraceTab.style.display = 'block';
+      if (!window._llmAuditData && window._currentJobId) {
+        loadLlmAudit(window._currentJobId);
+      }
+    }
+
+    if (syncUrl && currentReportId) {
+      const base = `/history/${currentReportId}`;
+      const nextUrl = tab === 'items' ? base : `${base}?tab=${tab}`;
+      history.replaceState({ reportId: currentReportId, jobId: currentJobId, tab }, '', nextUrl);
     }
   }
 

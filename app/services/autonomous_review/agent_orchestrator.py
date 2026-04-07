@@ -20,6 +20,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from time import perf_counter
 from typing import Optional
 
 from openai import RateLimitError, APIConnectionError, APITimeoutError, APIStatusError
@@ -42,6 +43,7 @@ from .analyzers.pattern_scan import PatternScanAnalyzer
 from .analyzers.llm_analyzer import LLMAnalyzer
 from .analyzers.metadata_check import MetadataCheckAnalyzer
 from .analyzers.base import AnalysisResult
+from .llm_audit import is_llm_audit_enabled, record_llm_audit, usage_counts
 from .progress import progress_manager
 
 logger = logging.getLogger(__name__)
@@ -146,6 +148,7 @@ async def _execute_agent_review(job_id: int, db) -> None:
     await db.commit()
 
     config_chain = await get_config_chain(db)
+    capture_llm_audit = await is_llm_audit_enabled(db)
 
     await progress_manager.broadcast(job_id, {
         "type": "started",
@@ -181,7 +184,14 @@ async def _execute_agent_review(job_id: int, db) -> None:
     # ── Phase 1: Planning LLM (one call for remaining llm_analysis items) ─────
     routing_plan: dict[int, PlanEntry] = {}
     if llm_items:
-        routing_plan = await _build_routing_plan(job, llm_items, file_index, config_chain)
+        routing_plan = await _build_routing_plan(
+            job,
+            llm_items,
+            file_index,
+            config_chain,
+            db=db,
+            capture_llm_audit=capture_llm_audit,
+        )
         # Persist plan for audit / re-use
         try:
             job.routing_plan = {
@@ -224,6 +234,7 @@ async def _execute_agent_review(job_id: int, db) -> None:
         analysis = await _execute_item(
             item, strategy_cfg, plan_entry, file_index,
             config_chain, job_id, get_file_content, add_file_request, db,
+            capture_llm_audit,
         )
 
         review_result = AutonomousReviewResult(
@@ -238,6 +249,19 @@ async def _execute_agent_review(job_id: int, db) -> None:
             evidence_hint=analysis.evidence_hint,
         )
         db.add(review_result)
+        await db.flush()
+        if analysis.audit_payload:
+            await record_llm_audit(
+                db,
+                enabled=capture_llm_audit,
+                job_id=job_id,
+                result_id=review_result.id,
+                checklist_item_id=item.id,
+                item_code=item.item_code,
+                item_area=item.area,
+                item_question=item.question,
+                **analysis.audit_payload,
+            )
         job.completed_items = idx + 1
         counters[analysis.rag_status] = counters.get(analysis.rag_status, 0) + 1
         await db.commit()
@@ -336,6 +360,8 @@ async def _build_routing_plan(
     items: list,
     file_index: AgentFileIndex,
     config_chain: list,
+    db,
+    capture_llm_audit: bool,
 ) -> dict[int, PlanEntry]:
     """
     Phase 1: One LLM call → per-item routing plan.
@@ -359,6 +385,7 @@ async def _build_routing_plan(
     try:
         planning_client, planning_cfg = await get_planning_client(chain=config_chain)
         logger.info("Phase 1 planning using: %s (%s)", planning_cfg.name, planning_cfg.provider)
+        started_at = perf_counter()
 
         response = await planning_client.chat.completions.create(
             model=planning_cfg.model_name,
@@ -370,6 +397,7 @@ async def _build_routing_plan(
             max_tokens=4096,
         )
         raw = response.choices[0].message.content.strip()
+        usage = usage_counts(getattr(response, "usage", None))
 
         # Strip markdown fences if model wraps output
         if raw.startswith("```"):
@@ -378,16 +406,68 @@ async def _build_routing_plan(
                 raw = raw[4:]
 
         plan_list = json.loads(raw)
-        return _validate_plan(plan_list, items, file_index)
+        validated_plan = _validate_plan(plan_list, items, file_index)
+        await record_llm_audit(
+            db,
+            enabled=capture_llm_audit,
+            job_id=job.id,
+            phase="planning",
+            status="completed",
+            provider=planning_cfg.provider,
+            model_name=planning_cfg.model_name,
+            config_name=planning_cfg.name,
+            prompt_summary=f"Plan routing for {len(items)} checklist items using file-tree context.",
+            response_summary=_planning_response_summary(validated_plan),
+            prompt_text=prompt,
+            response_text=raw,
+            prompt_tokens=usage["prompt_tokens"],
+            completion_tokens=usage["completion_tokens"],
+            total_tokens=usage["total_tokens"],
+            latency_ms=int((perf_counter() - started_at) * 1000),
+            metadata_json={"planned_items": len(items)},
+        )
+        return validated_plan
 
     except json.JSONDecodeError as exc:
         logger.warning("Phase 1 planning returned invalid JSON — all items default to complex llm_analysis: %s", exc)
+        await record_llm_audit(
+            db,
+            enabled=capture_llm_audit,
+            job_id=job.id,
+            phase="planning",
+            status="error",
+            provider=(planning_cfg.provider if "planning_cfg" in locals() else None),
+            model_name=(planning_cfg.model_name if "planning_cfg" in locals() else None),
+            config_name=(planning_cfg.name if "planning_cfg" in locals() else None),
+            prompt_summary=f"Plan routing for {len(items)} checklist items using file-tree context.",
+            response_summary="Planning output was not valid JSON, so ReviewBot fell back to complex llm_analysis.",
+            prompt_text=prompt,
+            response_text=raw if "raw" in locals() else None,
+            latency_ms=int((perf_counter() - started_at) * 1000) if "started_at" in locals() else None,
+            metadata_json={"planned_items": len(items), "error_type": "json_decode"},
+        )
         return {item.id: PlanEntry(strategy="llm_analysis", complexity="complex") for item in items}
     except LLMChainExhaustedError as exc:
         logger.warning("Phase 1 planning: no LLM available — all items default to complex llm_analysis: %s", exc)
         return {item.id: PlanEntry(strategy="llm_analysis", complexity="complex") for item in items}
     except Exception as exc:
         logger.warning("Phase 1 planning failed unexpectedly — all items default to complex llm_analysis", exc_info=True)
+        await record_llm_audit(
+            db,
+            enabled=capture_llm_audit,
+            job_id=job.id,
+            phase="planning",
+            status="error",
+            provider=(planning_cfg.provider if "planning_cfg" in locals() else None),
+            model_name=(planning_cfg.model_name if "planning_cfg" in locals() else None),
+            config_name=(planning_cfg.name if "planning_cfg" in locals() else None),
+            prompt_summary=f"Plan routing for {len(items)} checklist items using file-tree context.",
+            response_summary=f"Planning failed: {type(exc).__name__}: {exc}",
+            prompt_text=prompt,
+            response_text=raw if "raw" in locals() else None,
+            latency_ms=int((perf_counter() - started_at) * 1000) if "started_at" in locals() else None,
+            metadata_json={"planned_items": len(items), "error_type": type(exc).__name__},
+        )
         return {item.id: PlanEntry(strategy="llm_analysis", complexity="complex") for item in items}
 
 
@@ -425,6 +505,26 @@ def _validate_plan(
             result[item.id] = PlanEntry(strategy="llm_analysis", complexity="complex")
 
     return result
+
+
+def _planning_response_summary(plan: dict[int, PlanEntry]) -> str:
+    """Convert a validated routing plan into a compact summary for audit history."""
+    total = len(plan)
+    by_strategy: dict[str, int] = {}
+    by_complexity: dict[str, int] = {}
+    for entry in plan.values():
+        by_strategy[entry.strategy] = by_strategy.get(entry.strategy, 0) + 1
+        if entry.strategy == "llm_analysis":
+            by_complexity[entry.complexity] = by_complexity.get(entry.complexity, 0) + 1
+
+    parts = [f"Planned {total} items."]
+    if by_strategy:
+        strategy_text = ", ".join(f"{count} {name}" for name, count in sorted(by_strategy.items()))
+        parts.append(f"Strategies: {strategy_text}.")
+    if by_complexity:
+        complexity_text = ", ".join(f"{count} {name}" for name, count in sorted(by_complexity.items()))
+        parts.append(f"LLM split: {complexity_text}.")
+    return " ".join(parts)
 
 
 def _fallback_text_files(file_index, max_files: int = 6) -> list[str]:
@@ -466,6 +566,7 @@ def _plan_to_strategy_config(item, plan_entry: PlanEntry) -> StrategyConfig:
 async def _execute_item(
     item, strategy_cfg: StrategyConfig, plan_entry: PlanEntry,
     file_index, config_chain, job_id, get_file_content, add_file_request, db,
+    capture_llm_audit: bool,
 ) -> AnalysisResult:
     """Execute one checklist item using the resolved strategy."""
     try:
@@ -494,7 +595,8 @@ async def _execute_item(
         complexity = _effective_complexity(item, plan_entry)
         return await _run_llm_item(item, strategy_cfg, plan_entry, complexity,
                                    file_index, config_chain, job_id,
-                                   get_file_content, add_file_request, db)
+                                   get_file_content, add_file_request, db,
+                                   capture_llm_audit)
 
     except Exception as exc:
         logger.warning("Analyzer failed for item %s: %s", item.item_code, exc, exc_info=True)
@@ -504,6 +606,7 @@ async def _execute_item(
 async def _run_llm_item(
     item, strategy_cfg: StrategyConfig, plan_entry: PlanEntry, complexity: str,
     file_index, config_chain, job_id, get_file_content, add_file_request, db,
+    capture_llm_audit: bool,
 ) -> AnalysisResult:
     """
     Run llm_analysis for one item.
@@ -550,7 +653,19 @@ async def _run_llm_item(
         client = build_client(cfg)
         try:
             result = await _ANALYZERS["llm_analysis"].analyze(
-                item, file_index, strategy_cfg, client=client, model=cfg.model_name,
+                item,
+                file_index,
+                strategy_cfg,
+                client=client,
+                model=cfg.model_name,
+                audit_context={
+                    "phase": "item_analysis",
+                    "provider": cfg.provider,
+                    "model_name": cfg.model_name,
+                    "config_name": cfg.name,
+                    "strategy": strategy_cfg.strategy,
+                    "complexity": complexity,
+                } if capture_llm_audit else None,
             )
             logger.debug(
                 "Item %s analysed by %s (%s, complexity=%s)",

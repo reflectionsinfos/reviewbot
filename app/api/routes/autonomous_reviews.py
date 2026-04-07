@@ -34,6 +34,7 @@ from app.services.autonomous_review.connectors.llm import (
     pick_model,
     provider_is_configured,
 )
+from app.services.autonomous_review.llm_audit import is_llm_audit_enabled, record_llm_audit, usage_counts
 from app.services.autonomous_review.progress import progress_manager
 
 router = APIRouter()
@@ -624,6 +625,7 @@ async def enhance_action_plan(
 
     llm_client = await get_llm_client(db)
     generator = ActionPlanGenerator()
+    capture_llm_audit = await is_llm_audit_enabled(db)
 
     enhanced_prompts: dict = {}
     prompts_generated = 0
@@ -664,6 +666,7 @@ async def enhance_action_plan(
                 max_tokens=700,
             )
             enhanced_text = (response.choices[0].message.content or "").strip()
+            usage = usage_counts(getattr(response, "usage", None))
             if not enhanced_text:
                 continue
             enhanced_prompts[str(result.id)] = {
@@ -675,8 +678,45 @@ async def enhance_action_plan(
                 + enhanced_text
                 + "\n\nAfter making changes, run the relevant tests or verification commands and summarize the outcome.",
             }
+            await record_llm_audit(
+                db,
+                enabled=capture_llm_audit,
+                job_id=job_id,
+                result_id=result.id,
+                checklist_item_id=result.checklist_item_id,
+                item_code=item.item_code if item else None,
+                item_area=item.area if item else None,
+                item_question=item.question if item else None,
+                phase="action_plan_enhance",
+                status="completed",
+                prompt_summary=f"Enhance remediation prompt for {item.item_code or 'review item'}.",
+                response_summary=enhanced_text,
+                prompt_text=enhancement_prompt,
+                response_text=enhanced_text,
+                prompt_tokens=usage["prompt_tokens"],
+                completion_tokens=usage["completion_tokens"],
+                total_tokens=usage["total_tokens"],
+                metadata_json={"rag_status": result.rag_status},
+            )
             prompts_generated += 1
-        except Exception:
+        except Exception as exc:
+            await record_llm_audit(
+                db,
+                enabled=capture_llm_audit,
+                job_id=job_id,
+                result_id=result.id,
+                checklist_item_id=result.checklist_item_id,
+                item_code=item.item_code if item else None,
+                item_area=item.area if item else None,
+                item_question=item.question if item else None,
+                phase="action_plan_enhance",
+                status="error",
+                prompt_summary=f"Enhance remediation prompt for {item.item_code or 'review item'}.",
+                response_summary=f"Prompt enhancement failed: {type(exc).__name__}: {exc}",
+                prompt_text=enhancement_prompt,
+                response_text=None,
+                metadata_json={"rag_status": result.rag_status, "error_type": type(exc).__name__},
+            )
             continue
 
     try:

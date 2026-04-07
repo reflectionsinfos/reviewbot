@@ -20,6 +20,7 @@ from .analyzers.pattern_scan import PatternScanAnalyzer
 from .analyzers.llm_analyzer import LLMAnalyzer
 from .analyzers.metadata_check import MetadataCheckAnalyzer
 from .analyzers.base import AnalysisResult
+from .llm_audit import is_llm_audit_enabled, record_llm_audit
 from .progress import progress_manager
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,7 @@ async def _execute_review(job_id: int, db) -> None:
     items = sorted(job.checklist.items, key=lambda x: x.order)
     job.total_items = len(items)
     await db.commit()
+    capture_llm_audit = await is_llm_audit_enabled(db)
 
     await progress_manager.broadcast(job_id, {
         "type": "started",
@@ -180,7 +182,19 @@ async def _execute_review(job_id: int, db) -> None:
                 analyzer = _ANALYZERS.get(strategy_cfg.strategy)
                 if analyzer is None:
                     raise ValueError(f"No analyzer for strategy: {strategy_cfg.strategy}")
-                analysis = await analyzer.analyze(item, file_index, strategy_cfg)
+                analysis = await analyzer.analyze(
+                    item,
+                    file_index,
+                    strategy_cfg,
+                    audit_context={
+                        "phase": "item_analysis",
+                        "provider": None,
+                        "model_name": None,
+                        "config_name": None,
+                        "strategy": strategy_cfg.strategy,
+                        "complexity": None,
+                    } if strategy_cfg.strategy == "llm_analysis" and capture_llm_audit else None,
+                )
         except Exception as exc:
             logger.warning("Analyzer failed for item %s: %s", item.item_code, exc)
             analysis = AnalysisResult(
@@ -203,6 +217,19 @@ async def _execute_review(job_id: int, db) -> None:
             needs_human_sign_off=strategy_cfg.needs_human_sign_off,
         )
         db.add(review_result)
+        await db.flush()
+        if analysis.audit_payload:
+            await record_llm_audit(
+                db,
+                enabled=capture_llm_audit,
+                job_id=job_id,
+                result_id=review_result.id,
+                checklist_item_id=item.id,
+                item_code=item.item_code,
+                item_area=item.area,
+                item_question=item.question,
+                **analysis.audit_payload,
+            )
         job.completed_items = idx + 1
         counters[analysis.rag_status] = counters.get(analysis.rag_status, 0) + 1
         await db.commit()

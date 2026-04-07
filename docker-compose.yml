@@ -64,6 +64,8 @@ services:
       
       # For development, mount source code
       - .:/app:cached
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
       
     depends_on:
       reviewbot-db:

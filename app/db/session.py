@@ -133,6 +133,7 @@ async def seed_system_settings(db: AsyncSession):
         "APP_NAME": (settings.APP_NAME, "Name of the application", "UI", True),
         "VOICE_ENABLED": (str(settings.VOICE_ENABLED).lower(), "Enable voice STT/TTS", "Agent", False),
         "REQUIRE_HUMAN_APPROVAL": (str(settings.REQUIRE_HUMAN_APPROVAL).lower(), "Force human sign-off on autonomous reviews", "Agent", True),
+        "LLM_AUDIT_ENABLED": ("true", "Store redacted LLM prompt/response summaries for autonomous review audit trails", "Agent", False),
         "DEFAULT_LANGUAGE": (settings.DEFAULT_LANGUAGE, "Primary language for the agent", "General", True),
         "DEBUG": (str(settings.DEBUG).lower(), "Enable debug logging and detailed errors", "General", False),
         "ACCESS_TOKEN_EXPIRE_MINUTES": (str(settings.ACCESS_TOKEN_EXPIRE_MINUTES), "JWT Token expiration time", "Security", True),

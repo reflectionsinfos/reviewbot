@@ -13,12 +13,13 @@ from app.db.session import get_db
 from app.models import (
     Report, ReportApproval, Review, User,
     Project, Checklist, AutonomousReviewJob,
-    AutonomousReviewResult, ChecklistItem, AutonomousReviewOverride,
+    AutonomousReviewResult, ChecklistItem, AutonomousReviewOverride, AutonomousReviewLLMAudit,
 )
 from app.core.config import settings
 from sqlalchemy.orm import selectinload, joinedload
 from pydantic import BaseModel
 from app.api.routes.auth import get_current_user
+from app.services.autonomous_review.llm_audit import is_llm_audit_enabled, user_can_view_full_llm_audit
 
 router = APIRouter()
 
@@ -95,9 +96,28 @@ async def get_report_history(
 
     result = await db.execute(query)
     jobs = result.scalars().all()
+    job_ids = [job.id for job in jobs]
+    audit_counts: dict[int, int] = {}
+    if job_ids:
+        audit_result = await db.execute(
+            select(
+                AutonomousReviewLLMAudit.job_id,
+                func.count(AutonomousReviewLLMAudit.id),
+            )
+            .where(AutonomousReviewLLMAudit.job_id.in_(job_ids))
+            .group_by(AutonomousReviewLLMAudit.job_id)
+        )
+        audit_counts = {job_id: count for job_id, count in audit_result.all()}
 
     reports = []
     for job in jobs:
+        duration_seconds = None
+        if job.started_at and job.completed_at:
+            duration_seconds = max(
+                int((job.completed_at - job.started_at).total_seconds()),
+                0,
+            )
+
         reports.append({
             "id": job.id,
             "job_id": job.id,
@@ -113,7 +133,12 @@ async def get_report_history(
             "red_count": job.red_count,
             "skipped_count": job.skipped_count,
             "override_count": sum(len(r.overrides) for r in job.results),
+            "llm_audit_count": audit_counts.get(job.id, 0),
             "total_items": job.total_items,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "duration_seconds": duration_seconds,
             "generated_at": job.completed_at.isoformat() if job.completed_at else (
                 job.created_at.isoformat() if job.created_at else None
             ),
@@ -504,6 +529,10 @@ async def get_report_details(
     )
     results_result = await db.execute(results_query)
     results = results_result.scalars().all()
+    audit_count_result = await db.execute(
+        select(func.count(AutonomousReviewLLMAudit.id)).where(AutonomousReviewLLMAudit.job_id == job.id)
+    )
+    llm_audit_count = audit_count_result.scalar() or 0
 
     # Load active routing rules so the UI can show the toggle state
     from app.models import ChecklistRoutingRule
@@ -577,6 +606,7 @@ async def get_report_details(
             "override_count": override_count,
             "adjusted_score": adjusted_score,
             "agent_metadata": job.agent_metadata,
+            "llm_audit_count": llm_audit_count,
         },
         "summary": {
             "total": len(results),
@@ -587,4 +617,65 @@ async def get_report_details(
             "na": sum(1 for r in results if effective_status(r) == "na"),
         },
         "items": items,
+    }
+
+
+@router.get("/{report_id}/llm-audit")
+async def get_report_llm_audit(
+    report_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return LLM audit summaries for an autonomous review job."""
+    job = await db.get(AutonomousReviewJob, report_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Review job not found")
+
+    audit_result = await db.execute(
+        select(AutonomousReviewLLMAudit)
+        .where(AutonomousReviewLLMAudit.job_id == report_id)
+        .order_by(AutonomousReviewLLMAudit.created_at.asc(), AutonomousReviewLLMAudit.id.asc())
+    )
+    audits = audit_result.scalars().all()
+    can_view_full = user_can_view_full_llm_audit(current_user)
+    capture_enabled = await is_llm_audit_enabled(db)
+
+    total_tokens = sum(a.total_tokens or 0 for a in audits)
+    phase_counts: dict[str, int] = {}
+    for audit in audits:
+        phase_counts[audit.phase] = phase_counts.get(audit.phase, 0) + 1
+
+    return {
+        "job_id": report_id,
+        "capture_enabled": capture_enabled,
+        "can_view_full": can_view_full,
+        "summary": {
+            "total_executions": len(audits),
+            "total_tokens": total_tokens,
+            "phase_counts": phase_counts,
+        },
+        "entries": [
+            {
+                "id": audit.id,
+                "phase": audit.phase,
+                "status": audit.status,
+                "provider": audit.provider,
+                "model_name": audit.model_name,
+                "config_name": audit.config_name,
+                "item_code": audit.item_code,
+                "item_area": audit.item_area,
+                "item_question": audit.item_question,
+                "prompt_summary": audit.prompt_summary,
+                "response_summary": audit.response_summary,
+                "prompt_text": audit.prompt_text if can_view_full else None,
+                "response_text": audit.response_text if can_view_full else None,
+                "prompt_tokens": audit.prompt_tokens,
+                "completion_tokens": audit.completion_tokens,
+                "total_tokens": audit.total_tokens,
+                "latency_ms": audit.latency_ms,
+                "metadata": audit.metadata_json,
+                "created_at": audit.created_at.isoformat() if audit.created_at else None,
+            }
+            for audit in audits
+        ],
     }

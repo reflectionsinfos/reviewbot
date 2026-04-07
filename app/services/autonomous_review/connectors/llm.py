@@ -97,6 +97,20 @@ def _normalize_ollama_base_url(base_url: Optional[str]) -> str:
     return normalized.rstrip("/")
 
 
+def _normalize_ollama_base_url_no_rewrite(base_url: Optional[str]) -> str:
+    """Normalize Ollama URLs without swapping localhost for a Docker host alias."""
+    candidate = _normalize_base_url(base_url, _PROVIDER_BASE_URLS["ollama"])
+    parsed = urlparse(candidate)
+    path = (parsed.path or "").rstrip("/")
+    if path in {"", "/"}:
+        parsed = parsed._replace(path="/v1")
+    elif path == "/api":
+        parsed = parsed._replace(path="/v1")
+    elif path != "/v1":
+        parsed = parsed._replace(path=path)
+    return urlunparse(parsed).rstrip("/")
+
+
 def _effective_base_url(config: LLMConfig) -> Optional[str]:
     """Resolve the base URL the client should actually use."""
     default_url = _PROVIDER_BASE_URLS.get(config.provider)
@@ -107,7 +121,60 @@ def _effective_base_url(config: LLMConfig) -> Optional[str]:
     return config.base_url
 
 
-def _format_ollama_error(config: LLMConfig, exc: Exception) -> str:
+def _ollama_base_url_candidates(config: LLMConfig) -> list[str]:
+    """
+    Return candidate Ollama endpoints to try.
+
+    The first entry preserves existing runtime behaviour. We also keep the
+    originally configured localhost form as a fallback for setups where the app
+    container can actually reach Ollama via localhost (for example, sidecars or
+    custom networking).
+    """
+    candidates: list[str] = []
+    effective = _effective_base_url(config)
+    direct = _normalize_ollama_base_url_no_rewrite(config.base_url or _PROVIDER_BASE_URLS["ollama"])
+    for candidate in (effective, direct):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    return candidates
+
+
+def _build_client_for_base_url(config: LLMConfig, base_url: str) -> AsyncOpenAI:
+    """Build an OpenAI-compatible client against a specific resolved base URL."""
+    return AsyncOpenAI(
+        api_key=(config.api_key or "").strip() or "ollama",
+        base_url=base_url,
+    )
+
+
+def _format_ollama_runtime_error(config: LLMConfig, exc: Exception, *, base_url: str) -> str:
+    """Explain Ollama runtime failures after connectivity has already succeeded."""
+    message = str(exc)
+    lowered = message.lower()
+
+    if (
+        "memory layout cannot be allocated" in lowered
+        or "requires more system memory" in lowered
+        or "out of memory" in lowered
+    ):
+        return (
+            f"Ollama is reachable at `{base_url}` and model `{config.model_name}` is installed, "
+            "but generation failed because the model needs more available memory. "
+            "Try a smaller model such as `llama3.2:3b`, free RAM by closing apps, or restart Ollama and try again."
+        )
+
+    return (
+        f"Ollama is reachable at `{base_url}` and model `{config.model_name}` is installed, "
+        f"but generation failed. Original error: {exc}"
+    )
+
+
+def _format_ollama_error(
+    config: LLMConfig,
+    exc: Exception,
+    *,
+    tried_urls: Optional[list[str]] = None,
+) -> str:
     """Turn generic Ollama connectivity failures into actionable guidance."""
     resolved_url = _effective_base_url(config) or _PROVIDER_BASE_URLS["ollama"]
     configured_url = (config.base_url or _PROVIDER_BASE_URLS["ollama"]).strip()
@@ -125,7 +192,11 @@ def _format_ollama_error(config: LLMConfig, exc: Exception) -> str:
             f"Use `{resolved_url}` or set `OLLAMA_DOCKER_HOST` if your Docker host alias differs."
         )
 
-    base_message = f"Could not reach Ollama at `{resolved_url}`."
+    if tried_urls:
+        tried = ", ".join(f"`{url}`" for url in tried_urls)
+        base_message = f"Could not reach Ollama. Tried {tried}."
+    else:
+        base_message = f"Could not reach Ollama at `{resolved_url}`."
     if hints:
         return " ".join([base_message, *hints])
     return f"{base_message} Original error: {exc}"
@@ -339,18 +410,42 @@ async def validate_llm_connectivity(
         if config.max_requests_limit and config.total_requests_made >= config.max_requests_limit:
             return False, f"Config '{config.name}' has exceeded its request limit."
     try:
-        client = await get_llm_client(db, overriding_config=overriding_config)
         model = await pick_model(db, overriding_config=overriding_config)
         if config and config.provider == "ollama":
-            available_models = await _list_ollama_models(client)
-            if available_models and model not in available_models:
-                available = ", ".join(sorted(available_models)[:5])
-                return (
-                    False,
-                    f"Ollama is reachable at `{_effective_base_url(config)}`, but model "
-                    f"'{model}' is not installed. Available models: {available}. "
-                    f"Run `ollama pull {model}` or update the configured model name.",
-                )
+            last_exc: Optional[Exception] = None
+            tried_urls = _ollama_base_url_candidates(config)
+            for base_url in tried_urls:
+                models_listed = False
+                try:
+                    client = _build_client_for_base_url(config, base_url)
+                    available_models = await _list_ollama_models(client)
+                    models_listed = True
+                    if available_models and model not in available_models:
+                        available = ", ".join(sorted(available_models)[:5])
+                        return (
+                            False,
+                            f"Ollama is reachable at `{base_url}`, but model "
+                            f"'{model}' is not installed. Available models: {available}. "
+                            f"Run `ollama pull {model}` or update the configured model name.",
+                        )
+                    resp = await client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": "Respond with 'Connectivity Verified'"}],
+                        max_tokens=20,
+                        timeout=15.0,
+                    )
+                    return True, resp.choices[0].message.content.strip()
+                except Exception as exc:
+                    # If model listing succeeded, Ollama is reachable; classify the next error
+                    # as a model/runtime failure instead of a connectivity problem.
+                    if models_listed:
+                        return False, _format_ollama_runtime_error(config, exc, base_url=base_url)
+                    last_exc = exc
+                    logger.warning("Ollama connectivity probe failed for %s: %s", base_url, exc)
+            assert last_exc is not None
+            return False, _format_ollama_error(config, last_exc, tried_urls=tried_urls)
+
+        client = await get_llm_client(db, overriding_config=overriding_config)
         resp = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "Respond with 'Connectivity Verified'"}],
