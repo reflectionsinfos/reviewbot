@@ -2,6 +2,12 @@
 
 ## Architecture Overview
 
+Operational workflow references:
+
+- [Live Local OBS Session](use-cases/live-local-obs-session.md) - primary Phase 1 flow
+- [Uploaded Recording Analysis](use-cases/uploaded-recording-analysis.md) - optional post-meeting ingestion
+- [Teams Bot Participant](use-cases/teams-bot-future.md) - future automation flow
+
 The system has three major layers: a **Project Brain** (persistent, per-project knowledge), a **multi-agent pipeline** (meeting processing and reasoning), and an **application layer** (user interaction). The Project Brain is the foundation — without it, agents give generic answers. With it, they answer like someone who has been on the team for months.
 
 ```
@@ -339,6 +345,97 @@ with zero retrieval cold-start.
 
 ---
 
+### PB-8. Session Binding and Ingestion Modes
+
+The recorder must attach media to an explicit session before any processing pipeline step runs. File ownership is session-driven, not filename-driven.
+
+```
+Binding rules:
+  session_id -> project_id
+  session_id -> active personas
+  session_id -> primary_persona_id
+  session_id -> meeting focus
+  session_id -> preloaded_context
+
+Phase 1 supported modes:
+  live_obs
+    - user creates session in UI
+    - user starts local OBS recording
+    - watcher binds new segments to the active live session
+
+  upload_recording
+    - user creates session in UI
+    - user uploads meeting files
+    - uploaded files are stored under that session before processing
+
+Future mode:
+  teams_bot
+    - session still exists as the canonical owner
+    - Graph or Teams media attaches to the session before processing
+```
+
+**Phase 1 simplification:** only one active live capture session should exist per local machine. This avoids ambiguous ownership when OBS writes to a shared watch folder.
+
+**Persona setup requirements:**
+
+- user selects one or more active personas before processing starts
+- one persona may be marked as `primary_persona`
+- saved persona profiles may be reused and updated per session
+- persona metadata includes accountability areas, irrelevant topics, and open questions
+
+**Phase 1 execution model:**
+
+- transcription remains shared and session-scoped
+- the Default Expert may be the only live runtime agent in Phase 1
+- persona-specific summaries, action items, risks, and post-meeting briefings are still generated from the shared transcript plus persona profiles
+
+**Recommended storage shape:**
+
+```
+data/
+  sessions/
+    {session_id}/
+      segments/
+      audio/
+      transcript/
+```
+
+**Continuity model for recurring meetings:**
+
+```
+Session continuity fields:
+  previous_session_id: str | None
+  meeting_series_id: str | None
+
+UI actions:
+  - Start Next Session
+  - Link Previous
+  - Unlink
+  - View Carry-Forward
+
+Carry-forward defaults:
+  - active personas
+  - primary_persona_id
+  - unresolved action items
+  - unresolved open questions
+  - unresolved risks or conflicts
+  - prior meeting summary
+
+Do not blindly carry forward:
+  - completed action items
+  - stale temporary notes
+  - raw transcript blocks injected directly into prompts
+  - outdated meeting-specific context
+```
+
+See:
+
+- [Live Local OBS Session](use-cases/live-local-obs-session.md)
+- [Uploaded Recording Analysis](use-cases/uploaded-recording-analysis.md)
+- [Teams Bot Participant](use-cases/teams-bot-future.md)
+
+---
+
 ### 1. File Watcher (Watchdog)
 
 Monitors the OBS output folder for new mp4 files.
@@ -347,7 +444,8 @@ Monitors the OBS output folder for new mp4 files.
 Responsibilities:
   - Detect new mp4 files written by OBS
   - Debounce: wait for file write to complete (poll size stability)
-  - Enqueue file path to segment processing queue
+  - Attach each stable file to the currently active live session
+  - Enqueue file path to segment processing queue with session metadata
 
 Config:
   watch_folder: str           # OBS output directory
@@ -356,6 +454,7 @@ Config:
 ```
 
 **Debounce logic:** Poll file size every 1 second; trigger only when size is stable for 2+ consecutive checks.
+**Ownership rule:** the watcher does not infer project or persona ownership from the mp4 filename. It resolves ownership from the active live `session_id`.
 
 ---
 
@@ -395,6 +494,8 @@ Output schema per segment:
 - Model: `large-v3` (accuracy) or `medium` (speed)
 - GPU preferred; CPU fallback
 - Absolute timestamps: `segment_index * segment_duration + relative_offset`
+- Output is written to the shared session transcript first
+- Persona-specific filtering and role-aware outcome generation happen after transcription, not during capture
 
 ---
 
@@ -496,6 +597,8 @@ Output: stored in agent.rolling_summary (DB, overwritten per update)
 ```
 
 The orchestrator also maintains a **global rolling summary** by periodically requesting a cross-agent synthesis.
+
+For Phase 1, the same shared transcript can still be re-read through selected persona profiles to produce persona-aware notes and outputs even if only the Default Expert is active at live runtime.
 
 ---
 
@@ -759,7 +862,14 @@ Session lifecycle:
   PRE_MEETING   → interviews running, knowledge loading, watcher active
   IN_PROGRESS   → segments arriving, agents processing, chat active
   POST_MEETING  → briefings generated, co-creation dialogue active
-  ARCHIVED      → understanding doc finalised, briefings delivered
+    ARCHIVED      → understanding doc finalised, briefings delivered
+
+Continuity behaviors:
+  - a session may link to a previous session in the same project
+  - multiple sessions may belong to a meeting series
+  - users may unlink or relink sessions later without breaking transcript ownership
+  - "Start Next Session" creates a new session prefilled from the linked prior session
+  - carry-forward material is generated as a summary artifact, not by copying raw transcript into prompts
 
 PostgreSQL schema (key tables):
 
@@ -773,6 +883,7 @@ PostgreSQL schema (key tables):
 
   sessions:
     session_id, project_id, title, status, start_time, end_time
+    previous_session_id, meeting_series_id
     meeting_focus, global_rolling_summary
     preloaded_context (text)     ← pre-retrieved for this meeting topic
     meeting_brief (JSON)

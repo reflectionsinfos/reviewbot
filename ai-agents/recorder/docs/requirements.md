@@ -33,6 +33,104 @@ A locally running Python app that:
 
 ---
 
+## Use Case Workflows
+
+The workflow documents below clarify how project selection, session creation, personas, and media ingestion fit together:
+
+- [Live Local OBS Session](use-cases/live-local-obs-session.md) - primary Phase 1 MVP flow
+- [Uploaded Recording Analysis](use-cases/uploaded-recording-analysis.md) - optional post-meeting ingestion flow
+- [Teams Bot Participant](use-cases/teams-bot-future.md) - future Phase 3 automation flow
+
+These use cases are normative for media ownership. Raw mp4 files must not be expected to identify project or persona ownership by filename alone.
+
+---
+
+## Session Ownership Model
+
+Every recording must be bound to an explicit session before transcription begins. The recorder does **not** infer project, persona, or meeting ownership from the raw OBS mp4 file itself.
+
+Ownership model:
+
+- User selects a `Project`
+- UI creates a `Session`
+- User selects active persona roles for that session
+- Session stores the meeting focus and any preloaded context
+- All incoming media is processed under that `session_id`
+
+Ownership chain:
+
+- `session_id` -> `project_id`
+- `session_id` -> active personas / roles
+- `session_id` -> `primary_persona_id`
+- `session_id` -> `previous_session_id` (optional)
+- `session_id` -> `meeting_series_id` (optional recurring chain)
+- `session_id` -> meeting focus and session-specific context
+- transcript chunks, summaries, and outputs inherit from the session
+
+Persona setup expectations:
+
+- user can reuse a saved persona profile or create one during session setup
+- one selected persona may be marked as the `primary_persona`
+- each active persona carries accountability areas, irrelevant topics, and open questions into the session
+- these persona definitions drive role-specific summaries, action items, risks, and briefing output
+
+Supported ingestion modes:
+
+- `live_obs`: user starts local OBS recording and then starts a live capture session in the UI
+- `upload_recording`: user uploads recorded meeting files through the UI for post-meeting analysis
+- `teams_bot`: future mode only; not required for Phase 1
+
+Phase 1 guidance:
+
+- Primary MVP flow is `live_obs`
+- No fake account or bot joins the Teams meeting in Phase 1
+- Upload is required only for `upload_recording`, not for live OBS capture
+- MVP should support one active live capture session per local machine to avoid ambiguous folder ownership
+
+See:
+
+- [Live Local OBS Session](use-cases/live-local-obs-session.md)
+- [Uploaded Recording Analysis](use-cases/uploaded-recording-analysis.md)
+- [Teams Bot Participant](use-cases/teams-bot-future.md)
+
+---
+
+## Meeting Continuity
+
+Project meetings are often continuous rather than standalone. The system should support linking sessions so each meeting can inherit relevant context from prior meetings in the same project.
+
+Continuity model:
+
+- a session may optionally point to `previous_session_id`
+- sessions may also belong to a `meeting_series_id` for recurring meeting families such as weekly architecture reviews or sprint planning
+- users must be able to link, unlink, and relink sessions at any time
+- users must also be able to mark a session as standalone even inside the same project
+
+Carry-forward defaults for `Start Next Session`:
+
+- active personas
+- `primary_persona`
+- project binding
+- unresolved action items
+- unresolved open questions
+- unresolved risks
+- prior meeting summary
+
+Carry-forward should not blindly reuse:
+
+- completed action items
+- stale temporary notes
+- raw transcript blocks directly injected into prompts
+- old meeting-specific context that is no longer relevant
+
+Preferred product flow:
+
+- meetings grid shows `Start Next Session`
+- UI presents a carry-forward preview before creating the next linked session
+- user can choose `Start with Carry-Forward`, `Start Fresh`, or `Customize`
+
+---
+
 ## Functional Requirements
 
 ### F1 — Role Onboarding Interview
@@ -50,6 +148,11 @@ Before the meeting starts, the agent **interviews** each participant — it does
 The answers become the persona's system prompt and accountability map. They also seed the relevance scoring model for that agent — topics marked irrelevant by the user are downweighted in that agent's processing.
 
 Returning users can reuse a saved persona profile or update it before each meeting.
+
+Phase 1 clarification:
+
+- persona onboarding is still required in Phase 1, even if the runtime execution path uses the Default Expert as the only live agent
+- persona profiles must still shape post-meeting outputs so action items, risks, and summaries do not become generic
 
 ---
 
@@ -406,6 +509,8 @@ Health alerts appear as a sidebar notification, not as spoken interruptions.
 - Per-segment transcription as each mp4 chunk arrives
 - Speaker diarization (who said what) — Phase 2
 - Transcript stored persistently per session and reusable for replay
+- Transcription is shared and session-scoped; it is not persona-specific at capture time
+- Persona-specific interpretation happens after transcription, using the shared transcript plus persona profiles
 
 ---
 
@@ -553,6 +658,14 @@ User creates a new project
 
 ```
 User creates a session for an existing project
+    → Optionally clicks "Start Next Session" from meetings grid
+    → Carry-forward preview shown:
+        - continuing from prior session
+        - unresolved action items
+        - unresolved questions
+        - unresolved risks or conflicts
+        - reused personas
+    → User chooses: Start with Carry-Forward | Start Fresh | Customize
     → Freshness check: "4 files changed since last index. Re-index now?"
     → Meeting-specific context interview: "What aspect of the project does this meeting focus on?"
     → Targeted pre-retrieval: top-K project brain chunks for this meeting's topic pre-loaded
@@ -621,6 +734,11 @@ User joins late or starts replay of recorded meeting
 - Default Expert Agent only
 - Post-meeting text chat over full transcript
 - Basic role onboarding interview
+- Single-agent execution path, but persona-aware session setup
+- Persona-specific post-meeting outputs generated from the shared transcript plus persona profiles
+- Primary ingestion mode: live local OBS capture started from the UI after session creation
+- Optional ingestion mode: upload recorded meeting files through the UI
+- No Teams bot auto-join and no fake participant account in Phase 1
 
 ### Phase 2 — Project Brain (Core Knowledge Foundation)
 - Project Setup Wizard (conversational, one-time per project)

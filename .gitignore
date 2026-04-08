@@ -99,6 +99,7 @@ data/archive/
 !ai-agents/recorder/AGENTS.md
 !ai-agents/recorder/.agent/README.md
 !ai-agents/recorder/.agent/skills/*.md
+!ai-agents/recorder/docs/use-cases/*.md
 
 # Keep LLM context files
 llms.txt
