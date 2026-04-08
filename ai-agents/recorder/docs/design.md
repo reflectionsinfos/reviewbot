@@ -2,9 +2,31 @@
 
 ## Architecture Overview
 
-The system is built around a **multi-agent pipeline** layered on top of a chunked video processing backbone. OBS produces 2-minute mp4 segments; the pipeline transcribes each segment incrementally, scores relevance against each active persona, and distributes chunks to the right specialist agents. An orchestrator coordinates all agents, routes queries, detects conflicts, and synthesizes the shared output.
+The system has three major layers: a **Project Brain** (persistent, per-project knowledge), a **multi-agent pipeline** (meeting processing and reasoning), and an **application layer** (user interaction). The Project Brain is the foundation — without it, agents give generic answers. With it, they answer like someone who has been on the team for months.
 
 ```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         PROJECT BRAIN LAYER                              │
+│                      (persistent, per-project)                           │
+│                                                                          │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐  │
+│  │ Project Profile │  │  Document Store  │  │      Code Index         │  │
+│  │ Card (always    │  │  (ADRs, specs,   │  │  (module summaries,     │  │
+│  │  in prompt)     │  │   runbooks, HLD) │  │   API contracts,        │  │
+│  └─────────────────┘  └─────────────────┘  │   DB schemas)           │  │
+│                                             └─────────────────────────┘  │
+│  ┌─────────────────────────┐  ┌──────────────────────────────────────┐   │
+│  │    Meeting Archive      │  │     External Integrations            │   │
+│  │  (prior transcripts +   │  │  (Jira, GitHub, Confluence,         │   │
+│  │   understanding docs)   │  │   SharePoint — optional)             │   │
+│  └─────────────────────────┘  └──────────────────────────────────────┘   │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐    │
+│  │  ChromaDB: project_brain_{id} │ project_code_{id} │ meetings_{id}│    │
+│  └──────────────────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────┬───────────────────────────────────┘
+                                       │ all agents read from Project Brain
+                                       ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                          Meeting Capture Layer                           │
 │   OBS 3.11 (2-min mp4 segments) → Watched Output Folder                 │
@@ -21,8 +43,8 @@ The system is built around a **multi-agent pipeline** layered on top of a chunke
 │                                           │                              │
 │                    ┌──────────────────────┼──────────────────────┐       │
 │                    ▼                      ▼                      ▼       │
-│             Agent A queue          Agent B queue          Shared store   │
-│             (high relevance)       (high relevance)       (all chunks)   │
+│             Agent A queue          Agent B queue       session_transcript │
+│             (deep relevance)       (deep relevance)    (all chunks)      │
 └──────────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -38,24 +60,20 @@ The system is built around a **multi-agent pipeline** layered on top of a chunke
 │             │                                          │                 │
 │    ┌────────┴──────────────────────────────────────────┴────────┐       │
 │    │              Specialist Persona Agents                      │       │
+│    │    each agent retrieves from Project Brain + session        │       │
+│    │    transcript, filtered by role-based access tier          │       │
 │    │                                                             │       │
 │    │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │       │
 │    │  │  Architect   │  │   Security   │  │     PM       │     │       │
 │    │  │    Agent     │  │    Agent     │  │    Agent     │     │       │
 │    │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘     │       │
-│    │         │                 │                  │             │       │
-│    │  ┌──────┴───────┐  ┌──────┴───────┐  ┌──────┴───────┐    │       │
-│    │  │ Static KB    │  │ Static KB    │  │ Static KB    │    │       │
-│    │  │ (Architect)  │  │ (Security)   │  │ (PM)         │    │       │
-│    │  └──────────────┘  └──────────────┘  └──────────────┘    │       │
+│    │    code: API+modules  code: auth+deps    code: README only  │       │
 │    │                                                             │       │
 │    │  ┌──────────────┐  (up to 6 active agents per session)     │       │
-│    │  │Default Expert│                                           │       │
-│    │  │   Agent      │  ← always active, handles unrouted queries│       │
+│    │  │Default Expert│  ← full project brain access             │       │
+│    │  │   Agent      │  ← handles unrouted queries              │       │
 │    │  └──────────────┘                                           │       │
 │    └─────────────────────────────────────────────────────────────┘       │
-│                                                                          │
-│              Shared Session Vector Store (all transcript chunks)         │
 └──────────────────────────────────────────────────────────────────────────┘
                                        │
                                        ▼
@@ -68,6 +86,258 @@ The system is built around a **multi-agent pipeline** layered on top of a chunke
 ---
 
 ## Component Design
+
+---
+
+### PB-1. Project Setup Wizard
+
+Runs once per project. A conversational LangGraph interview that collects project sources and triggers indexing.
+
+```python
+SetupInterview (LangGraph state machine):
+
+  State: awaiting_project_info
+    Agent: "What is this project and what is it trying to achieve?"
+    → captures: project.name, project.description, project.goals[]
+
+  State: awaiting_codebase
+    Agent: "Where is the codebase? Local path or git URL?"
+    → captures: project.git_repo_path, project.git_url
+
+  State: awaiting_docs
+    Agent: "Where are the project documents? Folder, Confluence, or SharePoint?"
+    → captures: project.docs_folder, project.confluence_space, project.sharepoint_url
+
+  State: awaiting_exclusions
+    Agent: "Any directories or files to never index? (credentials, generated files)"
+    → captures: project.excluded_paths[] (merged with built-in exclusions)
+
+  State: awaiting_integrations
+    Agent: "Do you use Jira, GitHub Issues, or Confluence for tracking?"
+    → captures: project.jira_project_key, project.github_repo, project.confluence_space
+
+  State: trigger_indexing
+    → Spawns: DocumentIndexer, CodeIndexer, ExternalConnectors (async, parallel)
+    → Agent: "Indexing in progress. I'll let you know when it's ready."
+
+  State: review_profile_card
+    → Agent generates draft Project Profile Card
+    → User reviews, edits, confirms
+    → Saved to project.profile_card (injected into all agent prompts)
+
+  State: complete
+    → Project Brain ready — all future sessions in this project inherit it
+```
+
+```python
+ProjectConfig:
+  project_id: str
+  name: str
+  description: str
+  goals: list[str]
+  git_repo_path: str | None
+  docs_folder: str | None
+  excluded_paths: list[str]
+  jira_project_key: str | None
+  github_repo: str | None
+  confluence_space: str | None
+  profile_card: str              # < 500 tokens, always in system prompt
+  last_indexed_at: datetime
+  last_git_commit: str           # for incremental sync
+```
+
+---
+
+### PB-2. Document Indexer
+
+Crawls and embeds all project documentation into `project_brain_{project_id}`.
+
+```
+Supported formats:
+  .md, .txt          → read directly
+  .pdf               → PyPDF2 / pdfplumber
+  .docx              → python-docx
+  .html              → BeautifulSoup
+  Confluence pages   → Confluence REST API
+  SharePoint docs    → Microsoft Graph API
+
+Chunking strategy:
+  - 512-token chunks with 64-token overlap
+  - Heading-aware: respect markdown/document section boundaries
+  - Each chunk metadata: source_file, section_heading, last_modified
+
+Semantic linking (doc → code):
+  - During indexing, agent scans each doc for references to code components
+    (module names, class names, API endpoints, service names)
+  - Stores links: doc_chunk_id → [code_summary_ids]
+  - Used at retrieval time to surface linked code alongside doc content
+
+Exclusions:
+  - project.excluded_paths[]
+  - Files modified > 2 years ago (configurable threshold)
+```
+
+---
+
+### PB-3. Code Indexer
+
+Parses the codebase and generates LLM-produced summaries at each structural level. **Raw code is never embedded.** Only summaries are embedded; raw code is retrieved by path when needed.
+
+```
+Indexing pipeline per file:
+
+  1. AST Parse (tree-sitter or Python ast module)
+     → extract: classes, functions, imports, decorators, route definitions
+
+  2. Structure Extraction per level:
+     Module level:
+       - File purpose, key classes, external dependencies, module-level docstring
+     Class / Service level:
+       - Class name, responsibilities, public methods, key attributes
+     API Endpoint level (FastAPI/Flask/Express):
+       - Route, method, parameters, response schema, auth requirements
+     DB Schema level (SQLAlchemy / Prisma / raw SQL):
+       - Table name, columns, types, relationships, constraints, indexes
+
+  3. LLM Summary Generation (per module and class):
+     Prompt: "Summarise this {Python module / class / API endpoint} in plain English.
+              Include: purpose, key responsibilities, important design decisions,
+              external dependencies, and anything a team member joining this code
+              should know. Be concise but complete."
+     Output: 200–400 word summary per module/class
+
+  4. Embed summary → project_code_{project_id}
+     Metadata: file_path, level (module/class/endpoint/schema),
+               component_name, last_modified, git_commit
+
+  5. Store raw code → local FS / S3 (retrieved by file_path on demand)
+
+Role-based access filter applied at retrieval (not at indexing):
+  level filter per agent role stored in agent config:
+    PM / BA:        level IN ("module")   — only high-level module descriptions
+    Architect:      level IN ("module", "class", "endpoint")
+    Security:       level IN ("module", "class", "endpoint", "schema")
+                    + filter: component_name contains auth|security|token|crypt|hash
+    Data Engineer:  level IN ("schema", "module", "class")
+                    + filter: component_name contains data|pipeline|etl|transform|db
+    DevOps / SRE:   level IN ("module") + file_path contains infra|deploy|config|helm|docker
+    Default Expert: no filter — all levels
+```
+
+---
+
+### PB-4. Incremental Sync
+
+Keeps the Project Brain current without full re-indexing.
+
+```
+Code sync (triggered before each session or on demand):
+  git_diff = GitPython.diff(project.last_git_commit, "HEAD")
+  changed_files = [f for f in git_diff if f not in excluded_paths]
+  for file in changed_files:
+    re-parse → re-summarise → re-embed → update project.last_git_commit
+
+Document sync (continuous, via Watchdog on docs_folder):
+  on file_modified or file_created:
+    re-chunk → re-embed → update metadata.last_modified
+
+Stale file detection during meetings:
+  when an agent retrieves a code or doc chunk:
+    if chunk.last_modified < file.actual_last_modified:
+      agent appends: "[Note: this file was modified after my last index.
+                      My knowledge may be outdated.]"
+
+Pre-session freshness prompt:
+  "Last indexed: {last_indexed_at}. {n} files changed since then.
+   Re-index now? (recommended before important meetings)"
+```
+
+---
+
+### PB-5. External Connectors
+
+Optional integrations that enrich the Project Brain with live project data.
+
+```
+Jira Connector:
+  Input: project.jira_project_key
+  Fetches: open issues, current sprint, epics, recent comments
+  Processing: LLM summarises each issue → embed in project_brain_{id}
+  Metadata: issue_key, status, assignee, priority, last_updated
+  Refresh: before each session (delta sync — only changed issues)
+
+GitHub / GitLab Connector:
+  Input: project.github_repo
+  Fetches: open issues, recent PR descriptions and review comments
+  Processing: LLM summarises → embed
+  Refresh: before each session
+
+Confluence Connector:
+  Input: project.confluence_space
+  Fetches: pages in the space (respects Confluence permissions)
+  Processing: same as Document Indexer
+  Refresh: file watcher on Confluence webhook (or daily sync)
+
+SharePoint Connector:
+  Input: document library URL
+  Fetches: .docx, .pdf, .md files
+  Processing: same as Document Indexer
+  Uses: Microsoft Graph API
+
+All connectors write to: project_brain_{project_id}
+Connector metadata tags each chunk with: source="jira" | "github" | "confluence" | "sharepoint"
+```
+
+---
+
+### PB-6. Project Profile Card
+
+A short structured text block (< 500 tokens) injected verbatim into **every agent's system prompt** for every session. Never retrieved — always present. This eliminates cold-start latency for core project facts.
+
+```
+Format (Markdown, maintained by team):
+
+  ## Project: {name}
+  **Goal:** {one-line description}
+  **Stack:** {tech_stack}
+  **Team:** {team_size}, {squad_structure}
+  **Current focus:** {current_sprint_goal_or_milestone}
+  **Key open risks:** {top_3_risks}
+  **Architecture style:** {style}
+  **Key decisions in effect:**
+    - {ADR-001 summary}
+    - {ADR-007 summary}
+  **Last updated:** {date}
+```
+
+The agent drafts an initial card from indexed content during setup. The team reviews and edits it. It is re-confirmed before each meeting (< 30s review).
+
+---
+
+### PB-7. Meeting-Specific Context Injection
+
+When a session is created, the agent asks what the meeting focuses on and pre-retrieves relevant Project Brain content before the meeting starts.
+
+```
+Interview:
+  "What aspect of the project does this meeting focus on?"
+  "Any specific components, features, or recent changes relevant to this meeting?"
+
+Pre-retrieval:
+  query = meeting_focus + components_mentioned
+  top-K results from:
+    project_brain_{id}     → most relevant docs and ADRs
+    project_code_{id}      → most relevant code summaries
+    project_meetings_{id}  → most relevant prior meeting content
+
+Pre-loaded context stored in: session.preloaded_context (injected alongside
+rolling summary in all agent prompts for this session)
+
+Effect: the very first question in the meeting gets a project-grounded answer
+with zero retrieval cold-start.
+```
+
+---
 
 ### 1. File Watcher (Watchdog)
 
@@ -174,19 +444,36 @@ The relevance scoring is run in parallel across all active agents for each chunk
 
 ### 6. Embedding & Vector Store
 
+All storage uses ChromaDB locally (Pinecone/Weaviate in Phase 3+).
+
 ```
-Namespaces per session:
+Namespace structure:
 
-  static_knowledge_{agent_id}  → pre-meeting docs per persona (persists)
-  session_transcript            → all chunks, shared across agents
-  prior_meetings_{project_id}   → archived transcripts from past meetings
+  ── Project-scoped (persistent, shared across all sessions and agents) ──
+  project_brain_{project_id}   → document store: ADRs, specs, runbooks, HLD,
+                                  Jira summaries, Confluence, external integrations
+  project_code_{project_id}    → code index: module/class/API/schema summaries
+                                  (role-based access filter applied at retrieval)
+  project_meetings_{project_id}→ meeting archive: prior transcripts + understanding docs
 
-Chunk metadata stored:
-  chunk_id, start_time, end_time, speakers, segment_index,
-  relevance_scores: {agent_id: score, ...}
+  ── Persona-scoped (persists across sessions for this persona role) ──
+  persona_domain_{persona_id}  → generic domain knowledge, industry trends
+                                  (not project-specific — e.g., "security best practices")
+
+  ── Session-scoped (this meeting only) ──
+  session_transcript_{session_id} → all transcript chunks from this meeting,
+                                     shared across agents
+                                     metadata: relevance_scores: {agent_id: score}
+
+Retrieval per agent per query:
+  1. session_transcript_{session_id}   filtered by relevance_score[agent_id] > 0.4
+  2. project_brain_{project_id}        filtered by role access + semantic similarity
+  3. project_code_{project_id}         filtered by role-based level filter
+  4. project_meetings_{project_id}     for prior meeting context (Phase 3+)
+  5. persona_domain_{persona_id}       always accessible (generic domain knowledge)
+
+Profile Card: NOT retrieved — injected verbatim into system prompt always.
 ```
-
-Per-agent retrieval uses the shared `session_transcript` collection filtered by relevance score metadata. Agents with `score > 0.4` can retrieve a chunk; agents with `score < 0.4` cannot.
 
 ---
 
@@ -346,14 +633,33 @@ Nodes:
 
 **Agent system prompt template:**
 ```
+{project.profile_card}                        ← always injected, no retrieval
+
 You are a {role_title} participating in this meeting as an expert observer.
 Your accountability areas: {accountability_areas}
 Your domain focus: {role_description}
 
-Answer questions from your professional perspective. If something is outside your
-domain, say so and redirect to the appropriate specialist. Always flag uncertainty.
-If you notice something that contradicts your understanding or domain knowledge,
-raise it explicitly — do not smooth it over.
+Meeting focus: {session.meeting_focus}
+Pre-loaded context for this meeting: {session.preloaded_context}
+Meeting summary so far: {agent.rolling_summary}
+
+Answer questions from your professional perspective, grounded in the project
+knowledge above. Cite specific documents, ADRs, or code modules when relevant.
+If something is outside your domain, redirect to the appropriate specialist.
+Always flag uncertainty. If you notice something that contradicts the project
+docs or codebase, raise it explicitly — do not smooth it over.
+```
+
+**Retrieval order in `answer_query` node:**
+```
+1. inject:    project.profile_card (always — no retrieval)
+2. inject:    session.preloaded_context (pre-retrieved for this meeting topic)
+3. inject:    agent.rolling_summary (always — no retrieval)
+4. retrieve:  top-K from session_transcript_{session_id} (what was said so far)
+5. retrieve:  top-K from project_brain_{project_id} (docs, ADRs, specs)
+6. retrieve:  top-K from project_code_{project_id} (role-filtered code summaries)
+7. retrieve:  top-K from persona_domain_{persona_id} (generic domain knowledge)
+8. generate:  LLM response with citations
 ```
 
 ---
@@ -457,9 +763,19 @@ Session lifecycle:
 
 PostgreSQL schema (key tables):
 
+  projects:
+    project_id, name, description, goals (JSON)
+    git_repo_path, docs_folder, excluded_paths (JSON)
+    jira_project_key, github_repo, confluence_space
+    profile_card (text)          ← always injected into agent prompts
+    last_indexed_at, last_git_commit
+    indexing_status              ← idle | running | complete | error
+
   sessions:
-    session_id, title, status, start_time, end_time
-    global_rolling_summary, meeting_brief (JSON)
+    session_id, project_id, title, status, start_time, end_time
+    meeting_focus, global_rolling_summary
+    preloaded_context (text)     ← pre-retrieved for this meeting topic
+    meeting_brief (JSON)
 
   personas:
     persona_id, session_id, role_title, role_description
@@ -470,7 +786,13 @@ PostgreSQL schema (key tables):
   transcript_chunks:
     chunk_id, session_id, segment_index
     start_time, end_time, speakers (JSON), text
-    relevance_scores (JSON)  -- {agent_id: score}
+    relevance_scores (JSON)      ← {agent_id: score}
+
+  project_code_index:
+    entry_id, project_id, file_path, component_name
+    level (module|class|endpoint|schema)
+    summary (text)               ← LLM-generated, embedded in ChromaDB
+    git_commit, last_modified
 
   conflicts:
     conflict_id, session_id, topic, agents_involved (JSON)
@@ -576,6 +898,76 @@ Generated per persona after the meeting ends.
 ---
 
 ## Data Flow Diagrams
+
+### Project Brain Setup (one-time per project)
+
+```
+User starts new project
+    │
+    ▼
+Project Setup Wizard (conversational interview)
+    │ captures: git_repo_path, docs_folder, exclusions, integrations
+    │
+    ▼ (parallel)
+    ├── Document Indexer
+    │     crawl docs_folder (+ Confluence / SharePoint if configured)
+    │     → chunk + embed → project_brain_{project_id}
+    │
+    ├── Code Indexer
+    │     git clone / local path
+    │     → AST parse per file → extract structure
+    │     → LLM summarise per module / class / endpoint / schema
+    │     → embed summaries → project_code_{project_id}
+    │     → store raw code → local FS (retrieved by path on demand)
+    │
+    └── External Connectors (if configured)
+          Jira / GitHub / Confluence → LLM summarise → project_brain_{project_id}
+    │
+    ▼ (all complete)
+Agent drafts Project Profile Card (< 500 tokens)
+    │
+    ▼
+User reviews + confirms Profile Card
+    │
+    ▼
+Project Brain ready ✓ — all future sessions inherit it
+
+─── On subsequent sessions: ───────────────────────────────────────
+git diff → changed files → re-summarise + re-embed (< 30s typically)
+File watcher → changed docs → re-chunk + re-embed
+Freshness prompt shown to user before session starts
+```
+
+### Mid-Meeting Voice Query — Project-Grounded Answer
+
+```
+"Hey Nexus, can the payment service handle the throughput we're discussing?"
+    │
+    ▼
+STT → Orchestrator → routes to Architect Agent (and Data Engineer Agent)
+    │
+    ▼
+Architect Agent retrieval stack:
+    1. project.profile_card            ← "Stack: FastAPI, PostgreSQL, Redis on GCP"
+    2. session.preloaded_context       ← pre-retrieved for "payment service throughput"
+    3. agent.rolling_summary           ← what's been discussed so far
+    4. session_transcript (top-K)      ← what was just said
+    5. project_brain (top-K)          ← finds: ADR-012 (payment scaling decision)
+    6. project_code (top-K)           ← finds: payment_service module summary
+                                              "handles ~500 req/s, async queue,
+                                               horizontal scaling planned in ADR-012"
+    7. persona_domain (top-K)         ← scalability patterns domain knowledge
+    │
+    ▼
+Agent response:
+  "[Architect] Based on ADR-012 (March 2026), the payment service was designed
+   to scale to 2000 req/s with horizontal Pod scaling. The current module
+   handles ~500 req/s via the async queue. However, the load test docs show
+   testing was only run to 800 req/s — there's a gap between the design target
+   and what's been validated."
+
+TTS → earphone │ Full response → chat UI
+```
 
 ### Segment Processing + Multi-Agent Distribution
 
@@ -734,6 +1126,34 @@ Flow:
 
 ## Performance Targets
 
+### Project Brain Setup (one-time)
+
+| Operation | Target |
+|---|---|
+| Document indexing (100 docs, avg 10 pages) | < 5 minutes |
+| Code indexing — AST parse (1000 files) | < 2 minutes |
+| Code indexing — LLM summarisation (1000 files) | < 15 minutes (parallelised, 10 concurrent) |
+| External connector sync (Jira, 200 issues) | < 3 minutes |
+| Total initial Project Brain setup | < 30 minutes (typical project) |
+
+### Incremental Sync (per session)
+
+| Operation | Target |
+|---|---|
+| Git diff + changed file detection | < 5s |
+| Re-summarise + re-embed changed files (< 20 files) | < 60s |
+| Document file watcher re-index (single file) | < 10s |
+| Pre-session freshness check | < 5s |
+
+### Meeting-Specific Context Injection
+
+| Operation | Target |
+|---|---|
+| Meeting topic interview | < 2 minutes |
+| Targeted pre-retrieval from Project Brain | < 10s |
+
+### Meeting Runtime
+
 | Operation | Target |
 |---|---|
 | File watcher → processing trigger | < 5s after OBS write completes |
@@ -743,10 +1163,17 @@ Flow:
 | Embedding + vector store indexing | < 5s per segment |
 | Total segment-to-searchable latency | < 30s per segment |
 | Voice STT (question, 8s clip) | < 2s |
-| LLM response — single agent fast path | < 5s p95 |
+| LLM response — single agent (project-grounded) | < 5s p95 |
 | LLM response — multi-agent synthesis | < 15s p95 |
 | TTS generation + playback start | < 3s after LLM response |
 | End-to-end voice round trip | < 10s (activation → spoken answer) |
-| Per-persona briefing generation | < 60s post-meeting |
-| All briefings (parallel, 5 agents) | < 90s post-meeting |
-| Rolling summary update (per agent) | < 10s (background, non-blocking) |
+| Rolling summary update (per agent, background) | < 10s |
+
+### Post-Meeting
+
+| Operation | Target |
+|---|---|
+| Per-persona briefing generation | < 60s |
+| All briefings (parallel, 5 agents) | < 90s |
+| Shared understanding document draft | < 30s after briefings complete |
+| Archive session to project_meetings | < 10s |
