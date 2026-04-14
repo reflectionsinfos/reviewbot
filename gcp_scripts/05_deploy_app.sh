@@ -3,7 +3,7 @@
 
 set -e
 
-PROJECT_ID="reviewbot-491619"
+PROJECT_ID="reviewbot-493320"
 REGION="us-central1"
 IMAGE_NAME="reviewbot"
 REPO_NAME="reviewbot-repo"
@@ -77,7 +77,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --allow-unauthenticated \
     --add-cloudsql-instances "$PROJECT_ID:$REGION:$INSTANCE_NAME" \
     --set-secrets="DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest" \
-    --set-env-vars="DEBUG=false,VOICE_ENABLED=true,REQUIRE_HUMAN_APPROVAL=true"
+    --set-env-vars="DEBUG=false"
 
 echo "✅ App deployment complete."
 echo "   URL: $(gcloud run services describe "$SERVICE_NAME" --region="$REGION" --format='value(status.url)')"

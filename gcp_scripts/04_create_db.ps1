@@ -1,6 +1,6 @@
 # 04_create_db.ps1 - Create Cloud SQL PostgreSQL instance and user
 param (
-    [string]$ProjectID = "reviewbot-491619",
+    [string]$ProjectID = "reviewbot-493320",
     [string]$Region = "us-central1",
     [string]$InstanceName = "reviewbot-db",
     [string]$DatabaseName = "reviews_db",
@@ -43,7 +43,14 @@ if ($instanceExists) {
 
 # Create Database if it doesn't exist
 Write-Host "  → Database: $DatabaseName" -ForegroundColor Gray
-if (gcloud sql databases describe "$DatabaseName" --instance="$InstanceName" >$null 2>&1) {
+$dbExists = $false
+try {
+    $null = gcloud sql databases describe "$DatabaseName" --instance="$InstanceName" 2>$null
+    $dbExists = ($LASTEXITCODE -eq 0)
+} catch {
+    $dbExists = $false
+}
+if ($dbExists) {
     Write-Host "    - Database already exists." -ForegroundColor Gray
 } else {
     gcloud sql databases create "$DatabaseName" --instance="$InstanceName" --quiet
@@ -52,8 +59,14 @@ if (gcloud sql databases describe "$DatabaseName" --instance="$InstanceName" >$n
 
 # Create User if it doesn't exist
 Write-Host "  → User: $DatabaseUser" -ForegroundColor Gray
-$userList = gcloud sql users list --instance="$InstanceName" --format="value(name)"
-if ($userList.Contains($DatabaseUser)) {
+$userExists = $false
+try {
+    $userList = gcloud sql users list --instance="$InstanceName" --format="value(name)" 2>$null
+    $userExists = ($userList -contains $DatabaseUser)
+} catch {
+    $userExists = $false
+}
+if ($userExists) {
     Write-Host "    - User already exists." -ForegroundColor Gray
 } else {
     gcloud sql users create "$DatabaseUser" `

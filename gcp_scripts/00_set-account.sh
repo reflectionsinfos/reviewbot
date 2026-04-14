@@ -6,8 +6,8 @@
 
 set -euo pipefail
 
-ACCOUNT="mallikarjun.sh@gmail.com"
-GCP_PROJECT="reviewbot-491619"      # TODO: replace with your GCP project ID
+ACCOUNT="mallikrao534@gmail.com"
+GCP_PROJECT="reviewbot-493320"
 REGION="us-central1"                   # TODO: adjust region if needed
 ARTIFACT_REGISTRY_HOST="${REGION}-docker.pkg.dev"
 

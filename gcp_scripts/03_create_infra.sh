@@ -3,9 +3,9 @@
 
 set -e
 
-PROJECT_ID="reviewbot-491619"
+PROJECT_ID="reviewbot-493320"
 REGION="us-central1"
-BUCKET_NAME="reviewbot-491619-artifacts"
+BUCKET_NAME="reviewbot-493320-artifacts"
 REPO_NAME="reviewbot-repo"
 
 # Parse arguments

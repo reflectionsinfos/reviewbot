@@ -1,6 +1,6 @@
 # run_sql_proxy.ps1 - Run Cloud SQL Proxy to connect to the DB from local machine
 param (
-    [string]$ProjectID = "reviewbot-491619",
+    [string]$ProjectID = "reviewbot-493320",
     [string]$Region = "us-central1",
     [string]$InstanceName = "reviewbot-db",
     [string]$Port = "5432"

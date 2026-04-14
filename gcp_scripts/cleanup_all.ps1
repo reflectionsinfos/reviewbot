@@ -1,12 +1,12 @@
 # cleanup_all.ps1 - Delete all GCP resources created for ReviewBot
 param (
-    [string]$ProjectID = "reviewbot-491619",
+    [string]$ProjectID = "reviewbot-493320",
     [string]$Region = "us-central1",
     [string]$ServiceName = "reviewbot-web",
     [string]$SA_NAME = "reviewbot-runtime",
     [string]$InstanceName = "reviewbot-db",
     [string]$RepoName = "reviewbot-repo",
-    [string]$BucketName = "reviewbot-491619-artifacts"
+    [string]$BucketName = "reviewbot-493320-artifacts"
 )
 
 $ErrorActionPreference = "Stop"

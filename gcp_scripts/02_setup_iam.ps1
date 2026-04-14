@@ -1,6 +1,6 @@
 # 02_setup_iam.ps1 - Create Service Account and assign IAM roles for ReviewBot
 param (
-    [string]$ProjectID = "reviewbot-491619"
+    [string]$ProjectID = "reviewbot-493320"
 )
 
 $ErrorActionPreference = "Stop"

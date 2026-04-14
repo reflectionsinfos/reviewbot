@@ -1,8 +1,8 @@
 # 03_create_infra.ps1 - Setup Artifact Registry, GCS Bucket, and Secret Manager
 param (
-    [string]$ProjectID = "reviewbot-491619",
+    [string]$ProjectID = "reviewbot-493320",
     [string]$Region = "us-central1",
-    [string]$BucketName = "reviewbot-491619-artifacts",
+    [string]$BucketName = "reviewbot-493320-artifacts",
     [string]$RepoName = "reviewbot-repo"
 )
 
@@ -44,7 +44,9 @@ if ($bucketExists) {
 # 3. Secret Manager placeholders
 $secrets = @(
     "DATABASE_URL",
-    "SECRET_KEY"
+    "SECRET_KEY",
+    "OPENAI_API_KEY",
+    "ACTIVE_LLM_PROVIDER"
 )
 
 foreach ($secret in $secrets) {

@@ -3,7 +3,7 @@
 
 set -e
 
-PROJECT_ID="reviewbot-491619"
+PROJECT_ID="reviewbot-493320"
 SA_NAME="reviewbot-runtime"
 
 # Parse arguments

@@ -3,7 +3,7 @@
 
 set -e
 
-PROJECT_ID="reviewbot-491619"
+PROJECT_ID="reviewbot-493320"
 REGION="us-central1"
 INSTANCE_NAME="reviewbot-db"
 DATABASE_NAME="reviews_db"

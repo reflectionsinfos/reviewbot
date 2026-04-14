@@ -1,6 +1,6 @@
 # 05_deploy_app.ps1 - Build and deploy ReviewBot to Cloud Run
 param (
-    [string]$ProjectID = "reviewbot-491619",
+    [string]$ProjectID = "reviewbot-493320",
     [string]$Region = "us-central1",
     [string]$ImageName = "reviewbot",
     [string]$RepoName = "reviewbot-repo",
@@ -11,33 +11,44 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-# ── LOAD env.non-prod.gcp FILE ──────────────────────────────────────────
-Write-Host "  → Loading GCP production variables from env.non-prod.gcp..." -ForegroundColor Gray
-if (Test-Path "env.non-prod.gcp") {
-    Get-Content env.non-prod.gcp | Where-Object { $_ -match '=' -and $_ -notmatch '^#' } | ForEach-Object {
+# ── LOAD .env FILE ──────────────────────────────────────────────────────
+Write-Host "  → Loading deployment variables from .env..." -ForegroundColor Gray
+$envFile = Join-Path $PSScriptRoot ".env"
+if (Test-Path $envFile) {
+    Get-Content $envFile | Where-Object { $_ -match '=' -and $_ -notmatch '^#' -and $_.Trim() -ne '' } | ForEach-Object {
         $line = $_.Trim()
-        if ($line.Contains('=')) {
-            $name, $value = $line.Split('=', 2).Trim().Replace('"', '').Replace("'", "")
-            Set-Variable -Name "GCP_$name" -Value $value
+        $eqIdx = $line.IndexOf('=')
+        if ($eqIdx -gt 0) {
+            $varName  = $line.Substring(0, $eqIdx).Trim()
+            $varValue = $line.Substring($eqIdx + 1).Trim().Trim('"').Trim("'")
+            Set-Variable -Name "ENV_$varName" -Value $varValue -Scope Script
         }
     }
 } else {
-    Write-Error "env.non-prod.gcp file not found! Deployment stopped."
+    Write-Error ".env file not found at $envFile - copy .env.example or create it first."
     return
 }
 
 # Values for constructing DATABASE_URL and seeding secrets
-$dbUser       = $GCP_DB_USER
-$dbPass       = $GCP_DB_PASS
-$dbName       = $GCP_DB_NAME
-$secretKey    = $GCP_SECRET_KEY
+$dbUser       = $ENV_DB_USER
+$dbPass       = $ENV_DB_PASS
+$dbName       = $ENV_DB_NAME
+$secretKey    = $ENV_SECRET_KEY
+
+# Override params with .env values if the caller didn't pass them explicitly
+if ($ProjectID   -eq "reviewbot-493320")  { $ProjectID   = $ENV_GCP_PROJECT }
+if ($Region      -eq "us-central1")       { $Region      = $ENV_GCP_REGION }
+if ($RepoName    -eq "reviewbot-repo")    { $RepoName    = $ENV_REPO_NAME }
+if ($ServiceName -eq "reviewbot-web")     { $ServiceName = $ENV_SERVICE_NAME }
+if ($SA_NAME     -eq "reviewbot-runtime") { $SA_NAME     = $ENV_SA_NAME }
+if ($InstanceName -eq "reviewbot-db")     { $InstanceName = $ENV_DB_INSTANCE_NAME }
 
 # ── PUSH secrets to Secret Manager so --set-secrets has versions to resolve ──
 Write-Host "  → Syncing secrets to Secret Manager..." -ForegroundColor Gray
 $dbUrl = "postgresql+asyncpg://${dbUser}:${dbPass}@/${dbName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
 $secretsToSync = @{
-    "DATABASE_URL"         = $dbUrl
-    "SECRET_KEY"           = $secretKey
+    "DATABASE_URL" = $dbUrl
+    "SECRET_KEY"   = $secretKey
 }
 foreach ($entry in $secretsToSync.GetEnumerator()) {
     $val = $entry.Value
@@ -123,7 +134,7 @@ gcloud run deploy "$ServiceName" `
     --allow-unauthenticated `
     --add-cloudsql-instances "${ProjectID}:${Region}:${InstanceName}" `
     --set-secrets="DATABASE_URL=DATABASE_URL:latest,SECRET_KEY=SECRET_KEY:latest" `
-    --set-env-vars="DEBUG=false,VOICE_ENABLED=true,REQUIRE_HUMAN_APPROVAL=true" --quiet
+    --set-env-vars="DEBUG=false" --quiet
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Cloud Run deployment failed with exit code $LASTEXITCODE."
     exit $LASTEXITCODE

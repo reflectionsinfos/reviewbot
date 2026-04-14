@@ -3,7 +3,7 @@
 
 set -e
 
-PROJECT_ID="reviewbot-491619"
+PROJECT_ID="reviewbot-493320"
 
 # Parse arguments
 while [[ "$#" -gt 0 ]]; do
