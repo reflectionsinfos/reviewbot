@@ -12,7 +12,7 @@ param (
 $ErrorActionPreference = "Stop"
 
 # ── LOAD .env FILE ──────────────────────────────────────────────────────
-Write-Host "  → Loading deployment variables from .env..." -ForegroundColor Gray
+Write-Host "  1. Loading deployment variables from .env..." -ForegroundColor Gray
 $envFile = Join-Path $PSScriptRoot ".env"
 if (Test-Path $envFile) {
     Get-Content $envFile | Where-Object { $_ -match '=' -and $_ -notmatch '^#' -and $_.Trim() -ne '' } | ForEach-Object {
@@ -44,7 +44,7 @@ if ($SA_NAME     -eq "reviewbot-runtime") { $SA_NAME     = $ENV_SA_NAME }
 if ($InstanceName -eq "reviewbot-db")     { $InstanceName = $ENV_DB_INSTANCE_NAME }
 
 # ── PUSH secrets to Secret Manager so --set-secrets has versions to resolve ──
-Write-Host "  → Syncing secrets to Secret Manager..." -ForegroundColor Gray
+Write-Host "  2. Syncing secrets to Secret Manager..." -ForegroundColor Gray
 $dbUrl = "postgresql+asyncpg://${dbUser}:${dbPass}@/${dbName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
 $secretsToSync = @{
     "DATABASE_URL" = $dbUrl
@@ -66,13 +66,13 @@ foreach ($entry in $secretsToSync.GetEnumerator()) {
     }
 }
 
-Write-Host "  → Project: $ProjectID" -ForegroundColor Gray
-Write-Host "  → Region: $Region" -ForegroundColor Gray
+Write-Host "  3. Project: $ProjectID" -ForegroundColor Gray
+Write-Host "  4. Region: $Region" -ForegroundColor Gray
 
 $imageTag = "${Region}-docker.pkg.dev/${ProjectID}/${RepoName}/${ImageName}:latest"
 
 # 0. Rebuild reviewbot-cli .whl so the download link on the UI stays current
-Write-Host "  -> Rebuilding reviewbot-cli .whl..." -ForegroundColor Gray
+Write-Host "  5. Rebuilding reviewbot-cli .whl..." -ForegroundColor Gray
 # $PSScriptRoot = c:\projects\reviewbot\gcp_scripts
 # reviewbot-cli sits at   c:\projects\reviewbot-cli
 $repoRoot      = Split-Path -Parent $PSScriptRoot
@@ -124,7 +124,25 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-# 2. Deploy to Cloud Run
+# 2. Delete existing Cloud Run service (fresh install)
+Write-Host "  → Deleting existing service '$ServiceName' (if present)..." -ForegroundColor Gray
+$existing = $null
+try {
+    $ErrorActionPreference = "Continue"
+    $existing = gcloud run services describe "$ServiceName" --region="$Region" --project="$ProjectID" --format="value(metadata.name)" 2>$null
+    $ErrorActionPreference = "Stop"
+} catch {
+    $existing = $null
+    $ErrorActionPreference = "Stop"
+}
+if ($existing -eq $ServiceName) {
+    gcloud run services delete "$ServiceName" --region="$Region" --project="$ProjectID" --quiet
+    Write-Host "    → Service deleted." -ForegroundColor Gray
+} else {
+    Write-Host "    → Service not found, skipping delete." -ForegroundColor Gray
+}
+
+# 3. Deploy to Cloud Run
 Write-Host "  → Deploying service: $ServiceName..." -ForegroundColor Gray
 gcloud run deploy "$ServiceName" `
     --image "$imageTag" `
@@ -140,6 +158,6 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "✅ App deployment complete." -ForegroundColor Green
+Write-Host "App deployment complete." -ForegroundColor Green
 $url = gcloud run services describe "$ServiceName" --region="$Region" --format='value(status.url)'
 Write-Host "   URL: $url" -ForegroundColor Cyan

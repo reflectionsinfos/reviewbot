@@ -1,36 +1,40 @@
 #!/bin/bash
 # 04_create_db.sh - Create Cloud SQL PostgreSQL instance and user
+# Reads all values from gcp_scripts/.env (DB_PASS, GCP_PROJECT, etc.)
 
 set -e
 
-PROJECT_ID="reviewbot-493320"
-REGION="us-central1"
-INSTANCE_NAME="reviewbot-db"
-DATABASE_NAME="reviews_db"
-DATABASE_USER="review_user"
-DB_PASSWORD=""
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="$SCRIPT_DIR/.env"
 
-# Parse arguments
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --project) PROJECT_ID="$2"; shift ;;
-        --region) REGION="$2"; shift ;;
-        --instance-name) INSTANCE_NAME="$2"; shift ;;
-        --db-password) DB_PASSWORD="$2"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-    shift
-done
+if [ ! -f "$ENV_FILE" ]; then
+    echo "Error: .env file not found at $ENV_FILE"
+    exit 1
+fi
+
+# Parse .env (skip comments and blank lines)
+while IFS='=' read -r key value; do
+    [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+    value="${value%%#*}"   # strip inline comments
+    value="${value%"${value##*[![:space:]]}"}"  # rtrim whitespace
+    export "$key=$value"
+done < "$ENV_FILE"
+
+PROJECT_ID="${GCP_PROJECT}"
+REGION="${GCP_REGION}"
+INSTANCE_NAME="${DB_INSTANCE_NAME}"
+DATABASE_NAME="${DB_NAME}"
+DATABASE_USER="${DB_USER}"
+DB_PASSWORD="${DB_PASS}"
 
 if [ -z "$PROJECT_ID" ] || [ -z "$DB_PASSWORD" ]; then
-    echo "Usage: $0 --project <PROJECT_ID> --db-password <DB_PASSWORD>"
-    echo "  (Optional) --instance-name <NAME> --region <REGION>"
+    echo "Error: GCP_PROJECT and DB_PASS must be set in .env"
     exit 1
 fi
 
 gcloud config set project "$PROJECT_ID"
-echo "🚀 Creating Cloud SQL PostgreSQL instance '$INSTANCE_NAME'..."
-echo "  (⚠️ Note: This can take 10-20 minutes to complete)"
+echo "Creating Cloud SQL PostgreSQL instance '$INSTANCE_NAME'..."
+echo "  (Note: This can take 10-20 minutes to complete)"
 
 if gcloud sql instances describe "$INSTANCE_NAME" >/dev/null 2>&1; then
     echo "  → Instance already exists."
@@ -46,7 +50,7 @@ else
     echo "  → Instance created."
 fi
 
-# Create Database if it doesn't exist
+# Create Database
 echo "  → Database: $DATABASE_NAME"
 if gcloud sql databases describe "$DATABASE_NAME" --instance="$INSTANCE_NAME" >/dev/null 2>&1; then
     echo "    - Database already exists."
@@ -55,9 +59,9 @@ else
     echo "    - Database created."
 fi
 
-# Create User if it doesn't exist
+# Create User
 echo "  → User: $DATABASE_USER"
-if gcloud sql users list --instance="$INSTANCE_NAME" | grep -q "$DATABASE_USER"; then
+if gcloud sql users list --instance="$INSTANCE_NAME" | grep -q "^$DATABASE_USER$"; then
     echo "    - User already exists."
 else
     gcloud sql users create "$DATABASE_USER" \
@@ -66,10 +70,13 @@ else
     echo "    - User created."
 fi
 
-echo "✅ Cloud SQL instance and database ready."
+echo "Cloud SQL instance and database ready."
+
+# Store DATABASE_URL in Secret Manager
+echo "  → Storing DATABASE_URL in Secret Manager..."
+DB_URL="postgresql+asyncpg://${DATABASE_USER}:${DB_PASSWORD}@/${DATABASE_NAME}?host=/cloudsql/${PROJECT_ID}:${REGION}:${INSTANCE_NAME}"
+printf '%s' "$DB_URL" | gcloud secrets versions add DATABASE_URL --data-file=- --project="$PROJECT_ID"
+echo "  → DATABASE_URL secret updated in Secret Manager."
 echo ""
-echo "   DATABASE_URL for Cloud Run (copy into env.non-prod.gcp):"
-echo "   postgresql+asyncpg://$DATABASE_USER:$DB_PASSWORD@/$DATABASE_NAME?host=/cloudsql/$PROJECT_ID:$REGION:$INSTANCE_NAME"
-echo ""
-echo "   Next step: populate Secret Manager with the DATABASE_URL above:"
-echo "   echo -n 'postgresql+asyncpg://$DATABASE_USER:$DB_PASSWORD@/$DATABASE_NAME?host=/cloudsql/$PROJECT_ID:$REGION:$INSTANCE_NAME' | gcloud secrets versions add DATABASE_URL --data-file=-"
+echo "   DATABASE_URL saved to Secret Manager as 'DATABASE_URL:latest'."
+echo "   Connection: postgresql+asyncpg://${DATABASE_USER}:***@/${DATABASE_NAME}?host=/cloudsql/${PROJECT_ID}:${REGION}:${INSTANCE_NAME}"
