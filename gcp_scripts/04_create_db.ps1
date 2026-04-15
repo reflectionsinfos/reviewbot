@@ -5,18 +5,21 @@ param (
     [string]$InstanceName = "reviewbot-db",
     [string]$DatabaseName = "reviews_db",
     [string]$DatabaseUser = "review_user",
-    [string]$DatabasePassword = ""
+    [SecureString]$DatabasePassword = $null
 )
 
-if ([string]::IsNullOrEmpty($DatabasePassword)) {
-    Write-Host "❌ Error: --DatabasePassword is required." -ForegroundColor Red
+if ($null -eq $DatabasePassword -or $DatabasePassword.Length -eq 0) {
+    Write-Host "Error: --DatabasePassword is required." -ForegroundColor Red
     exit 1
 }
 
+# Convert SecureString to plain text for gcloud CLI usage
+$plainPassword = [System.Net.NetworkCredential]::new("", $DatabasePassword).Password
+
 $ErrorActionPreference = "Stop"
 
-Write-Host "🚀 Creating Cloud SQL PostgreSQL instance '$InstanceName'..." -ForegroundColor Cyan
-Write-Host "  (⚠️ Note: This can take 10-20 minutes to complete)" -ForegroundColor Yellow
+Write-Host "Creating Cloud SQL PostgreSQL instance '$InstanceName'..." -ForegroundColor Cyan
+Write-Host "  (Note: This can take 10-20 minutes to complete)" -ForegroundColor Yellow
 gcloud config set project "$ProjectID" --quiet
 
 $instanceExists = $false
@@ -34,7 +37,7 @@ if ($instanceExists) {
         --database-version=POSTGRES_15 `
         --tier=db-f1-micro `
         --region="$Region" `
-        --root-password="$DatabasePassword" `
+        --root-password="$plainPassword" `
         --storage-type=HDD `
         --storage-size=10GB `
         --backup-start-time=00:00 --quiet
@@ -71,15 +74,15 @@ if ($userExists) {
 } else {
     gcloud sql users create "$DatabaseUser" `
         --instance="$InstanceName" `
-        --password="$DatabasePassword" --quiet
+        --password="$plainPassword" --quiet
     Write-Host "    - User created." -ForegroundColor Gray
 }
 
-Write-Host "✅ Cloud SQL instance and database ready." -ForegroundColor Green
+Write-Host "Cloud SQL instance and database ready." -ForegroundColor Green
 
 # Populate DATABASE_URL secret via temp file (avoids plaintext in logs/history)
 Write-Host "  → Storing DATABASE_URL in Secret Manager..." -ForegroundColor Gray
-$dbUrl = "postgresql+asyncpg://${DatabaseUser}:${DatabasePassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
+$dbUrl = "postgresql+asyncpg://${DatabaseUser}:${plainPassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
 $tempFile = [System.IO.Path]::GetTempFileName()
 try {
     $utf8NoBom = New-Object System.Text.UTF8Encoding $False
