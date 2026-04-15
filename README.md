@@ -8,10 +8,27 @@ AI-powered platform for structured technical and delivery project reviews. Suppo
 
 | | |
 |---|---|
-| **UI** | https://reviewbot-web-128263129038.us-central1.run.app/ui |
-| **API Docs** | https://reviewbot-web-128263129038.us-central1.run.app/docs |
-| **Health** | https://reviewbot-web-128263129038.us-central1.run.app/health |
-| **Default login** | `admin@reviewbot.com` — contact your admin for password |
+| **UI** | https://reviewbot-web-so224yfvwq-uc.a.run.app/ui |
+| **API Docs** | https://reviewbot-web-so224yfvwq-uc.a.run.app/docs |
+| **Health** | https://reviewbot-web-so224yfvwq-uc.a.run.app/health |
+| **Admin login** | `admin@reviewbot.com` / `Admin@123` |
+| **Reviewer login** | `reviewer@reviewbot.com` / `Admin@123` |
+
+> **Change the default password after first login** (header dropdown → Change Password).
+
+### Seeding the GCP Database
+
+The app creates tables automatically on startup but does **not** insert any users. Run the seed script once after a fresh deployment:
+
+```bash
+# Regenerate seed SQL from source xlsx files (if data has changed)
+python scripts/generate_seed.py
+
+# Apply seed data via Cloud SQL Studio (GCP Console → Cloud SQL → your instance → Cloud SQL Studio)
+# Open scripts/seed_data.sql, paste into the query editor, and execute.
+```
+
+This inserts two default users, Standard Delivery (49 items) and Standard Technical (103 items) global checklists, and sample projects (AAA PDH, NeUMoney Platform) with completed reviews and reports.
 
 ---
 
@@ -251,7 +268,7 @@ Download from the AI Review page → **VS CODE EXTENSION** button. Reviews your 
 ```bash
 pip install reviewbot-cli
 
-reviewbot login --server https://reviewbot-web-128263129038.us-central1.run.app
+reviewbot login --server https://reviewbot-web-so224yfvwq-uc.a.run.app
 
 reviewbot review \
   --project-id <id> \

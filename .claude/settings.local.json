@@ -55,7 +55,12 @@
       "Bash(grep -E \"\\\\.py$|\\\\.md$|\\\\.toml$|\\\\.txt$\")",
       "Bash(python -c \"import zipfile; z=zipfile.ZipFile\\(''reviewbot-cli.zip''\\); print\\(''\\\\n''.join\\(z.namelist\\(\\)[:30]\\)\\)\")",
       "Bash(python -m build --wheel)",
-      "Bash(powershell -Command \"Get-Content ''''c:/projects/reviewbot/gcp_scripts/05_deploy_app.ps1'''' | Out-Null; Write-Host ''''syntax ok''''\")"
+      "Bash(powershell -Command \"Get-Content ''''c:/projects/reviewbot/gcp_scripts/05_deploy_app.ps1'''' | Out-Null; Write-Host ''''syntax ok''''\")",
+      "Bash(ls C:/projects/nexus-ai/reviewbot/gcp_scripts/*.gcp)",
+      "Bash(ls C:/projects/nexus-ai/reviewbot/*.env*)",
+      "Bash(gcloud logging:*)",
+      "Bash(gcloud sql:*)",
+      "Bash(ls c:/projects/nexus-ai/reviewbot/gcp_scripts/.env*)"
     ]
   }
 }

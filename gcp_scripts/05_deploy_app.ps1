@@ -45,7 +45,8 @@ if ($InstanceName -eq "reviewbot-db")     { $InstanceName = $ENV_DB_INSTANCE_NAM
 
 # ── PUSH secrets to Secret Manager so --set-secrets has versions to resolve ──
 Write-Host "  2. Syncing secrets to Secret Manager..." -ForegroundColor Gray
-$dbUrl = "postgresql+asyncpg://${dbUser}:${dbPass}@/${dbName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
+$dbPassEncoded = [System.Uri]::EscapeDataString($dbPass)
+$dbUrl = "postgresql+asyncpg://${dbUser}:${dbPassEncoded}@/${dbName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
 $secretsToSync = @{
     "DATABASE_URL" = $dbUrl
     "SECRET_KEY"   = $secretKey

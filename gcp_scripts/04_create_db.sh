@@ -74,7 +74,8 @@ echo "Cloud SQL instance and database ready."
 
 # Store DATABASE_URL in Secret Manager
 echo "  → Storing DATABASE_URL in Secret Manager..."
-DB_URL="postgresql+asyncpg://${DATABASE_USER}:${DB_PASSWORD}@/${DATABASE_NAME}?host=/cloudsql/${PROJECT_ID}:${REGION}:${INSTANCE_NAME}"
+DB_PASS_ENCODED=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$DB_PASSWORD")
+DB_URL="postgresql+asyncpg://${DATABASE_USER}:${DB_PASS_ENCODED}@/${DATABASE_NAME}?host=/cloudsql/${PROJECT_ID}:${REGION}:${INSTANCE_NAME}"
 printf '%s' "$DB_URL" | gcloud secrets versions add DATABASE_URL --data-file=- --project="$PROJECT_ID"
 echo "  → DATABASE_URL secret updated in Secret Manager."
 echo ""

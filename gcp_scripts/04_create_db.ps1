@@ -98,7 +98,8 @@ Write-Host "Cloud SQL instance and database ready." -ForegroundColor Green
 
 # ── Store DATABASE_URL in Secret Manager ───────────────────────────────────
 Write-Host "  → Storing DATABASE_URL in Secret Manager..." -ForegroundColor Gray
-$dbUrl    = "postgresql+asyncpg://${DatabaseUser}:${plainPassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
+$encodedPassword = [System.Uri]::EscapeDataString($plainPassword)
+$dbUrl    = "postgresql+asyncpg://${DatabaseUser}:${encodedPassword}@/${DatabaseName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
 $tempFile = [System.IO.Path]::GetTempFileName()
 try {
     $utf8NoBom = New-Object System.Text.UTF8Encoding $False
