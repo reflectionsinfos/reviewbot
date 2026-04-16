@@ -2,14 +2,17 @@
 Checklists API Routes
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+import os
+import tempfile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from app.db.session import get_db
-from app.models import User
+from app.models import Checklist, ChecklistItem, User
 from app.api.routes.auth import get_current_user
-from app.services.checklist_service import ChecklistService
+from app.services.checklist_parser import parse_excel_checklist
+from app.services.checklist_service import ChecklistService, _generate_item_code
 from app.schemas.checklist import (
     ChecklistItemCreate, ChecklistItemUpdate, ItemReorderReq,
     CloneChecklistResponse, CloneChecklistReq, SyncStrategyReq, SyncResult,
@@ -379,6 +382,107 @@ async def delete_global_checklist(
         await db.rollback()
         logger.error(f"Error deleting global checklist: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/globals/upload")
+async def upload_global_checklist(
+    file: UploadFile = File(..., description="Excel checklist file (.xlsx)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload an Excel checklist file and create one or more global templates.
+    Parses sheets named 'Delivery Check List V 1.0' and/or 'Technical Check List V 1.0'.
+    Requires admin role.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    # Validate file type
+    filename = file.filename or ""
+    if not filename.lower().endswith((".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="Only .xlsx or .xlsm files are supported")
+
+    # Validate file size (25 MB limit)
+    content = await file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 25 MB)")
+
+    # Save to temp file and parse
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        parsed = await parse_excel_checklist(tmp_path)
+        checklists_data = parsed.get("checklists", {})
+
+        if not checklists_data:
+            raise HTTPException(status_code=422, detail="No recognisable checklist sheets found in this file")
+
+        created = []
+        for checklist_type, items in checklists_data.items():
+            if not items:
+                continue
+
+            # Derive a name from the original filename (strip extension)
+            base_name = os.path.splitext(filename)[0]
+            checklist_name = f"{base_name} ({checklist_type.capitalize()})"
+
+            checklist = Checklist(
+                name=checklist_name,
+                type=checklist_type,
+                version="1.0",
+                is_global=True,
+                project_id=None,
+            )
+            db.add(checklist)
+            await db.flush()  # get checklist.id
+
+            for order, item_data in enumerate(items):
+                area = item_data.get("area", "General")
+                # Generate AREA-NNN code (registers area abbreviation on checklist.area_codes)
+                item_code = await _generate_item_code(db, checklist.id, area)
+                item = ChecklistItem(
+                    checklist_id=checklist.id,
+                    item_code=item_code,
+                    area=area,
+                    question=item_data.get("question", ""),
+                    category=item_data.get("category", checklist_type),
+                    weight=item_data.get("weight", 1.0),
+                    is_review_mandatory=item_data.get("is_review_mandatory", True),
+                    expected_evidence=item_data.get("expected_evidence"),
+                    order=order,
+                )
+                db.add(item)
+
+            await db.flush()
+            created.append({
+                "id": checklist.id,
+                "name": checklist.name,
+                "type": checklist.type,
+                "version": checklist.version,
+                "item_count": len(items),
+            })
+
+        await db.commit()
+        logger.info(
+            f"Global checklist(s) uploaded from '{filename}' by {current_user.email}: "
+            f"{[c['name'] for c in created]}"
+        )
+        return {"created": created}
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error uploading global checklist: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to parse Excel file: {str(e)}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 @router.post("/globals/{checklist_id}/items")

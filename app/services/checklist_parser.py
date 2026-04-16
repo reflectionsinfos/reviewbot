@@ -51,13 +51,21 @@ class ChecklistParser:
             # Extract item code (e.g., "1.1", "1.2")
             item_code = str(row.get('SNO', '')) if pd.notna(row.get('SNO')) else f"{idx + 1}"
             
+            # Extract expected evidence
+            expected_evidence = None
+            if 'Expected Evidence' in df.columns:
+                evidence = row.get('Expected Evidence')
+                if pd.notna(evidence):
+                    expected_evidence = str(evidence).strip()
+
             items.append({
                 "item_code": item_code,
                 "area": current_area,
                 "question": str(question).strip(),
                 "category": "delivery",
                 "weight": 1.0,
-                "is_review_mandatory": True
+                "is_review_mandatory": True,
+                "expected_evidence": expected_evidence
             })
         
         return items
@@ -87,10 +95,10 @@ class ChecklistParser:
             # Extract item code (e.g., "1.10", "1.20")
             item_code = str(row.get('#', '')) if pd.notna(row.get('#')) else f"{idx + 1}"
             
-            # Extract expected evidence from inputs column if available
+            # Extract expected evidence
             expected_evidence = None
-            if 'Inputs from Delivery' in df.columns:
-                evidence = row.get('Inputs from Delivery')
+            if 'Expected Evidence' in df.columns:
+                evidence = row.get('Expected Evidence')
                 if pd.notna(evidence):
                     expected_evidence = str(evidence).strip()
             

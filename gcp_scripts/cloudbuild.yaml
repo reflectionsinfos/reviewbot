@@ -1,0 +1,13 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - --cache-from
+      - '$_IMAGE_TAG'
+      - --tag
+      - '$_IMAGE_TAG'
+      - --target
+      - production
+      - .
+images:
+  - '$_IMAGE_TAG'

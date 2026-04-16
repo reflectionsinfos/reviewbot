@@ -101,6 +101,22 @@
     .col-info-icon { position: relative; cursor: help; color: #38bdf8; font-size: 11px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 3px; }
     .col-info-icon .col-tooltip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; font-weight: 400; line-height: 1.4; padding: 7px 10px; border-radius: 6px; white-space: normal; width: 180px; text-align: center; text-transform: none; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
     .col-info-icon:hover .col-tooltip { display: block; }
+    .col-info-btn { cursor: pointer; color: #38bdf8; font-size: 12px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px; background: none; border: none; padding: 0; line-height: 1; opacity: 0.75; transition: opacity 0.15s; }
+    .col-info-btn:hover { opacity: 1; }
+    #col-info-panel { display: none; position: fixed; z-index: 500; background: #1e293b; border: 1px solid #334155; border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); width: 300px; padding: 16px 18px 14px; font-size: 13px; line-height: 1.5; color: #e2e8f0; }
+    #col-info-panel.visible { display: block; }
+    #col-info-panel .cip-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+    #col-info-panel .cip-title { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+    #col-info-panel .cip-close { background: none; border: none; color: #64748b; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; flex-shrink: 0; margin-top: -2px; }
+    #col-info-panel .cip-close:hover { color: #f1f5f9; }
+    #col-info-panel .cip-body { color: #94a3b8; font-size: 12px; }
+    #col-info-panel .cip-body p { margin-bottom: 8px; }
+    #col-info-panel .cip-body p:last-child { margin-bottom: 0; }
+    #col-info-panel .cip-body .cip-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin-bottom: 4px; }
+    #col-info-panel .cip-body ul { padding-left: 14px; margin: 0; }
+    #col-info-panel .cip-body ul li { margin-bottom: 3px; }
+    #col-info-panel .cip-body code { background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; color: #7dd3fc; white-space: nowrap; }
+    #col-info-panel .cip-divider { border: none; border-top: 1px solid #334155; margin: 10px 0; }
 
     /* ── Modals ───────────────────────────────────────────────────────────── */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 200; }
@@ -234,8 +250,8 @@
               <th style="width:90px;">Code</th>
               <th style="width:130px;">Area</th>
               <th>Question</th>
-              <th style="width:100px;">Evidence</th>
-              <th style="width:70px;">Weight</th>
+              <th style="width:100px;">Evidence<button class="col-info-btn" onclick="showColInfo('evidence',this)" title="What is Evidence?">ⓘ</button></th>
+              <th style="width:70px;">Weight<button class="col-info-btn" onclick="showColInfo('weight',this)" title="What is Weight?">ⓘ</button></th>
               <th style="width:80px;">Review?<span class="col-info-icon">ⓘ<span class="col-tooltip">IS REVIEW MANDATORY?</span></span></th>
               <th style="width:90px;">Actions</th>
             </tr>
@@ -369,6 +385,15 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- ── Column Info Panel ───────────────────────────────────────────────────── -->
+<div id="col-info-panel" role="tooltip" aria-live="polite">
+  <div class="cip-header">
+    <span class="cip-title" id="cip-title"></span>
+    <button class="cip-close" onclick="closeColInfo()" aria-label="Close">&#x2715;</button>
+  </div>
+  <div class="cip-body" id="cip-body"></div>
+</div>
 
 <div id="shared-footer-root"></div>
   <script src="/frontend_vanilla/components/header_loader.js"></script>
@@ -680,6 +705,107 @@
     } catch(e) { toast('Sync failed', 'error'); }
   }
   function clearCallout() { document.getElementById('callout-area').innerHTML = '';}
+
+  // ── Column info panel ──────────────────────────────────────────────────────
+  const COL_INFO = {
+    evidence: {
+      title: 'Evidence (Expected Evidence)',
+      html: `
+        <p>Describes what artifacts, answers, or proof points the reviewer should observe for this item to be considered compliant.</p>
+        <hr class="cip-divider">
+        <div class="cip-label">During a review</div>
+        <p>The AI or human reviewer captures actual findings in this field. In action plans, the gap between what was <em>found</em> and what was <em>expected</em> drives remediation tasks.</p>
+        <hr class="cip-divider">
+        <div class="cip-label">Examples</div>
+        <ul>
+          <li>Architecture diagrams in Confluence, versioned</li>
+          <li>ADR documents in Git repository</li>
+          <li>Test coverage report ≥ 80%</li>
+        </ul>`
+    },
+    weight: {
+      title: 'Weight',
+      html: `
+        <p>A multiplier (default <code>1.0</code>) controlling how much this item contributes to the overall <strong style="color:#f1f5f9">Compliance Score</strong>. Higher-weight items have greater impact on the final score.</p>
+        <hr class="cip-divider">
+        <div class="cip-label">Score Formula</div>
+        <p><code>Score = Σ(RAG × weight) ÷ Σ(weight)</code></p>
+        <div class="cip-label" style="margin-top:8px">RAG Values</div>
+        <ul>
+          <li>🟢 Green = 100%&nbsp;&nbsp;🟡 Amber = 50%</li>
+          <li>🔴 Red = 0%&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚪ NA = excluded</li>
+        </ul>
+        <hr class="cip-divider">
+        <div class="cip-label">Example — 3 items</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.82em;margin:6px 0">
+          <thead>
+            <tr style="color:#94a3b8;text-align:left">
+              <th style="padding:2px 6px 4px 0">Item</th>
+              <th style="padding:2px 6px 4px">RAG</th>
+              <th style="padding:2px 6px 4px">Weight</th>
+              <th style="padding:2px 0 4px 6px;text-align:right">Score × Weight</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:2px 6px 2px 0;color:#94a3b8">A</td>
+              <td style="padding:2px 6px">🟢 Green</td>
+              <td style="padding:2px 6px">2</td>
+              <td style="padding:2px 0 2px 6px;text-align:right">100 × 2 = 200</td>
+            </tr>
+            <tr>
+              <td style="padding:2px 6px 2px 0;color:#94a3b8">B</td>
+              <td style="padding:2px 6px">🔴 Red</td>
+              <td style="padding:2px 6px">1</td>
+              <td style="padding:2px 0 2px 6px;text-align:right">0 × 1 = 0</td>
+            </tr>
+            <tr>
+              <td style="padding:2px 6px 2px 0;color:#94a3b8">C</td>
+              <td style="padding:2px 6px">🟡 Amber</td>
+              <td style="padding:2px 6px">1</td>
+              <td style="padding:2px 0 2px 6px;text-align:right">50 × 1 = 50</td>
+            </tr>
+            <tr style="border-top:1px solid #334155;color:#f1f5f9">
+              <td colspan="2" style="padding:4px 6px 2px 0">Total weight</td>
+              <td style="padding:4px 6px 2px">2+1+1 = <strong>4</strong></td>
+              <td style="padding:4px 0 2px 6px;text-align:right">200+0+50 = <strong>250</strong></td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin:4px 0 0"><code>Score = 250 ÷ 4 = <strong>62.5%</strong></code></p>`
+    }
+  };
+
+  function showColInfo(key, anchorEl) {
+    const info = COL_INFO[key];
+    if (!info) return;
+    const panel = document.getElementById('col-info-panel');
+    document.getElementById('cip-title').textContent = info.title;
+    document.getElementById('cip-body').innerHTML = info.html;
+
+    // Position below the anchor, clamped to viewport
+    panel.classList.add('visible');
+    const rect = anchorEl.getBoundingClientRect();
+    const panelW = 300;
+    let left = rect.left + rect.width / 2 - panelW / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
+    const top = rect.bottom + window.scrollY + 8;
+    panel.style.left = left + 'px';
+    panel.style.top = top + 'px';
+  }
+
+  function closeColInfo() {
+    document.getElementById('col-info-panel').classList.remove('visible');
+  }
+
+  // Close panel when clicking outside it
+  document.addEventListener('click', function(e) {
+    const panel = document.getElementById('col-info-panel');
+    if (!panel.classList.contains('visible')) return;
+    if (!panel.contains(e.target) && !e.target.classList.contains('col-info-btn')) {
+      closeColInfo();
+    }
+  });
 </script>
 </body>
 </html>

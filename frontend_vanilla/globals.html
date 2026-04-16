@@ -151,8 +151,12 @@
   <div class="left-panel">
     <div class="left-panel-header">
       <h2>Global Templates</h2>
-      <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New Template</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="triggerUpload()" title="Upload from Excel (.xlsx)">⬆ Upload</button>
+        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
+      </div>
     </div>
+    <input type="file" id="excel-upload-input" accept=".xlsx,.xlsm" style="display:none;" onchange="handleExcelUpload(event)" />
     <div class="left-panel-content" id="template-list">
       <div style="text-align:center;color:#64748b;font-size:13px;padding:24px;">Loading…</div>
     </div>
@@ -248,6 +252,18 @@
     <h3 style="color:#f87171;">Delete Template</h3>
     <p class="modal-desc" id="delete-template-msg"></p>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeDeleteTemplateModal()">Cancel</button><button id="btn-confirm-delete-template" class="btn btn-danger" onclick="executeDeleteTemplate()">Delete</button></div>
+  </div>
+</div>
+
+<div id="upload-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="width:400px;">
+    <h3>Upload Excel Template</h3>
+    <p class="modal-subtitle" id="upload-modal-msg">Parsing and importing checklist items…</p>
+    <div id="upload-spinner" style="text-align:center;padding:16px 0;font-size:24px;">⏳</div>
+    <div id="upload-result" style="display:none;"></div>
+    <div class="modal-actions" id="upload-modal-actions" style="display:none;">
+      <button class="btn btn-primary" onclick="closeUploadModal()">Done</button>
+    </div>
   </div>
 </div>
 
@@ -377,6 +393,83 @@
   async function submitRename() {
     const name = document.getElementById('rn-name').value.trim(); if (!name) return;
     try { await api(`/api/checklists/globals/${selectedTemplate.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, version: document.getElementById('rn-version').value }) }); closeRenameModal(); toast('Updated', 'success'); loadTemplates(); selectTemplate(selectedTemplate.id); } catch(e) { toast('Error','error'); }
+  }
+
+  // ── Delete template modal ────────────────────────────────────────────────
+  function confirmDeleteTemplate() {
+    if (!selectedTemplate) return;
+    document.getElementById('delete-template-msg').textContent =
+      `Are you sure you want to delete "${selectedTemplate.name}"? This cannot be undone.`;
+    document.getElementById('delete-template-modal').classList.remove('hidden');
+  }
+  function closeDeleteTemplateModal() {
+    document.getElementById('delete-template-modal').classList.add('hidden');
+  }
+  async function executeDeleteTemplate() {
+    if (!selectedTemplate) return;
+    try {
+      await api(`/api/checklists/globals/${selectedTemplate.id}`, { method: 'DELETE' });
+      closeDeleteTemplateModal();
+      selectedTemplate = null; selectedItems = [];
+      document.getElementById('empty-state').classList.remove('hidden');
+      document.getElementById('template-detail').classList.add('hidden');
+      toast('Template deleted', 'success');
+      loadTemplates();
+    } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+  }
+
+  // ── Excel upload ─────────────────────────────────────────────────────────
+  function triggerUpload() {
+    document.getElementById('excel-upload-input').value = '';
+    document.getElementById('excel-upload-input').click();
+  }
+
+  async function handleExcelUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Show modal in loading state
+    const modal = document.getElementById('upload-modal');
+    document.getElementById('upload-modal-msg').textContent = `Uploading "${file.name}"…`;
+    document.getElementById('upload-spinner').style.display = 'block';
+    document.getElementById('upload-result').style.display = 'none';
+    document.getElementById('upload-modal-actions').style.display = 'none';
+    modal.classList.remove('hidden');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const headers = { 'Authorization': `Bearer ${TOKEN}` };
+      const res = await fetch('/api/checklists/globals/upload', { method: 'POST', headers, body: formData });
+      const body = await res.json();
+
+      document.getElementById('upload-spinner').style.display = 'none';
+      const resultEl = document.getElementById('upload-result');
+      resultEl.style.display = 'block';
+
+      if (!res.ok) {
+        resultEl.innerHTML = `<div style="color:#f87171;">❌ ${body.detail || 'Upload failed'}</div>`;
+      } else {
+        const created = body.created || [];
+        const lines = created.map(c =>
+          `<div style="margin:4px 0;">✅ <strong>${escapeHtml(c.name)}</strong> — ${c.item_count} items</div>`
+        ).join('');
+        resultEl.innerHTML = lines || '<div style="color:#4ade80;">✅ Uploaded successfully</div>';
+        await loadTemplates();
+        if (created.length > 0) selectTemplate(created[0].id);
+      }
+    } catch(e) {
+      document.getElementById('upload-spinner').style.display = 'none';
+      document.getElementById('upload-result').style.display = 'block';
+      document.getElementById('upload-result').innerHTML = `<div style="color:#f87171;">❌ ${e.message}</div>`;
+    }
+
+    document.getElementById('upload-modal-actions').style.display = 'flex';
+  }
+
+  function closeUploadModal() {
+    document.getElementById('upload-modal').classList.add('hidden');
   }
 </script>
 </body>

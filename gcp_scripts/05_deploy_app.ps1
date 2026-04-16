@@ -11,7 +11,7 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-# ── LOAD .env FILE ──────────────────────────────────────────────────────
+# -- LOAD .env FILE ------------------------------------------------------
 Write-Host "  1. Loading deployment variables from .env..." -ForegroundColor Gray
 $envFile = Join-Path $PSScriptRoot ".env"
 if (Test-Path $envFile) {
@@ -43,7 +43,7 @@ if ($ServiceName -eq "reviewbot-web")     { $ServiceName = $ENV_SERVICE_NAME }
 if ($SA_NAME     -eq "reviewbot-runtime") { $SA_NAME     = $ENV_SA_NAME }
 if ($InstanceName -eq "reviewbot-db")     { $InstanceName = $ENV_DB_INSTANCE_NAME }
 
-# ── PUSH secrets to Secret Manager so --set-secrets has versions to resolve ──
+# -- PUSH secrets to Secret Manager so --set-secrets has versions to resolve --
 Write-Host "  2. Syncing secrets to Secret Manager..." -ForegroundColor Gray
 $dbPassEncoded = [System.Uri]::EscapeDataString($dbPass)
 $dbUrl = "postgresql+asyncpg://${dbUser}:${dbPassEncoded}@/${dbName}?host=/cloudsql/${ProjectID}:${Region}:${InstanceName}"
@@ -61,7 +61,7 @@ foreach ($entry in $secretsToSync.GetEnumerator()) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $False
         [System.IO.File]::WriteAllText($tempFile, $val, $utf8NoBom)
         gcloud secrets versions add $entry.Key --data-file="$tempFile" --project="$ProjectID" --quiet
-        Write-Host "    → $($entry.Key) updated." -ForegroundColor Gray
+        Write-Host "    -> $($entry.Key) updated." -ForegroundColor Gray
     } finally {
         Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
     }
@@ -87,46 +87,60 @@ if (Test-Path $venvPython) {
 }
 
 if (Test-Path $agentPath) {
-    Push-Location $agentPath
-    if (Test-Path "build") { Remove-Item "build" -Recurse -Force }
-    & $pythonCmd -m ensurepip 2>&1 | Out-Null
-    & $pythonCmd -m pip install build --quiet
-    & $pythonCmd -m build --wheel --quiet
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Python build failed with exit code $LASTEXITCODE."
-        exit $LASTEXITCODE
+    # Check if any source file is newer than the existing .whl in downloads/
+    $existingWhl = Get-ChildItem "$downloadsPath\reviewbot_cli-*.whl" -ErrorAction SilentlyContinue |
+                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $sourceFiles = Get-ChildItem $agentPath -Recurse -File -Include "*.py","*.toml","*.cfg","*.txt" |
+                   Where-Object { $_.FullName -notmatch '\\(dist|build|\.egg-info|__pycache__|\.git|venv|\.venv)\\' }
+    $latestSource = ($sourceFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+
+    if ($existingWhl -and $existingWhl.LastWriteTime -ge $latestSource) {
+        Write-Host "    Skipped: reviewbot-cli unchanged since last build." -ForegroundColor Gray
+    } else {
+        Push-Location $agentPath
+        if (Test-Path "build") { Remove-Item "build" -Recurse -Force }
+        & $pythonCmd -m ensurepip 2>&1 | Out-Null
+        & $pythonCmd -m pip install build --quiet
+        & $pythonCmd -m build --wheel --quiet
+        if ($LASTEXITCODE -ne 0) {
+            Pop-Location
+            Write-Error "Python build failed with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
+        $whl = Get-ChildItem "dist\reviewbot_cli-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if (-not (Test-Path $downloadsPath)) {
+            New-Item -ItemType Directory -Path $downloadsPath -Force | Out-Null
+        }
+        if ($whl) {
+            Copy-Item $whl.FullName "$downloadsPath\" -Force
+            Write-Host "    OK: Copied $($whl.Name) to frontend_vanilla/downloads/" -ForegroundColor Gray
+        }
+        # Regenerate source zip from repo contents (excludes build artefacts)
+        $zipDest = Join-Path $downloadsPath "reviewbot-cli.zip"
+        $tempDir = Join-Path $env:TEMP "reviewbot-cli-zip"
+        if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+        Copy-Item $agentPath $tempDir -Recurse -Exclude @("dist","build","*.egg-info","__pycache__",".git","venv",".venv")
+        Compress-Archive -Path "$tempDir\*" -DestinationPath $zipDest -Force
+        Remove-Item $tempDir -Recurse -Force
+        Write-Host "    OK: Regenerated reviewbot-cli.zip in frontend_vanilla/downloads/" -ForegroundColor Gray
+        Pop-Location
     }
-    $whl = Get-ChildItem "dist\reviewbot_cli-*.whl" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if (-not (Test-Path $downloadsPath)) {
-        New-Item -ItemType Directory -Path $downloadsPath -Force | Out-Null
-    }
-    if ($whl) {
-        Copy-Item $whl.FullName "$downloadsPath\" -Force
-        Write-Host "    OK: Copied $($whl.Name) to frontend_vanilla/downloads/" -ForegroundColor Gray
-    }
-    # Regenerate source zip from repo contents (excludes build artefacts)
-    $zipDest = Join-Path $downloadsPath "reviewbot-cli.zip"
-    $tempDir = Join-Path $env:TEMP "reviewbot-cli-zip"
-    if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
-    Copy-Item $agentPath $tempDir -Recurse -Exclude @("dist","build","*.egg-info","__pycache__",".git","venv",".venv")
-    Compress-Archive -Path "$tempDir\*" -DestinationPath $zipDest -Force
-    Remove-Item $tempDir -Recurse -Force
-    Write-Host "    OK: Regenerated reviewbot-cli.zip in frontend_vanilla/downloads/" -ForegroundColor Gray
-    Pop-Location
 } else {
     Write-Host "    WARNING: reviewbot-cli not found at $agentPath - skipping .whl rebuild." -ForegroundColor Yellow
 }
 
-# 1. Build and push image via Cloud Build
-Write-Host "  → Building image via Cloud Build..." -ForegroundColor Gray
-gcloud builds submit --tag "$imageTag" . --quiet
+# 1. Build and push image via Cloud Build (--cache-from reuses the previous image's
+#    pip-install layer so dependencies aren't reinstalled when only code changed)
+Write-Host "  -> Building image via Cloud Build..." -ForegroundColor Gray
+$cloudBuildConfig = Join-Path $PSScriptRoot "cloudbuild.yaml"
+gcloud builds submit --config "$cloudBuildConfig" --substitutions="_IMAGE_TAG=$imageTag" . --quiet
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Cloud Build failed with exit code $LASTEXITCODE."
     exit $LASTEXITCODE
 }
 
 # 2. Delete existing Cloud Run service (fresh install)
-Write-Host "  → Deleting existing service '$ServiceName' (if present)..." -ForegroundColor Gray
+Write-Host "  -> Deleting existing service '$ServiceName' (if present)..." -ForegroundColor Gray
 $existing = $null
 try {
     $ErrorActionPreference = "Continue"
@@ -138,13 +152,13 @@ try {
 }
 if ($existing -eq $ServiceName) {
     gcloud run services delete "$ServiceName" --region="$Region" --project="$ProjectID" --quiet
-    Write-Host "    → Service deleted." -ForegroundColor Gray
+    Write-Host "    -> Service deleted." -ForegroundColor Gray
 } else {
-    Write-Host "    → Service not found, skipping delete." -ForegroundColor Gray
+    Write-Host "    -> Service not found, skipping delete." -ForegroundColor Gray
 }
 
 # 3. Deploy to Cloud Run
-Write-Host "  → Deploying service: $ServiceName..." -ForegroundColor Gray
+Write-Host "  -> Deploying service: $ServiceName..." -ForegroundColor Gray
 gcloud run deploy "$ServiceName" `
     --image "$imageTag" `
     --region "$Region" `
