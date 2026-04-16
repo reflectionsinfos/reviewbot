@@ -442,7 +442,8 @@ async def upload_global_checklist(
 
             for order, item_data in enumerate(items):
                 area = item_data.get("area", "General")
-                # Generate AREA-NNN code (registers area abbreviation on checklist.area_codes)
+                # Generate AREA-NNN code (registers area abbreviation on checklist.area_codes).
+                # Must flush after each add so the next call sees this item when computing max_seq.
                 item_code = await _generate_item_code(db, checklist.id, area)
                 item = ChecklistItem(
                     checklist_id=checklist.id,
@@ -456,8 +457,7 @@ async def upload_global_checklist(
                     order=order,
                 )
                 db.add(item)
-
-            await db.flush()
+                await db.flush()  # make this item visible to next _generate_item_code query
             created.append({
                 "id": checklist.id,
                 "name": checklist.name,

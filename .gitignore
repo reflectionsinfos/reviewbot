@@ -77,6 +77,18 @@ data/archive/
 # But track templates
 !data/templates/
 
+# SSH Keys
+jarvis_labs
+jarvis_labs.pub
+*.pem
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+# Claude Code local settings
+.claude/settings.local.json
+
 # LLM Agent Configuration (keep configs, ignore sensitive data)
 .qwen/secrets/
 .claude/secrets/
