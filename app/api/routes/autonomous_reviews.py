@@ -563,7 +563,7 @@ async def get_action_plan(
     stored_prompts = {}
     if isinstance(job.agent_metadata, dict):
         stored_prompts = job.agent_metadata.get("action_plan_prompts") or {}
-    plan = generator.generate(
+    plan = await generator.generate(
         job=job,
         results=results,
         checklist_items=checklist_items_dict,

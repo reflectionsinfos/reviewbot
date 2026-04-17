@@ -6,9 +6,13 @@ Creates prioritized action cards with implementation-ready AI prompts.
 """
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 _CLIENT_OWNED_MARKERS = (
@@ -49,7 +53,35 @@ _PIPELINE_HINTS = (
     "iac",
 )
 
+_GOVERNANCE_HINTS = (
+    "who is responsible",
+    "who owns",
+    "who is accountable",
+    "raci",
+    "named architect",
+    "named owner",
+    "accountability chain",
+    "org chart",
+)
+
 _BOOLEAN_EXPECTATIONS = {"yes", "no", "true", "false", "y", "n"}
+
+_VALID_MODES = {"governance", "documentation", "pipeline", "client_owned", "implementation"}
+
+_LLM_MODE_SYSTEM_PROMPT = """\
+You are classifying checklist review findings to determine the correct remediation category.
+
+CATEGORIES (choose exactly one per item):
+- governance: Requires identifying real people, teams, owners, or accountability structures \
+(e.g. "who is responsible", RACI, named architect, org chart, accountability chain)
+- documentation: Requires creating or updating documents, diagrams, runbooks, policies, or plans
+- pipeline: Requires CI/CD workflow, build automation, scanning, linting, or deployment configuration
+- client_owned: The control is owned externally by the client or a platform team, not this repository
+- implementation: Requires writing or changing code, configuration, tests, or infrastructure in the repo
+
+Return a JSON array only — no prose, no markdown fences.
+Example: [{"id": 1, "mode": "governance"}, {"id": 2, "mode": "pipeline"}]
+"""
 
 
 @dataclass
@@ -101,7 +133,64 @@ class ActionPlanGenerator:
     question so developers can act without having to reinterpret the review.
     """
 
-    def generate(
+    async def _classify_modes_with_llm(
+        self,
+        pairs: List[Tuple[Any, Any]],  # [(result, item), ...]
+    ) -> Dict[int, str]:
+        """
+        Batch-classify resolution modes for all non-compliant items using LLM.
+
+        Sends one prompt containing all items and parses a JSON array back.
+        Returns {sequential_index → mode_string}.  Falls back to {} on any
+        failure so keyword matching in _resolution_mode() takes over per item.
+        """
+        if not pairs:
+            return {}
+
+        items_text = "\n".join(
+            f"{i + 1}. Area: {item.area or 'Unknown'}\n"
+            f"   Question: {item.question or ''}\n"
+            f"   Expected: {(item.expected_evidence or '')[:120]}"
+            for i, (_result, item) in enumerate(pairs[:60])
+        )
+        user_prompt = (
+            f"{items_text}\n\n"
+            "Return JSON array: "
+            '[{"id": 1, "mode": "..."}, {"id": 2, "mode": "..."}, ...]'
+        )
+
+        try:
+            from app.services.autonomous_review.connectors.llm import (  # noqa: PLC0415
+                get_llm_client,
+                pick_model,
+            )
+
+            client = await get_llm_client()
+            model = await pick_model()
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": _LLM_MODE_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.1,
+                max_tokens=500,
+            )
+            raw = (response.choices[0].message.content or "").strip()
+            # Strip accidental markdown fences
+            if raw.startswith("```"):
+                raw = raw.split("```")[1].lstrip("json").strip()
+            classifications = json.loads(raw)
+            return {
+                int(c["id"]): c["mode"]
+                for c in classifications
+                if "id" in c and c.get("mode") in _VALID_MODES
+            }
+        except Exception as exc:
+            logger.warning("LLM mode classification failed (%s) — falling back to keyword matching", exc)
+            return {}
+
+    async def generate(
         self,
         job: Any,
         results: list,
@@ -116,12 +205,25 @@ class ActionPlanGenerator:
         compliant_summary: List[dict] = []
         enhanced_prompts = enhanced_prompts or {}
 
+        # Collect all non-compliant items for a single batched LLM classification
+        actionable_pairs: List[Tuple[Any, Any]] = []
+        for result in results:
+            item = checklist_items.get(result.checklist_item_id)
+            if item and (result.rag_status in ("red", "amber") or result.needs_human_sign_off):
+                actionable_pairs.append((result, item))
+
+        # One LLM call for all items; {1-based index → mode}
+        llm_modes = await self._classify_modes_with_llm(actionable_pairs)
+        # Build a lookup keyed by checklist_item_id for fast access inside the loop
+        pair_index = {result.checklist_item_id: idx + 1 for idx, (result, _) in enumerate(actionable_pairs)}
+
         for result in results:
             item = checklist_items.get(result.checklist_item_id)
             if not item:
                 continue
 
-            card = self._build_action_card(result, item, project, enhanced_prompts)
+            llm_mode = llm_modes.get(pair_index.get(result.checklist_item_id, -1))
+            card = self._build_action_card(result, item, project, enhanced_prompts, llm_mode=llm_mode)
 
             if result.needs_human_sign_off:
                 sign_off_required.append(card)
@@ -165,11 +267,12 @@ class ActionPlanGenerator:
         item: Any,
         project: Any,
         enhanced_prompts: Dict[str, Dict[str, str]],
+        llm_mode: Optional[str] = None,
     ) -> ActionCard:
         priority = "High" if result.rag_status == "red" else "Medium"
         what_to_fix = self._derive_fix_statement(item)
         expected_outcome = self._effective_expected_outcome(item)
-        ai_prompt = self._build_prompt(result, item, project)
+        ai_prompt = self._build_prompt(result, item, project, llm_mode=llm_mode)
 
         stored_prompt = enhanced_prompts.get(str(result.id))
         if stored_prompt:
@@ -209,13 +312,13 @@ class ActionPlanGenerator:
 
         return f"Address the gap and leave the codebase, configuration, or docs in a state that satisfies: {question}"
 
-    def _build_prompt(self, result: Any, item: Any, project: Any) -> AIPrompt:
-        mode = self._resolution_mode(item, result)
+    def _build_prompt(self, result: Any, item: Any, project: Any, llm_mode: Optional[str] = None) -> AIPrompt:
+        mode = self._resolution_mode(item, result, llm_mode=llm_mode)
         expected_outcome = self._effective_expected_outcome(item)
         tech_stack = self._format_tech_stack(project)
         files_checked = self._format_files(result.files_checked)
         artifact_hints = self._artifact_hints(item, result)
-        validation_steps = self._validation_steps(item, result)
+        validation_steps = self._validation_steps(item, result, mode)
         ownership_guidance = self._ownership_guidance(mode, result)
         task_list = self._task_list(mode, item, result)
 
@@ -290,12 +393,19 @@ class ActionPlanGenerator:
 
         return AIPrompt(generic=prompt_body, cursor=cursor, claude_code=claude_code)
 
-    def _resolution_mode(self, item: Any, result: Any) -> str:
+    def _resolution_mode(self, item: Any, result: Any, llm_mode: Optional[str] = None) -> str:
+        # LLM classification takes priority when available and valid
+        if llm_mode in _VALID_MODES:
+            return llm_mode
+
+        # Keyword fallback — used when LLM call failed or was skipped
         expected = self._effective_expected_outcome(item).lower()
         question = (item.question or "").lower()
 
         if any(marker in expected for marker in _CLIENT_OWNED_MARKERS):
             return "client_owned"
+        if any(hint in question or hint in expected for hint in _GOVERNANCE_HINTS):
+            return "governance"
         if any(hint in question for hint in _DOCUMENTATION_HINTS):
             return "documentation"
         if any(hint in question or hint in expected for hint in _PIPELINE_HINTS):
@@ -344,6 +454,12 @@ class ActionPlanGenerator:
                 "Do not fabricate infrastructure controls in this repository. "
                 "Instead, document the dependency, expected evidence from the client, and any repository-side safeguards or assumptions."
             )
+        if mode == "governance":
+            return (
+                "This requirement identifies real people, teams, or accountability structures. "
+                "Create the documentation skeleton where useful, but do not fabricate names, roles, or org structures. "
+                "Leave explicit gaps for project stakeholders to fill in."
+            )
         if mode == "sign_off":
             return (
                 "Implement repository changes where possible, then leave a concise sign-off package "
@@ -358,7 +474,16 @@ class ActionPlanGenerator:
             "1. Re-check the repository and confirm whether the finding still holds in the current codebase.",
         ]
 
-        if mode == "client_owned":
+        if mode == "governance":
+            base_tasks.extend(
+                [
+                    "2. This question identifies real people, roles, or accountability — you cannot invent names or org structures.",
+                    "3. Create the documentation skeleton (e.g., docs/ARCHITECTURE_OWNERS.md or a RACI template) if nothing exists.",
+                    "4. Leave owner/name fields as [TO BE CONFIRMED BY PROJECT LEAD] — never populate with placeholder data.",
+                    "5. Add a clear TODO comment so the right stakeholder knows what to fill in.",
+                ]
+            )
+        elif mode == "client_owned":
             base_tasks.extend(
                 [
                     "2. Add or update repository documentation that explains who owns this control and what evidence is expected from the client or platform team.",
@@ -398,12 +523,17 @@ class ActionPlanGenerator:
 
         return "\n".join(base_tasks)
 
-    def _validation_steps(self, item: Any, result: Any) -> str:
+    def _validation_steps(self, item: Any, result: Any, mode: str = "") -> str:
         expected_outcome = self._effective_expected_outcome(item)
         steps = [
             "- Ensure the repository contains explicit evidence for the checklist requirement, not just intent.",
             f"- Verify the final state satisfies: {expected_outcome or (item.question or 'Not specified').strip()}",
         ]
+
+        if mode == "governance":
+            steps.append(
+                "- Confirm that owner/responsible fields contain real names or are explicitly marked as requiring stakeholder input — not placeholder text."
+            )
 
         question = (item.question or "").lower()
         if any(token in question for token in _DOCUMENTATION_HINTS):

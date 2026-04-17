@@ -159,6 +159,13 @@ _HUMAN_QUESTION_PATTERNS = [
     r"decision logs.*action items",
     r"issues resolved within.*sla",
     r"stakeholder.*sign.?off",
+    # Governance / ownership — these require real people, not code commits
+    r"who is responsible for",
+    r"who (is |are )+(responsible|accountable|the owner)",
+    r"\braci\b",
+    r"named (architect|owner|lead)",
+    r"accountability chain",
+    r"org chart.*ownership",
 ]
 _HUMAN_COMPILED = [re.compile(p, re.IGNORECASE) for p in _HUMAN_QUESTION_PATTERNS]
 
@@ -200,6 +207,8 @@ def _build_evidence_hint(area: str, question: str) -> str:
         return "Provide: account plan, pipeline report, or commercial opportunities log"
     if "governance" in q or "cadence" in q:
         return "Provide: meeting minutes, status reports, or governance log"
+    if "responsible" in q or "raci" in q or "accountability" in q or "org chart" in q:
+        return "Provide: RACI document, named architect/owner with contact details, or org chart showing accountability"
     return "Provide supporting documentation or organisational records"
 
 
