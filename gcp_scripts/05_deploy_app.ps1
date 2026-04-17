@@ -129,6 +129,51 @@ if (Test-Path $agentPath) {
     Write-Host "    WARNING: reviewbot-cli not found at $agentPath - skipping .whl rebuild." -ForegroundColor Yellow
 }
 
+# 0b. Rebuild reviewbot-vscode .vsix so the download link on the UI stays current
+Write-Host "  6. Rebuilding reviewbot-vscode .vsix..." -ForegroundColor Gray
+$vscodePath = Join-Path (Split-Path -Parent $repoRoot) "reviewbot-vscode"
+
+if (Test-Path $vscodePath) {
+    $existingVsix = Get-ChildItem "$downloadsPath\reviewbot-vscode-*.vsix" -ErrorAction SilentlyContinue |
+                    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $vscodeSourceFiles = Get-ChildItem $vscodePath -Recurse -File -Include "*.ts","*.json","*.svg","*.png","*.css","*.html" |
+                         Where-Object { $_.FullName -notmatch '\\(out|node_modules|\.git)\\' }
+    $latestVscodeSource = ($vscodeSourceFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+
+    if ($existingVsix -and $existingVsix.LastWriteTime -ge $latestVscodeSource) {
+        Write-Host "    Skipped: reviewbot-vscode unchanged since last build." -ForegroundColor Gray
+    } else {
+        Push-Location $vscodePath
+        Write-Host "    Running: npm run compile..." -ForegroundColor Gray
+        npm run compile
+        if ($LASTEXITCODE -ne 0) {
+            Pop-Location
+            Write-Error "npm compile failed with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
+        Write-Host "    Running: npm run package..." -ForegroundColor Gray
+        npm run package
+        if ($LASTEXITCODE -ne 0) {
+            Pop-Location
+            Write-Error "vsce package failed with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
+        $vsix = Get-ChildItem "$vscodePath\reviewbot-vscode-*.vsix" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if (-not (Test-Path $downloadsPath)) {
+            New-Item -ItemType Directory -Path $downloadsPath -Force | Out-Null
+        }
+        if ($vsix) {
+            # Remove old .vsix files before copying the new one
+            Get-ChildItem "$downloadsPath\reviewbot-vscode-*.vsix" -ErrorAction SilentlyContinue | Remove-Item -Force
+            Copy-Item $vsix.FullName "$downloadsPath\" -Force
+            Write-Host "    OK: Copied $($vsix.Name) to frontend_vanilla/downloads/" -ForegroundColor Gray
+        }
+        Pop-Location
+    }
+} else {
+    Write-Host "    WARNING: reviewbot-vscode not found at $vscodePath - skipping .vsix rebuild." -ForegroundColor Yellow
+}
+
 # 1. Build and push image via Cloud Build (--cache-from reuses the previous image's
 #    pip-install layer so dependencies aren't reinstalled when only code changed)
 Write-Host "  -> Building image via Cloud Build..." -ForegroundColor Gray
