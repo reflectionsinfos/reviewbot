@@ -930,6 +930,17 @@ function handleMessage(msg) {
     case 'scan_complete':
       setLog(`📁 Scanned: ${msg.total_files} files (${msg.text_files} text files)`);
       break;
+    case 'classifying':
+      setLog(`🧠 ${msg.message}`);
+      document.getElementById('start-btn').textContent = '🧠 Classifying…';
+      break;
+    case 'classification_complete': {
+      const strats = msg.strategies || {};
+      const parts = Object.entries(strats).map(([k, v]) => `${k.replace('_', ' ')}: ${v}`).join(' · ');
+      setLog(`✅ Strategies: ${parts || '—'}`);
+      document.getElementById('start-btn').textContent = '⏸ Reviewing…';
+      break;
+    }
     case 'started':
       setLog(`🚀 Review started — ${msg.total_items} checklist items`);
       document.getElementById('s-total').textContent = msg.total_items;
@@ -979,7 +990,14 @@ function renderRow(row) {
     <td><span style="color:#94a3b8;font-size:11px">${esc(row.item_code||'')}</span></td>
     <td style="color:#94a3b8;font-size:12px">${esc(row.area||'')}</td>
     <td style="color:#e2e8f0">${esc(row.question||'')}
-      <span class="strategy-tag">${esc(row.strategy||'')}</span></td>
+      <span class="strategy-tag">${esc({
+        file_presence: '📁 file scan',
+        pattern_scan:  '🔍 pattern',
+        llm_analysis:  '🤖 LLM',
+        metadata_check:'📦 metadata',
+        security_scan: '🔒 security',
+        human_required:'👤 human',
+      }[row.strategy] || row.strategy || '')}</span></td>
     <td>${ragBadge(row.rag_status)}</td>
     <td style="color:#94a3b8;font-size:12px">
       ${esc(truncate(row.evidence||'',150))}

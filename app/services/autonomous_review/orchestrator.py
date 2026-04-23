@@ -19,6 +19,7 @@ from .analyzers.file_presence import FilePresenceAnalyzer
 from .analyzers.pattern_scan import PatternScanAnalyzer
 from .analyzers.llm_analyzer import LLMAnalyzer
 from .analyzers.metadata_check import MetadataCheckAnalyzer
+from .analyzers.security_scan import SecurityScanAnalyzer
 from .analyzers.base import AnalysisResult
 from .llm_audit import is_llm_audit_enabled, record_llm_audit
 from .progress import progress_manager
@@ -26,10 +27,11 @@ from .progress import progress_manager
 logger = logging.getLogger(__name__)
 
 _ANALYZERS = {
-    "file_presence": FilePresenceAnalyzer(),
-    "pattern_scan":  PatternScanAnalyzer(),
-    "llm_analysis":  LLMAnalyzer(),
+    "file_presence":  FilePresenceAnalyzer(),
+    "pattern_scan":   PatternScanAnalyzer(),
+    "llm_analysis":   LLMAnalyzer(),
     "metadata_check": MetadataCheckAnalyzer(),
+    "security_scan":  SecurityScanAnalyzer(),
 }
 
 
@@ -281,3 +283,11 @@ async def _execute_review(job_id: int, db) -> None:
             datetime.utcnow() - job.started_at
         ).seconds if job.started_at else 0,
     })
+
+    # ── Outbound integrations (tickets / email) ───────────────────────────────
+    # Fire-and-forget: dispatch failures must never affect review job status.
+    try:
+        from app.services.integrations.dispatcher import dispatch_review_results
+        await dispatch_review_results(job_id)
+    except Exception as exc:
+        logger.warning("Integration dispatch failed for job %s (non-fatal): %s", job_id, exc)

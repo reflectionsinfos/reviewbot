@@ -771,6 +771,7 @@
       statBox(strategyCounts['pattern_scan'] || 0, 'Pattern', 'gray', 'strategy-pattern'),
       statBox(strategyCounts['llm_analysis'] || 0, 'LLM', 'blue', 'strategy-llm'),
       statBox(strategyCounts['metadata_check'] || 0, 'Meta', 'gray', 'strategy-meta'),
+      statBox(strategyCounts['security_scan'] || 0, 'Security', 'red', 'strategy-security'),
       statBox(r.llm_audit_count || 0, 'AI Trace', 'blue', 'all'),
       statBox(r.override_count ?? 0, 'Overrides', 'blue', 'overridden'),
       statBox(allDetailItems.filter(i => i.needs_human_sign_off).length, 'Sign-off', 'blue', 'signoff'),
@@ -839,9 +840,16 @@
     const area   = document.getElementById('area-filter')?.value || '';
 
     let filtered = allDetailItems.filter(item => {
-      // Status filter
-      const status = effectiveStatus(item);
-      if (activeStatusFilter !== 'all' && status !== activeStatusFilter) return false;
+      // Status / strategy filter
+      if (activeStatusFilter !== 'all') {
+        if (activeStatusFilter.startsWith('strategy-')) {
+          const stratKey = activeStatusFilter.replace('strategy-', '').replace('-', '_');
+          if (item.strategy !== stratKey) return false;
+        } else {
+          const status = effectiveStatus(item);
+          if (status !== activeStatusFilter) return false;
+        }
+      }
       // Area filter
       if (area && item.area !== area) return false;
       // Search
@@ -908,6 +916,7 @@
       pattern_scan:   '🔍 pattern scan',
       llm_analysis:   '🤖 LLM',
       metadata_check: '📦 metadata',
+      security_scan:  '🔒 security scan',
       human_required: '👤 human',
     }[item.strategy] || item.strategy || '';
 

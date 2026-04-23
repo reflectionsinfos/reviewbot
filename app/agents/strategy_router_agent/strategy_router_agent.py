@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StrategyConfig:
-    strategy: str   # file_presence | pattern_scan | llm_analysis | metadata_check | human_required | ai_and_human
+    strategy: str   # file_presence | pattern_scan | llm_analysis | metadata_check | human_required | ai_and_human | security_scan
 
     # FILE_PRESENCE config
     file_patterns: list[str] = field(default_factory=list)
@@ -61,6 +61,7 @@ STRATEGY DEFINITIONS:
 - file_presence: Questions about specific files/documents existing (e.g., "Is there an ARCHITECTURE.md?")
 - pattern_scan: Questions about code patterns, security issues, hardcoded secrets (e.g., "Are credentials hardcoded?")
 - metadata_check: Questions about dependencies, package.json, requirements.txt, versions (e.g., "Are dependencies scanned?")
+- security_scan: Questions about known CVEs, dependency vulnerabilities, CVSS scores (e.g., "Do dependencies have known vulnerabilities?")
 - llm_analysis: Questions requiring code quality judgment, architecture evaluation, design patterns (e.g., "Is the code well-structured?")
 - human_required: Organizational, process, survey questions that can't be answered by scanning files (e.g., "What's team morale?")
 - ai_and_human: AI can analyze but human should validate the result (e.g., "Is the architecture sound?")
@@ -490,6 +491,31 @@ _META_RULES_COMPILED: list[tuple[list, StrategyConfig]] = [
 ]
 
 
+# ── SECURITY_SCAN rules ───────────────────────────────────────────────────────
+# These match questions about *actual* CVE presence in dependencies, as opposed
+# to _METADATA_RULES which check whether a scanning tool is *configured*.
+
+_SECURITY_SCAN_RULES: list[tuple[list[str], StrategyConfig]] = [
+    # CVE / known-vulnerability questions
+    (["known vulnerabilit", "cve.*identif", "identif.*cve",
+      "no.*cve", "cve.*free", "free.*cve",
+      r"\bcve\b.*dependenc", "dependenc.*\bcve\b",
+      "vulnerable dependenc", "vulnerable.*package",
+      "outdated.*package.*vulnerabilit", "vulnerabilit.*outdated.*package",
+      "dependency.*vulnerabilit", "vulnerabilit.*dependenc",
+      "open.?source.*vulnerabilit", "third.party.*vulnerabilit",
+      "nvd.*score", r"\bcvss\b", "common vulnerabilit",
+      "security.*advisory", "advisory.*security",
+      "exploit.*dependenc", "dependenc.*exploit"],
+     StrategyConfig(strategy="security_scan")),
+]
+
+_SECURITY_RULES_COMPILED: list[tuple[list, StrategyConfig]] = [
+    ([re.compile(p, re.IGNORECASE) for p in patterns], config)
+    for patterns, config in _SECURITY_SCAN_RULES
+]
+
+
 # ── LLM keyword extraction ───────────────────────────────────────────────────
 
 _AREA_KEYWORD_MAP: dict[str, list[str]] = {
@@ -604,13 +630,20 @@ class StrategyRouter:
                 scan_extensions=[".py", ".js", ".ts", ".java", ".yml", ".json"],
             )
         
+        elif strategy == "security_scan":
+            return StrategyConfig(
+                strategy="security_scan",
+                context_keywords=_extract_keywords(area, question),
+                focus_prompt=question,
+            )
+
         elif strategy == "metadata_check":
             return StrategyConfig(
                 strategy="metadata_check",
                 metadata_check="dependencies_scanned",
                 metadata_files=["package.json", "requirements.txt"],
             )
-        
+
         else:  # Default to llm_analysis
             keywords = _extract_keywords(area, question)
             return StrategyConfig(
@@ -675,7 +708,16 @@ class StrategyRouter:
                 )
                 return cfg
 
-        # 4. Metadata check rules
+        # 4. Security scan rules (CVE / vulnerability detection)
+        for compiled_patterns, _ in _SECURITY_RULES_COMPILED:
+            if any(p.search(combined) for p in compiled_patterns):
+                return StrategyConfig(
+                    strategy="security_scan",
+                    context_keywords=keywords,
+                    focus_prompt=question,
+                )
+
+        # 5. Metadata check rules
         for compiled_patterns, config in _META_RULES_COMPILED:
             if any(p.search(combined) for p in compiled_patterns):
                 cfg = StrategyConfig(
@@ -687,7 +729,7 @@ class StrategyRouter:
                 )
                 return cfg
 
-        # 5. Default — needs Phase 1 planning LLM to decide complexity + files
+        # 6. Default — needs Phase 1 planning LLM to decide complexity + files
         return StrategyConfig(
             strategy="llm_analysis",
             context_keywords=keywords,

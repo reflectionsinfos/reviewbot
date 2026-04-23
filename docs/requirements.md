@@ -15,6 +15,8 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 - Review history, overrides, action plans, and LLM audit visibility
 - Admin user management and system configuration
 - External agent bridge for local workspace reviews
+- Configurable outbound integrations: JIRA ticket creation, SMTP email notifications, and generic webhooks triggered automatically on review completion
+- Dependency vulnerability scanning via local CLI tools (Trivy, OSV Scanner, pip-audit, npm audit) with CVE-to-RAG mapping
 
 ### Partially in scope
 
@@ -64,6 +66,22 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 | FR-27 | Knowledge quiz supports text and voice adaptive questioning | Must | Planned | Not implemented end to end. |
 | FR-28 | Persona-based self-review, recurring schedules, reminders, and meeting blocks are operational | Should | Planned | Data model groundwork exists; APIs/UI do not. |
 | FR-29 | Review analytics and trend dashboards are available in product UI | Should | Planned | Trend tables exist in schema only. |
+| FR-30 | Admins can configure outbound integrations (JIRA, SMTP email, Generic Webhook, Linear, GitHub Issues) with per-integration credentials, trigger conditions, and enable/disable state | Must | Done | `IntegrationConfig` table and full CRUD API at `/api/integrations`. Secrets are masked in all GET responses. |
+| FR-31 | When an autonomous review job completes, the system automatically dispatches to all enabled integrations based on each integration's trigger condition | Must | Done | Dispatcher runs in a fully isolated session after job completion; failure never affects job status. |
+| FR-32 | Integration trigger conditions control when auto-dispatch fires: `always` (every completed job), `red_only` (only when red findings exist), or `manual` (never auto-dispatches) | Must | Done | Evaluated per integration in `_should_dispatch()` against the job's `red_count`. |
+| FR-33 | The JIRA integration creates one issue per dispatched ActionCard using Jira REST API v3 with configurable project key, issue type, labels, and priority mapping | Must | Done | ADF-formatted descriptions; config includes `url`, `email`, `api_token`, `project_key`, `issue_type`, `labels`, `priority_map`. |
+| FR-34 | The SMTP email integration sends a single summary email per job with HTML and plain-text parts covering score, critical blockers, and advisories to a configurable recipient list | Must | Done | Supports `include_project_stakeholders` flag that also emails contacts stored in the project's stakeholders JSON. |
+| FR-35 | The generic webhook integration POSTs a structured JSON payload (job summary + critical blockers) to any configured URL with custom headers and configurable HTTP method | Must | Done | Implemented in `dispatcher._webhook()` using `httpx`. |
+| FR-36 | Admins can test connectivity for each integration before enabling it without triggering a real dispatch | Must | Done | `POST /api/integrations/{id}/test` routes to provider-specific `test_connection()` implementations. |
+| FR-37 | Admins and managers can manually trigger a specific integration for any completed review job | Must | Done | `POST /api/integrations/{id}/dispatch/{job_id}` calls `run_manual_dispatch()`. |
+| FR-38 | Every dispatch attempt (auto and manual) is persisted as an audit record with status, item counts, result details, and error message | Must | Done | `IntegrationDispatch` table; retrievable via `GET /api/integrations/dispatches/{job_id}`. |
+| FR-39 | An integration can optionally include amber advisory findings (in addition to red critical blockers) in its dispatch payload | Should | Done | `include_advisories` flag on `IntegrationConfig`; evaluated when building the card list in `_call_handler()`. |
+| FR-40 | The autonomous review engine can detect known CVEs and dependency vulnerabilities in a project's source tree using local scanning tools | Must | Done | `SecurityScanAnalyzer` tries Trivy → OSV Scanner → pip-audit → npm-audit in order; maps findings to RAG status. |
+| FR-41 | Security scanning uses no external API keys or accounts; all tools run locally against the source path | Must | Done | Trivy, OSV Scanner, pip-audit, and npm-audit are all open-source CLI tools requiring no credentials. |
+| FR-42 | CRITICAL or HIGH severity CVEs produce a red RAG finding; MEDIUM or LOW produce amber; clean dependencies produce green | Must | Done | Severity mapping in `_rag_from_counts()` inside `security_scan.py`. |
+| FR-43 | Security scan findings list the top CVEs with package name, installed version, available fix version, and CVSS severity | Must | Done | `_summarise()` builds structured evidence showing CVE ID, package, installed/fixed versions, and title. |
+| FR-44 | Checklist items about known CVEs and dependency vulnerabilities are automatically routed to the security scan strategy without manual configuration | Must | Done | Deterministic keyword rules in `_SECURITY_SCAN_RULES` route CVE-related questions before falling back to LLM classification; LLM prompt also includes `security_scan` as a strategy option. |
+| FR-45 | If no scanning tool is found in PATH the finding is marked `na` with installation instructions for each supported tool | Should | Done | `SecurityScanAnalyzer.analyze()` returns `AnalysisResult(rag_status="na", ...)` with links to Trivy, OSV Scanner, pip-audit, and npm. |
 
 ## Non-Functional Requirements
 
@@ -78,7 +96,9 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 | NFR-07 | Review progress visibility during long-running jobs | Done | WebSockets plus polling fallback are implemented. |
 | NFR-08 | Historical integrity of checklist-linked reviews | Done | Checklist deletion is blocked when reviews or jobs reference it. |
 | NFR-09 | Comprehensive automated test coverage for the full product | Partial | Meaningful tests exist, but broad end-to-end coverage is still incomplete. |
-| NFR-10 | Audit logging beyond LLM-specific traces | Planned | General audit logging is not yet implemented. |
+| NFR-10 | Audit logging beyond LLM-specific traces | Partial | General audit logging is not yet implemented, but integration dispatch history is stored per-attempt in `integration_dispatches`. |
+| NFR-13 | Outbound integration credentials are never returned in plaintext via the API | Done | `_mask_config()` masks `api_token`, `password`, `api_key`, and `token` fields in all GET responses using a four-character visible suffix. |
+| NFR-14 | Integration dispatch failures are isolated from review job state | Done | Dispatcher opens its own `AsyncSessionLocal` session; exceptions are caught and logged without affecting the completed job record. |
 | NFR-11 | Rate limiting and abuse protection | Planned | No production-grade rate limiting layer is wired yet. |
 | NFR-12 | Multi-tenant isolation | Planned | Current data model and routing assume a single deployment context. |
 
@@ -93,6 +113,7 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 5. Findings are stored and reviewed in history.
 6. Reviewers override findings if needed.
 7. Teams export or copy the action plan and AI prompts.
+8. Configured integrations automatically create JIRA tickets and/or send email summaries to responsible stakeholders when the job completes.
 
 ### Important implementation caveats
 
@@ -104,6 +125,90 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 
 1. Stabilize and complete direct repository intake so the web UI path is as reliable as the agent-upload path.
 2. Continue maturing action-plan and remediation workflows.
-3. Ship the document-review engine.
-4. Build the knowledge-quiz flow.
-5. Wire up self-review, scheduling, reminders, and analytics on top of the existing v2 schema foundation.
+3. Add a UI panel for managing integrations (CRUD + connection test + dispatch history) — backend is complete.
+4. Implement the Linear and GitHub Issues stubs in the dispatcher.
+5. Ship the document-review engine.
+6. Build the knowledge-quiz flow.
+7. Wire up self-review, scheduling, reminders, and analytics on top of the existing v2 schema foundation.
+
+## Integration Feature Reference
+
+The outbound integration system (FR-30 through FR-39) delivers configurable post-review notifications and ticket creation.
+
+### Supported integration types
+
+| Type | Capability | Status |
+|---|---|---|
+| `jira` | Creates one Jira Cloud issue per ActionCard via REST API v3 | Done |
+| `smtp` | Sends a single HTML+text summary email per job | Done |
+| `webhook` | POSTs a JSON payload to any configured URL | Done |
+| `linear` | Linear GraphQL issue creation | Stub (pending) |
+| `github_issues` | GitHub Issues REST API | Stub (pending) |
+
+### Trigger conditions
+
+| Value | Behaviour |
+|---|---|
+| `red_only` | Auto-dispatches only when the completed job has at least one red finding (default) |
+| `always` | Auto-dispatches for every completed job regardless of results |
+| `manual` | Never auto-dispatches; can still be triggered via `POST /api/integrations/{id}/dispatch/{job_id}` |
+
+### Config schemas
+
+**JIRA (`jira`)**
+```json
+{
+  "url": "https://myorg.atlassian.net",
+  "email": "bot@myorg.com",
+  "api_token": "ATATT...",
+  "project_key": "PROJ",
+  "issue_type": "Task",
+  "labels": ["reviewbot"],
+  "priority_map": {"red": "High", "amber": "Medium"}
+}
+```
+
+**SMTP email (`smtp`)**
+```json
+{
+  "host": "smtp.gmail.com",
+  "port": 587,
+  "username": "bot@gmail.com",
+  "password": "app-password",
+  "from_address": "ReviewBot <bot@gmail.com>",
+  "use_tls": true,
+  "recipients": ["team@company.com"],
+  "include_project_stakeholders": true
+}
+```
+
+**Webhook (`webhook`)**
+```json
+{
+  "url": "https://hooks.example.com/reviewbot",
+  "method": "POST",
+  "headers": {"X-Secret": "token123"}
+}
+```
+
+### API endpoints
+
+| Method | Path | Role | Description |
+|---|---|---|---|
+| `GET` | `/api/integrations/` | admin | List all integrations (secrets masked) |
+| `POST` | `/api/integrations/` | admin | Create integration |
+| `GET` | `/api/integrations/{id}` | admin | Get one integration |
+| `PATCH` | `/api/integrations/{id}` | admin | Update integration |
+| `DELETE` | `/api/integrations/{id}` | admin | Delete integration |
+| `POST` | `/api/integrations/{id}/test` | admin | Test connectivity |
+| `POST` | `/api/integrations/{id}/dispatch/{job_id}` | admin, manager | Manual dispatch |
+| `GET` | `/api/integrations/dispatches/{job_id}` | any auth | Dispatch history for a job |
+
+### Database migration
+
+After pulling this change, generate and apply the Alembic migration:
+
+```bash
+alembic revision --autogenerate -m "add integration configs and dispatches"
+alembic upgrade head
+```

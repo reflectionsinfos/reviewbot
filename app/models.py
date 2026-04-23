@@ -691,3 +691,62 @@ class SystemSetting(Base):
     category = Column(String, default="General") # General, Agent, Security, UI
     is_mandatory = Column(Boolean, default=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ── Integration Models ────────────────────────────────────────────────────────
+
+class IntegrationConfig(Base):
+    """
+    Configurable outbound integration — ticket systems and email.
+
+    Supported types: jira | smtp | linear | github_issues | webhook
+    trigger_on:      always | red_only | manual
+    config_json schema per type:
+      jira:  {url, email, api_token, project_key, issue_type, labels, priority_map}
+      smtp:  {host, port, username, password, from_address, use_tls,
+              recipients, include_project_stakeholders}
+      linear: {api_key, team_id, priority_map}
+      github_issues: {token, owner, repo, labels, priority_map}
+      webhook: {url, headers, method}
+    """
+    __tablename__ = "integration_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    type = Column(String, nullable=False)        # jira | smtp | linear | github_issues | webhook
+    is_enabled = Column(Boolean, default=False)
+    trigger_on = Column(String, default="red_only")  # always | red_only | manual
+    include_advisories = Column(Boolean, default=False)  # also dispatch amber findings
+    config_json = Column(JSON, nullable=False, default=dict)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    dispatches = relationship("IntegrationDispatch", back_populates="integration",
+                              cascade="all, delete-orphan")
+
+
+class IntegrationDispatch(Base):
+    """Audit log of every outbound dispatch attempt (tickets created, emails sent)."""
+    __tablename__ = "integration_dispatches"
+
+    id = Column(Integer, primary_key=True, index=True)
+    integration_id = Column(Integer, ForeignKey("integration_configs.id", ondelete="CASCADE"),
+                            nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("autonomous_review_jobs.id", ondelete="CASCADE"),
+                    nullable=False, index=True)
+
+    triggered_by = Column(String, default="auto")   # auto | manual
+    status = Column(String, default="pending")       # pending | success | partial | failed
+
+    items_dispatched = Column(Integer, default=0)
+    items_failed = Column(Integer, default=0)
+
+    # List of {type, ref, url, status, error} — one entry per ticket or email
+    results_json = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    dispatched_at = Column(DateTime, default=datetime.utcnow)
+
+    integration = relationship("IntegrationConfig", back_populates="dispatches")
+    job = relationship("AutonomousReviewJob")

@@ -19,6 +19,7 @@ from app.api.routes.agent import router as agent_router
 from app.api.routes.routing_rules import router as routing_rules_router
 from app.api.routes.llm_configs import router as llm_configs_router
 from app.api.routes.settings import router as settings_router
+from app.api.routes.integrations import router as integrations_router
 from app.db.session import init_db
 from app.services.autonomous_review.progress import progress_manager
 
@@ -63,6 +64,7 @@ app.include_router(routing_rules_router,       prefix="/api/routing-rules",     
 app.include_router(llm_configs_router,         prefix="/api/llm-configs",        tags=["LLM Configuration"])
 app.include_router(settings_router,            prefix="/api/settings",           tags=["System Settings"])
 app.include_router(users_router,               prefix="/api/admin",              tags=["Admin - User Management"])
+app.include_router(integrations_router,        prefix="/api/integrations",        tags=["Integrations"])
 
 
 # Diagnostic route for LLM test (direct to main)
