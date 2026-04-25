@@ -1,6 +1,6 @@
 # ReviewBot Design
 
-Current implementation design snapshot based on the codebase as of April 17, 2026.
+Current implementation design snapshot based on the codebase as of April 23, 2026, with approved near-term design direction for external review.
 
 ## System Overview
 
@@ -93,6 +93,16 @@ FastAPI application
 4. Optional AI enhancement enriches prompts and caches them back on the job record.
 5. LLM execution traces can be viewed through `/api/reports/{job_id}/llm-audit` with role-sensitive detail.
 
+### 4. Planned external review through scoped Excel distribution
+
+1. An admin or reviewer selects the global master checklist and creates a project-scoped checklist.
+2. The reviewer edits project-specific applicability before distribution.
+3. The reviewer defines participating review teams and maps them to checklist categories.
+4. ReviewBot freezes a review snapshot containing the exact item set, team mapping, and scoring rules for that review cycle.
+5. ReviewBot generates one team-scoped Excel export per review team.
+6. External teams submit their response files and supporting evidence against that frozen snapshot.
+7. The system validates snapshot integrity, imports responses, applies scoring rules, and builds one consolidated report.
+
 ## Core Components
 
 ### API layer
@@ -121,6 +131,15 @@ FastAPI application
 - `report_generator.py` produces Markdown and PDF reports for manual or conversational review flows.
 - `llm_audit.py` captures redacted prompt/response traces and usage metadata.
 
+### Planned external review services
+
+- A master-checklist metadata extension will add team category, guidance text, and applicability tags to checklist items.
+- A project review team service will manage team definitions, named owners, and responsibility scope.
+- A review snapshot service will freeze checklist content and team mappings before Excel distribution. The snapshot is represented by a `ReviewSnapshot` entity with fields: `id`, `review_id`, `revision` (integer, incrementing per distribution), `checksum` (SHA-256 of serialised item set), `frozen_at`, `status` (`active` / `superseded` / `revoked`), `item_snapshot` (JSONB), `team_snapshot` (JSONB), and `scoring_rules` (JSONB). Each time the reviewer clicks "Distribute" after editing the project checklist, a new revision is created and the previous one is marked `superseded`. Upload tokens are scoped to a specific `snapshot_id + team_id` so uploads against older revisions remain independently revocable.
+- An Excel export service will generate protected team-scoped workbooks using `openpyxl` (library choice to be confirmed in Phase 0 spike). Each workbook includes: a protected metadata sheet carrying `snapshot_id`, `revision`, `team_id`, and `checksum`; locked columns for all read-only fields; data-validation dropdowns for `Response State` and `Confidence`; an instructions sheet; and visual colour differentiation between locked and editable columns.
+- A response-import service implemented as `ExcelResponseParser` inside the existing `checklist_parser.py` module. The new class shares the file-reading infrastructure with the existing `ChecklistParser` but has independent column mapping, snapshot validation, and response-state parsing logic. It validates `snapshot_id`, `checksum`, and `team_id` from the metadata sheet before touching any response rows, rejects rows where locked column values differ from the snapshot, and returns structured `ParsedResponse` objects plus a list of row-level `ParseError` objects for surfacing to the reviewer.
+- Distribution email notifications will route through the existing `IntegrationConfig` / dispatcher infrastructure with a new `distribution` trigger type, avoiding a second SMTP codepath. Distribution attempts are recorded in `IntegrationDispatch` audit records alongside post-review dispatch history.
+
 ### Conversational review foundation
 
 - `review_agent.py` defines a LangGraph-based question-and-response workflow.
@@ -132,6 +151,44 @@ FastAPI application
 - Frontend pages are static HTML files with embedded JavaScript.
 - Shared header and footer loaders provide auth/session UI, change-password UI, and admin user-management modals.
 - The history page is the richest operational screen in the current product.
+
+### External review frontend status
+
+- Implemented now: `/globals` supports listing, creating, uploading, renaming, editing, and deleting global checklists and their items.
+- Implemented now: `/projects-ui` supports project selection, cloning a global checklist into a project, syncing from the source template, and editing/reordering project checklist items.
+- Not implemented: the global checklist flow is still built around the two-template `technical` / `delivery` model rather than the single master checklist model.
+- Not implemented: checklist items do not expose `team_category`, guidance, or applicability metadata in the UI or the backing schemas.
+- Not implemented: there is no project review team setup surface for team names, owners, emails, or scope mapping.
+- Not implemented: there is no distribution workspace for snapshot creation, team-scoped Excel generation, signed-link handling, or upload monitoring.
+- Not implemented: there is no external team respondent page for token-scoped download/upload, and no reviewer dashboard for parse errors, superseded revisions, or partial-report gating.
+
+### Planned external review frontend architecture
+
+The external async review feature should extend the existing vanilla frontend rather than introducing a second client stack. The target interaction model is a guided reviewer workflow layered onto the existing `/globals` and `/projects-ui` pages, plus one new external-review operations surface.
+
+1. Global master checklist workspace (`/globals`)
+   The current template page becomes the master checklist library. Each item row gains `team_category`, guidance, applicability tags, and richer evidence metadata. The create flow should stop forcing `technical` versus `delivery` as the top-level information architecture.
+2. Project checklist tailoring workspace (`/projects-ui`)
+   The current project checklist editor remains the working copy surface, but it gains project-only overrides such as exclude/restore, reassignment of ownership category, and custom-item creation. This is where the reviewer prepares the checklist before any distribution occurs.
+3. Project review team setup panel (`/projects-ui`)
+   A new setup panel or tab defines participating teams, lead contacts, scope notes, and category mapping. The UI must show item counts per team and unresolved setup gaps before distribution is enabled.
+4. Distribution and monitoring workspace (new reviewer surface)
+   A new page should manage `ReviewSnapshot` revisions, team-scoped export generation, signed-link status, submission progress, parse warnings, and regenerate/resend actions. This surface is the operational home for the reviewer after clicking Distribute.
+5. External team response page (new token-scoped surface)
+   External respondents should receive a minimal download/upload page scoped to one `snapshot_id + team_id`. It should expose only the workbook, upload control, due-date/status messaging, and basic help text.
+
+### Frontend implementation plan
+
+1. Phase FE-1: master checklist metadata
+   Extend `/globals` and checklist item forms to capture `team_category`, guidance, and applicability metadata, and remove the UI assumption that all global checklists are only `technical` or `delivery`.
+2. Phase FE-2: project tailoring and team mapping
+   Extend `/projects-ui` with exclude/restore controls, category reassignment, project-only custom questions, and a new review-team management panel with readiness validation.
+3. Phase FE-3: snapshot distribution workflow
+   Add the reviewer-facing distribution workspace that creates `ReviewSnapshot` revisions, shows revision metadata, generates team exports, and triggers distribution through the existing integration infrastructure.
+4. Phase FE-4: upload monitoring and consolidation controls
+   Add per-team lifecycle status, parse-error visibility, re-upload handling, revoke/reissue actions, and the partial-report gating flow before consolidated report generation.
+5. Phase FE-5: external respondent and polish
+   Add the token-scoped respondent download/upload page, finalize audit/status messaging, and validate the full flow against desktop browser usage plus the Excel round-trip constraints defined in Phase 0.
 
 ## Strategy Model
 
@@ -187,6 +244,17 @@ Design intent:
 
 These tables signal the intended expansion of the product, but they are not yet fully surfaced through APIs and UI.
 
+### Planned external review entities and extensions
+
+The approved external-review design adds a new layer between checklist management and report generation:
+
+- `ChecklistItem` gains metadata for `team_category`, `guidance`, and optional applicability filters.
+- Project-scoped checklists remain the working copy where reviewers can exclude or refine items before distribution.
+- `ProjectReviewTeam` stores team name, category, lead name, lead email, and responsibility scope text per project.
+- `Review` gains a `mode` field (`autonomous` / `external_async` / `live`) and a `current_snapshot_id` FK.
+- `ReviewResponse` gains `team_id`, `response_state` (`answered` / `na_out_of_scope` / `delegated` / `needs_clarification` / `not_submitted`), `confidence`, `assigned_owner`, and clarification text fields.
+- `ReviewSnapshot` stores the frozen item set and is the key new entity: `id`, `review_id`, `revision` (int), `checksum`, `frozen_at`, `status` (`active` / `superseded` / `revoked`), `item_snapshot` (JSONB), `team_snapshot` (JSONB), `scoring_rules` (JSONB). A distribution token table references `ReviewSnapshot.id` and `ProjectReviewTeam.id` with expiry and revocation fields.
+
 ## Configuration Design
 
 ### Application settings
@@ -233,6 +301,7 @@ These tables signal the intended expansion of the product, but they are not yet 
 - Flexible multi-provider LLM layer
 - Review strategy model that balances deterministic and LLM-based checks
 - Forward-looking schema foundation for later workflow expansion
+- A reusable checklist/project/report backbone that can support external review without creating a separate product silo
 
 ## Current Design Gaps
 
@@ -241,3 +310,8 @@ These tables signal the intended expansion of the product, but they are not yet 
 - General audit logging, rate limiting, and multi-tenant boundaries are not implemented.
 - Several v2 workflow entities are modeled but not yet activated through user-facing flows.
 - Frontend is functional and fast to ship, but long-term complexity may justify a richer client architecture later.
+- Frontend currently exposes only template CRUD and project checklist CRUD; it does not yet expose master-checklist metadata, project review team mapping, snapshot distribution, upload-status monitoring, or consolidated external-review operations.
+- External review lacks implementation of the `ReviewSnapshot` revision model, `ProjectReviewTeam`, and `ExcelResponseParser` — all designed and specified in `docs/EXCEL_TEMPLATE_REVIEW_ANALYSIS.md` but not yet built.
+- Checklist ownership is not yet modeled at the item/category/team layers needed for multi-team external reviews.
+- The current Excel parser (`ChecklistParser`) only handles source checklist ingestion; the planned `ExcelResponseParser` class for team response import is not yet implemented.
+- Distribution email for external review has no dedicated path yet; the design calls for routing through the existing SMTP integration dispatcher with a new `distribution` trigger type.

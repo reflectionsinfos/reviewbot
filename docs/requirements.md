@@ -1,10 +1,10 @@
 # ReviewBot Requirements
 
-Implementation-aligned requirements snapshot based on the codebase as of April 17, 2026.
+Implementation-aligned requirements snapshot based on the codebase as of April 23, 2026, including the approved near-term external review design direction.
 
 ## Product Intent
 
-ReviewBot helps teams run structured technical and delivery reviews using reusable checklists, autonomous evidence gathering, and post-review remediation guidance. The current release is centered on autonomous code review plus checklist and review operations. Broader review modes remain on the roadmap.
+ReviewBot helps teams run structured technical and delivery reviews using reusable checklists, autonomous evidence gathering, and post-review remediation guidance. The current release is centered on autonomous code review plus checklist and review operations. Broader review modes remain on the roadmap, with external async review via scoped Excel distribution now defined as an approved near-term design.
 
 ## Scope Summary
 
@@ -23,6 +23,7 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 - Direct repository intake from the web UI/API
 - Conversational review and voice-assisted review foundations
 - Human approval and report download workflows
+- External review foundations through existing checklist, manual review, report, and file-upload building blocks, but not yet the full team-scoped Excel distribution flow
 
 ### Out of scope for the current release
 
@@ -82,6 +83,42 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 | FR-43 | Security scan findings list the top CVEs with package name, installed version, available fix version, and CVSS severity | Must | Done | `_summarise()` builds structured evidence showing CVE ID, package, installed/fixed versions, and title. |
 | FR-44 | Checklist items about known CVEs and dependency vulnerabilities are automatically routed to the security scan strategy without manual configuration | Must | Done | Deterministic keyword rules in `_SECURITY_SCAN_RULES` route CVE-related questions before falling back to LLM classification; LLM prompt also includes `security_scan` as a strategy option. |
 | FR-45 | If no scanning tool is found in PATH the finding is marked `na` with installation instructions for each supported tool | Should | Done | `SecurityScanAnalyzer.analyze()` returns `AnalysisResult(rag_status="na", ...)` with links to Trivy, OSV Scanner, pip-audit, and npm. |
+| FR-46 | Admins can maintain a single global master checklist whose items include `team_category`, guidance text, expected evidence, and applicability metadata | Must | Planned | This is the target replacement for the long-term two-template model used today. |
+| FR-47 | Reviewers can derive a project-scoped checklist from the global master checklist and edit, exclude, delete, or reassign items before external review distribution | Must | Planned | Project-level overrides happen before distribution, not on the frozen review snapshot. |
+| FR-48 | Projects can define one or more review teams with category, lead, email, and responsibility scope | Must | Planned | Teams are used to map checklist ownership and distribution targets. |
+| FR-49 | ReviewBot can freeze a review snapshot before external distribution and reject uploads that do not match that snapshot version | Must | Planned | Snapshot integrity is required for safe Excel generation and parsing. |
+| FR-50 | ReviewBot can generate one team-scoped Excel template per participating review team from a frozen review snapshot | Must | Planned | Team-scoped export is the recommended Milestone 1 distribution model. |
+| FR-51 | Team-scoped Excel templates support protected columns plus editable fields for response state, answer, confidence, notes, clarification questions, and evidence references | Must | Planned | Protected fields must include snapshot and item identifiers. |
+| FR-52 | External async review uploads can be parsed into `ReviewResponse` records with explicit response states such as `answered`, `na_out_of_scope`, `delegated`, `needs_clarification`, and `not_submitted` | Must | Planned | This replaces ambiguous free-form NA handling. |
+| FR-53 | Out-of-scope items are excluded from the scoring denominator and unresolved mandatory items block completion by default unless the reviewer explicitly proceeds with a partial report | Must | Planned | Scoring and completion behavior must be deterministic and auditable. |
+| FR-54 | Consolidated external review reports group findings by team or owner and show missing teams, delegated items, and out-of-scope items explicitly | Must | Planned | Reports must remain trustworthy when responses are distributed across multiple teams. |
+| FR-55 | Async external review templates provide built-in clarification support through guidance text and a Questions / Doubts field | Should | Planned | This addresses the offline clarification gap seen in the NeuMoney-iOS session. |
+| FR-56 | Live external review can reuse the same frozen snapshot and support an `explain` interaction plus optional STT-based responses | Should | Planned | Live review is a later extension of the same external review data model. |
+| FR-57 | Distributed external review links or upload surfaces can be revoked and time-limited per team | Should | Planned | External distribution must not rely on open-ended access. |
+| FR-58 | Each external review distribution cycle is versioned as a `ReviewSnapshot` revision so that post-distribution checklist changes produce a new revision rather than mutating the active one | Must | Planned | Snapshot revision model prevents upload mismatch when the reviewer iterates after distribution. Each revision carries an immutable item set, team mapping, scoring rules, and a SHA-256 checksum. Previous revisions are marked `superseded` but their upload tokens remain independently revocable. |
+| FR-59 | Distribution emails to external team leads are sent through the existing outbound integration infrastructure (`IntegrationConfig` / dispatcher) rather than a separate email path | Should | Planned | Avoids a second SMTP codepath; distribution attempts are automatically recorded in `IntegrationDispatch` audit records with a new `distribution` trigger type. |
+| FR-60 | The upload parser for team response files is implemented as `ExcelResponseParser` within the existing `checklist_parser.py` module, sharing file-reading infrastructure with the existing `ChecklistParser` class but with independent column mapping and snapshot validation logic | Must | Planned | Keeps the working source-ingestion path intact while adding response-import capability; the two classes are independently testable. |
+| FR-61 | Team-scoped Excel templates include an instructions sheet, a protected metadata sheet, data-validation dropdowns for Response State and Confidence, and visual differentiation (colour) between locked and editable columns | Must | Planned | Without dropdowns, teams enter free-text response states that break the parser. Without an instructions sheet, external teams have no context for filling the file correctly. |
+| FR-62 | A short technical spike (Phase 0) must validate that the chosen Excel library (`openpyxl` or `xlsxwriter`) produces worksheet-protected, dropdown-validated workbooks that survive round-trips through Microsoft Excel, LibreOffice, and Google Sheets before Phase 4 begins | Must | Planned | Protection and dropdown behaviour differ across libraries and spreadsheet applications; discovering incompatibilities in Phase 0 costs a day rather than a sprint. |
+
+## Frontend Requirements
+
+This section translates the approved external async review design into reviewer-facing and respondent-facing UI requirements. It focuses on what must change in `/globals`, `/projects-ui`, and the new distribution/upload surfaces.
+
+| ID | Requirement | Priority | Current Status | Notes |
+|---|---|---|---|---|
+| FE-01 | The global checklist management UI must support a single master checklist model and allow each item to capture `team_category`, guidance text, expected evidence, and applicability metadata | Must | Planned | The current `/globals` screen only edits code, area, question, expected evidence, weight, and review-mandatory flag. |
+| FE-02 | The global template create flow must stop assuming only `technical` and `delivery` checklist types and instead support the master-checklist library model | Must | Planned | The current create modal still forces a `delivery` or `technical` selection. |
+| FE-03 | The project checklist workspace must support project-specific tailoring before distribution: exclude/restore, inline wording edits, mandatory toggle, team-category reassignment, and project-only custom questions | Must | Planned | Existing project checklist editing covers add/edit/delete/reorder only. |
+| FE-04 | The project review setup UI must allow reviewers to define review teams with team name, category, lead name, lead email, and responsibility scope | Must | Planned | This is the missing ownership layer between checklist categories and external recipients. |
+| FE-05 | The project review setup UI must show per-team item counts, uncategorized items, unassigned categories, and other readiness warnings before distribution is allowed | Must | Planned | Distribution should be blocked until the reviewer resolves or explicitly accepts key setup gaps. |
+| FE-06 | Reviewers must be able to create a distribution revision from the UI and see the generated snapshot ID, revision number, checksum status, and generated team exports | Must | Planned | This is the reviewer-facing control surface for `ReviewSnapshot`. |
+| FE-07 | A reviewer dashboard must show the distribution lifecycle for each team: generated, sent, downloaded, submitted, parse warning, superseded, or revoked | Must | Planned | The reviewer needs one place to monitor progress after distribution. |
+| FE-08 | The UI must surface row-level parse/import errors for uploaded team files and support re-upload, token reissue, and token revocation flows per team | Should | Planned | Without this, reviewers cannot recover cleanly from malformed uploads. |
+| FE-09 | The consolidated external review UI must show missing teams, delegated items, out-of-scope items, unresolved mandatory items, and the explicit partial-report override path | Must | Planned | The report screen must make incompleteness visible before approval and export. |
+| FE-10 | The frontend must provide revision history for external review runs, including superseded snapshots and regenerate/resend actions when the project checklist changes after distribution | Should | Planned | This keeps post-distribution edits auditable and understandable. |
+| FE-11 | External team-facing download/upload pages must be token-scoped, response-only, and must not expose admin navigation, unrelated teams, or other project data | Must | Planned | The external participant experience should be minimal and least-privilege by default. |
+| FE-12 | New external review screens must preserve the current ReviewBot visual language and shared shell while adding a guided multi-step workflow for setup, distribution, monitoring, and consolidation | Should | Planned | The new flow should feel like an extension of the current product, not a separate tool. |
 
 ## Non-Functional Requirements
 
@@ -99,6 +136,10 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 | NFR-10 | Audit logging beyond LLM-specific traces | Partial | General audit logging is not yet implemented, but integration dispatch history is stored per-attempt in `integration_dispatches`. |
 | NFR-13 | Outbound integration credentials are never returned in plaintext via the API | Done | `_mask_config()` masks `api_token`, `password`, `api_key`, and `token` fields in all GET responses using a four-character visible suffix. |
 | NFR-14 | Integration dispatch failures are isolated from review job state | Done | Dispatcher opens its own `AsyncSessionLocal` session; exceptions are caught and logged without affecting the completed job record. |
+| NFR-15 | External review uploads must validate snapshot identity and protected checklist fields before importing any responses | Planned | Prevents tampered or stale Excel files from corrupting review state. |
+| NFR-16 | External review scoring rules must treat out-of-scope, delegated, unresolved, and partial-submission states deterministically | Planned | Required for score trust and report auditability. |
+| NFR-17 | External review distribution and upload access must support expiry, revocation, and audit visibility per team | Planned | External participants should receive least-privilege access only. |
+| NFR-18 | Evidence binding for distributed external reviews must use stable server-side identifiers rather than filename text alone | Planned | Filename-only binding is too fragile for production workflows. |
 | NFR-11 | Rate limiting and abuse protection | Planned | No production-grade rate limiting layer is wired yet. |
 | NFR-12 | Multi-tenant isolation | Planned | Current data model and routing assume a single deployment context. |
 
@@ -120,16 +161,19 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 - The agent-upload workflow is the most mature route for reviewing a local workspace.
 - Conversational review APIs are available but are not yet a flagship end-to-end UX.
 - Several v2 entities exist in the schema to support future review orchestration but are not yet wired into public workflows.
+- The approved external review design assumes a single global master checklist, project-level checklist tailoring, frozen review snapshots, and team-scoped Excel distribution, but those pieces are not implemented yet.
 
 ## Near-Term Priorities
 
-1. Stabilize and complete direct repository intake so the web UI path is as reliable as the agent-upload path.
-2. Continue maturing action-plan and remediation workflows.
-3. Add a UI panel for managing integrations (CRUD + connection test + dispatch history) — backend is complete.
-4. Implement the Linear and GitHub Issues stubs in the dispatcher.
-5. Ship the document-review engine.
-6. Build the knowledge-quiz flow.
-7. Wire up self-review, scheduling, reminders, and analytics on top of the existing v2 schema foundation.
+1. Run Phase 0 spike (FR-62): validate `openpyxl` / `xlsxwriter` Excel round-trip with protection and dropdowns before committing to Phase 4 implementation.
+2. Implement the external async review foundation (FR-46 through FR-62): master checklist metadata, project team mapping, `ReviewSnapshot` revision model, `ExcelResponseParser`, distribution via existing SMTP integration, and team-scoped Excel export.
+3. Stabilize and complete direct repository intake so the web UI path is as reliable as the agent-upload path.
+4. Continue maturing action-plan and remediation workflows.
+5. Add a UI panel for managing integrations (CRUD + connection test + dispatch history) - backend is complete.
+6. Implement the Linear and GitHub Issues stubs in the dispatcher.
+7. Ship the document-review engine.
+8. Build the knowledge-quiz flow.
+9. Wire up self-review, scheduling, reminders, and analytics on top of the existing v2 schema foundation.
 
 ## Integration Feature Reference
 
