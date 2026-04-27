@@ -805,46 +805,15 @@
 
   // ── Excel Download ────────────────────────────────────────────────────────────
   function downloadExcel() {
-    if (!allItems.length) { toast('No items to download', 'err'); return; }
-    if (typeof XLSX === 'undefined') { toast('Excel library not loaded. Check internet connection.', 'err'); return; }
-
-    const headers = ['#', 'Code', 'Area', 'Team / Category', 'Mandatory', 'Question', 'Expected Evidence', 'Answer', 'Comments'];
-    const rows = allItems.map((item, i) => {
-      const st = itemState[item.review_item_id];
-      return [
-        i + 1,
-        item.item_code || '',
-        item.area || '',
-        item.team_category || '',
-        item.is_review_mandatory ? 'Yes' : 'No',
-        item.question || '',
-        item.expected_evidence || '',
-        st.answer || '',
-        st.comments || '',
-      ];
-    });
-
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws['!cols'] = [{wch:4},{wch:10},{wch:18},{wch:16},{wch:10},{wch:52},{wch:40},{wch:10},{wch:32}];
-
-    // Lock all columns except Answer (col H=7) and Comments (col I=8)
-    // Add a note sheet with instructions
-    const noteWs = XLSX.utils.aoa_to_sheet([
-      ['Instructions'],
-      [''],
-      ['1. Fill the "Answer" column with one of: Yes, Partial, No, N/A'],
-      ['2. Optionally add notes in the "Comments" column.'],
-      ['3. Do NOT change any other columns (Code, Question, etc.)'],
-      ['4. Save the file, then upload it using the "Upload Excel" button on the portal.'],
-    ]);
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Review Checklist');
-    XLSX.utils.book_append_sheet(wb, noteWs, 'Instructions');
-
-    const fname = `review-${REVIEW_ID}-checklist.xlsx`;
-    XLSX.writeFile(wb, fname);
-    toast(`Downloaded ${fname}`, 'ok');
+    if (!TOKEN) { toast('No token available', 'err'); return; }
+    // Use the backend endpoint — generates properly formatted Excel with locked
+    // columns, dropdown validation, and sheet protection via openpyxl.
+    const a = document.createElement('a');
+    a.href = `${API}/api/reviews/download-checklist/${encodeURIComponent(TOKEN)}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    toast('Downloading Excel…', 'ok');
   }
 
   // ── Excel Upload ──────────────────────────────────────────────────────────────
@@ -858,21 +827,38 @@
     reader.onload = async (e) => {
       try {
         const wb   = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-        const name = wb.SheetNames.find(n => /checklist|review/i.test(n)) || wb.SheetNames[0];
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+        // Prefer the response sheet (backend format) then any sheet with review/checklist in the name
+        const sheetName = wb.SheetNames.find(n => /response/i.test(n))
+          || wb.SheetNames.find(n => /checklist|review/i.test(n))
+          || wb.SheetNames[0];
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' });
         if (rows.length < 2) { toast('File appears empty', 'err'); return; }
 
-        const hdr       = rows[0].map(h => String(h).toLowerCase().trim());
-        const colAnswer   = hdr.indexOf('answer');
+        // Find the header row — backend Excel has a project info bar on row 0
+        // so the real headers (Code, Question, Response ▼ …) may be on row 1.
+        let hdrRowIdx = 0;
+        for (let i = 0; i < Math.min(rows.length, 5); i++) {
+          const joined = rows[i].join('|').toLowerCase();
+          if (joined.includes('code') && (joined.includes('response') || joined.includes('answer') || joined.includes('question'))) {
+            hdrRowIdx = i;
+            break;
+          }
+        }
+
+        // Normalise headers: strip trailing " ▼" and extra spaces
+        const hdr = rows[hdrRowIdx].map(h =>
+          String(h).toLowerCase().trim().replace(/\s*[▼▾]\s*$/, '').trim()
+        );
+
+        const colAnswer   = hdr.findIndex(h => h === 'response' || h === 'answer');
         const colComments = hdr.indexOf('comments');
         const colCode     = hdr.indexOf('code');
-        const colNum      = hdr.indexOf('#');
 
-        if (colAnswer === -1) { toast('No "Answer" column found in Excel', 'err'); return; }
+        if (colAnswer === -1) { toast('No "Response" or "Answer" column found in Excel', 'err'); return; }
 
-        // Build lookup maps
+        // Build code → item lookup
         const byCode = {};
-        allItems.forEach((item, idx) => {
+        allItems.forEach(item => {
           if (item.item_code) byCode[String(item.item_code).toLowerCase().trim()] = item;
         });
 
@@ -880,31 +866,29 @@
         let updated = 0;
         const saves = [];
 
-        for (let r = 1; r < rows.length; r++) {
+        for (let r = hdrRowIdx + 1; r < rows.length; r++) {
           const row = rows[r];
           if (!row || row.every(c => c === '')) continue;
 
           const rawAns  = String(row[colAnswer]   || '').trim();
           const rawCom  = colComments >= 0 ? String(row[colComments] || '').trim() : '';
           const rawCode = colCode >= 0     ? String(row[colCode]     || '').toLowerCase().trim() : '';
-          const rawNum  = colNum  >= 0     ? parseInt(row[colNum], 10) : NaN;
 
-          // Match item: by code → by # → by row order
-          let item = byCode[rawCode]
-            || (!isNaN(rawNum) && rawNum >= 1 ? allItems[rawNum - 1] : null)
-            || allItems[r - 1];
+          // Match item: by code → by row order
+          const dataIdx = r - hdrRowIdx - 1;
+          const item = byCode[rawCode] || allItems[dataIdx];
           if (!item) continue;
 
           const answer = VALID.find(a => a.toLowerCase() === rawAns.toLowerCase()) || null;
           const st     = itemState[item.review_item_id];
           let changed  = false;
-          if (answer && st.answer !== answer)     { st.answer   = answer; changed = true; }
-          if (rawCom  && st.comments !== rawCom)  { st.comments = rawCom; changed = true; }
+          if (answer && st.answer !== answer)    { st.answer   = answer; changed = true; }
+          if (rawCom  && st.comments !== rawCom) { st.comments = rawCom; changed = true; }
           if (changed) { updated++; saves.push(saveItem(item.review_item_id)); }
         }
 
         await Promise.all(saves);
-        applyFilters();   // re-filter + re-render current page with updated state
+        applyFilters();
         updateProgress();
 
         toast(
