@@ -1,7 +1,7 @@
 /**
  * ReviewTable Component
  *
- * A reusable, paginated table for displaying autonomous review jobs.
+ * A reusable, paginated table for displaying review activity.
  * Supports "dashboard mode" (simple list) and "full mode" (pagination + filters).
  */
 class ReviewTable {
@@ -52,6 +52,7 @@ class ReviewTable {
                             <tr>
                                 <th>Project</th>
                                 <th>Checklist</th>
+                                <th>Type</th>
                                 <th>Status</th>
                                 <th style="text-align:center">Total</th>
                                 <th style="text-align:center">Compliant</th>
@@ -64,7 +65,7 @@ class ReviewTable {
                             </tr>
                         </thead>
                         <tbody class="rt-body">
-                            <tr><td colspan="11" class="rt-loading"><span class="spinner"></span> Loading reviews...</td></tr>
+                            <tr><td colspan="12" class="rt-loading"><span class="spinner"></span> Loading reviews...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -96,6 +97,7 @@ class ReviewTable {
                 .rt-score-amber { color: #fb923c; }
                 .rt-score-red { color: #f87171; }
                 .rt-score-na { color: #64748b; }
+                .rt-type { text-transform: capitalize; }
             `;
             document.head.appendChild(style);
         }
@@ -112,7 +114,7 @@ class ReviewTable {
 
         try {
             const token = localStorage.getItem('rb_token');
-            let url = `/api/reports/history?skip=${this.state.skip}&limit=${this.options.limit}`;
+            let url = `/api/reports/activity?skip=${this.state.skip}&limit=${this.options.limit}`;
             if (this.options.projectId) url += `&project_id=${this.options.projectId}`;
 
             const res = await fetch(url, {
@@ -137,9 +139,9 @@ class ReviewTable {
     updateTableState() {
         const tbody = this.container.querySelector('.rt-body');
         if (this.state.loading) {
-            tbody.innerHTML = `<tr><td colspan="11" class="rt-loading"><span class="spinner"></span> Loading reviews...</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12" class="rt-loading"><span class="spinner"></span> Loading reviews...</td></tr>`;
         } else if (this.state.error) {
-            tbody.innerHTML = `<tr><td colspan="11" class="rt-error">Error: ${this.state.error}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12" class="rt-error">Error: ${this.state.error}</td></tr>`;
         }
     }
 
@@ -147,7 +149,7 @@ class ReviewTable {
         const tbody = this.container.querySelector('.rt-body');
 
         if (this.state.items.length === 0 && !this.state.loading) {
-            tbody.innerHTML = `<tr><td colspan="11" class="empty-state"><div class="icon">&#128196;</div><p>No reviews found.</p></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12" class="empty-state"><div class="icon">&#128196;</div><p>No reviews found.</p></td></tr>`;
             if (this.options.paginate) this.container.querySelector('.rt-pagination').style.display = 'none';
             return;
         }
@@ -216,14 +218,17 @@ class ReviewTable {
         const score = this.renderScore(item.compliance_score);
         const status = this.renderStatus(item.status);
         const traceCount = item.llm_audit_count || 0;
-        const summaryHref = `/history/${item.job_id}`;
-        const traceHref = `/history/${item.job_id}?tab=ai-trace`;
+        const isAutonomous = (item.review_type || '').toLowerCase() === 'autonomous';
+        const summaryHref = isAutonomous && item.job_id ? `/history/${item.job_id}` : `/projects-ui/${item.project_id || ''}`;
+        const traceHref = isAutonomous && item.job_id ? `/history/${item.job_id}?tab=ai-trace` : '';
         const dateTooltip = this.formatDateTooltip(item);
+        const typeBadge = this.renderType(item.review_type);
 
         return `
             <tr>
                 <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${this.esc(item.project_name)}">${this.esc(item.project_name)}</td>
                 <td><a href="${summaryHref}" style="color:inherit;text-decoration:none;">${this.esc(item.checklist_name)}</a></td>
+                <td>${typeBadge}</td>
                 <td>${status}</td>
                 <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:32px;justify-content:center;color:#e2e8f0;font-family:monospace">${item.total_items || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-green" style="background:#14532d22;min-width:24px;justify-content:center">${item.green_count || 0}</span></td>
@@ -234,9 +239,9 @@ class ReviewTable {
                 <td style="color:#64748b;font-size:12px;white-space:nowrap" title="${this.esc(dateTooltip)}">${date}</td>
                 <td style="text-align:right;white-space:nowrap">
                     <div style="display:flex;gap:6px;justify-content:flex-end">
-                        <a href="${summaryHref}" class="btn btn-ghost btn-sm" style="text-decoration:none;" title="View review summary">Summary</a>
-                        ${traceCount > 0 ? `<a href="${traceHref}" class="btn btn-ghost btn-sm" style="text-decoration:none;" title="View AI trace">AI Trace (${traceCount})</a>` : ''}
-                        ${['running', 'queued', 'pending'].includes((item.status || '').toLowerCase()) ? `<button class="btn btn-ghost btn-sm rt-stop-btn" data-job-id="${item.job_id}" style="color:#f87171;border-color:#991b1b;" title="Stop this review">Stop</button>` : ''}
+                        <a href="${summaryHref}" class="btn btn-ghost btn-sm" style="text-decoration:none;" title="View review">Open</a>
+                        ${isAutonomous && traceCount > 0 ? `<a href="${traceHref}" class="btn btn-ghost btn-sm" style="text-decoration:none;" title="View AI trace">AI Trace (${traceCount})</a>` : ''}
+                        ${isAutonomous && ['running', 'queued', 'pending'].includes((item.status || '').toLowerCase()) ? `<button class="btn btn-ghost btn-sm rt-stop-btn" data-job-id="${item.job_id}" style="color:#f87171;border-color:#991b1b;" title="Stop this review">Stop</button>` : ''}
                     </div>
                 </td>
             </tr>
@@ -254,6 +259,17 @@ class ReviewTable {
         };
         const [cls, label] = map[(status || '').toLowerCase()] || ['badge-gray', status || '-'];
         return `<span class="badge ${cls}">${label}</span>`;
+    }
+
+    renderType(type) {
+        const normalized = (type || 'online').toLowerCase();
+        const map = {
+            autonomous: ['badge-blue', 'Autonomous'],
+            offline: ['badge-amber', 'Offline'],
+            online: ['badge-green', 'Online'],
+        };
+        const [cls, label] = map[normalized] || ['badge-gray', type || '-'];
+        return `<span class="badge ${cls} rt-type">${label}</span>`;
     }
 
     renderScore(score) {

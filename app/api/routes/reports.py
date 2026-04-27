@@ -152,6 +152,117 @@ async def get_report_history(
     }
 
 
+@router.get("/activity")
+async def get_review_activity(
+    project_id: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db),
+):
+    """List recent review activity across autonomous, offline, and online reviews."""
+    auto_query = (
+        select(AutonomousReviewJob)
+        .options(
+            selectinload(AutonomousReviewJob.project),
+            selectinload(AutonomousReviewJob.checklist),
+            selectinload(AutonomousReviewJob.report),
+        )
+        .order_by(AutonomousReviewJob.created_at.desc())
+    )
+    review_query = (
+        select(Review)
+        .options(
+            selectinload(Review.project),
+            selectinload(Review.checklist).selectinload(Checklist.items),
+            selectinload(Review.responses),
+            selectinload(Review.report),
+        )
+        .order_by(Review.created_at.desc())
+    )
+    if project_id:
+        auto_query = auto_query.where(AutonomousReviewJob.project_id == project_id)
+        review_query = review_query.where(Review.project_id == project_id)
+
+    auto_result = await db.execute(auto_query)
+    review_result = await db.execute(review_query)
+
+    activity = []
+    for job in auto_result.scalars().all():
+        generated_at = job.completed_at or job.started_at or job.created_at
+        activity.append({
+            "id": f"autonomous-{job.id}",
+            "job_id": job.id,
+            "review_id": None,
+            "report_id": job.report.id if job.report else None,
+            "review_type": "autonomous",
+            "project_id": job.project_id,
+            "project_name": job.project.name if job.project else "—",
+            "checklist_id": job.checklist_id,
+            "checklist_name": job.checklist.name if job.checklist else "—",
+            "status": job.status,
+            "approval_status": job.report.approval_status if job.report else None,
+            "compliance_score": job.compliance_score,
+            "green_count": job.green_count,
+            "amber_count": job.amber_count,
+            "red_count": job.red_count,
+            "skipped_count": (job.skipped_count or 0) + (job.na_count or 0),
+            "total_items": job.total_items,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "generated_at": generated_at.isoformat() if generated_at else None,
+            "llm_audit_count": 0,
+        })
+
+    for review in review_result.scalars().all():
+        responses = list(review.responses or [])
+        green = sum(1 for r in responses if r.rag_status == "green")
+        amber = sum(1 for r in responses if r.rag_status == "amber")
+        red = sum(1 for r in responses if r.rag_status == "red")
+        na = sum(1 for r in responses if r.rag_status == "na")
+        total_items = len(review.checklist.items) if review.checklist and review.checklist.items else len(responses)
+        generated_at = (
+            (review.report.created_at if review.report else None)
+            or review.completed_at
+            or review.created_at
+        )
+        activity.append({
+            "id": f"{review.review_type or 'online'}-{review.id}",
+            "job_id": None,
+            "review_id": review.id,
+            "report_id": review.report.id if review.report else None,
+            "review_type": review.review_type or "online",
+            "project_id": review.project_id,
+            "project_name": review.project.name if review.project else "Unknown",
+            "checklist_id": review.checklist_id,
+            "checklist_name": review.checklist.name if review.checklist else "—",
+            "status": review.status,
+            "approval_status": review.report.approval_status if review.report else None,
+            "compliance_score": review.report.compliance_score if review.report else None,
+            "green_count": green,
+            "amber_count": amber,
+            "red_count": red,
+            "skipped_count": na,
+            "total_items": total_items,
+            "created_at": review.created_at.isoformat() if review.created_at else None,
+            "started_at": review.created_at.isoformat() if review.created_at else None,
+            "completed_at": review.completed_at.isoformat() if review.completed_at else None,
+            "generated_at": generated_at.isoformat() if generated_at else None,
+            "llm_audit_count": 0,
+        })
+
+    activity.sort(key=lambda row: row.get("generated_at") or row.get("created_at") or "", reverse=True)
+    total = len(activity)
+    paged = activity[skip:skip + limit]
+
+    return {
+        "reports": paged,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
+
+
 @router.get("/{report_id}")
 async def get_report(
     report_id: int,
@@ -218,9 +329,10 @@ async def download_report(
 @router.post("/{report_id}/approve")
 async def approve_report(
     report_id: int,
-    approver_id: int,
+    approver_id: Optional[int] = None,
     comments: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Approve a report (human approval workflow)"""
     # Verify report exists
@@ -232,20 +344,18 @@ async def approve_report(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     
-    # Verify approver exists
-    approver_result = await db.execute(
-        select(User).where(User.id == approver_id)
-    )
-    approver = approver_result.scalar_one_or_none()
-    
-    if not approver:
-        raise HTTPException(status_code=404, detail="Approver not found")
+    approver = current_user
+    if approver_id is not None and approver_id != current_user.id:
+        approver_result = await db.execute(select(User).where(User.id == approver_id))
+        approver = approver_result.scalar_one_or_none()
+        if not approver:
+            raise HTTPException(status_code=404, detail="Approver not found")
     
     # Check if approval already exists
     existing_result = await db.execute(
         select(ReportApproval).where(
             ReportApproval.report_id == report_id,
-            ReportApproval.approver_id == approver_id
+            ReportApproval.approver_id == approver.id
         )
     )
     existing_approval = existing_result.scalar_one_or_none()
@@ -259,7 +369,7 @@ async def approve_report(
         # Create new approval
         approval = ReportApproval(
             report_id=report_id,
-            approver_id=approver_id,
+            approver_id=approver.id,
             status="approved",
             comments=comments,
             decided_at=datetime.utcnow()
@@ -283,9 +393,10 @@ async def approve_report(
 @router.post("/{report_id}/reject")
 async def reject_report(
     report_id: int,
-    approver_id: int,
     comments: str,
-    db: AsyncSession = Depends(get_db)
+    approver_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Reject a report with comments for revision"""
     # Verify report exists
@@ -299,10 +410,17 @@ async def reject_report(
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
+    approver = current_user
+    if approver_id is not None and approver_id != current_user.id:
+        approver_result = await db.execute(select(User).where(User.id == approver_id))
+        approver = approver_result.scalar_one_or_none()
+        if not approver:
+            raise HTTPException(status_code=404, detail="Approver not found")
+
     # Create rejection
     approval = ReportApproval(
         report_id=report_id,
-        approver_id=approver_id,
+        approver_id=approver.id,
         status="rejected",
         comments=comments,
         decided_at=datetime.utcnow()
@@ -322,7 +440,7 @@ async def reject_report(
     return {
         "message": "Report rejected - revision requested",
         "report_id": report_id,
-        "rejected_by": approver_id,
+        "rejected_by": approver.id,
         "comments": comments,
         "next_step": "Review needs to be revised and resubmitted"
     }

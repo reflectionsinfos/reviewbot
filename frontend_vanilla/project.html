@@ -192,6 +192,13 @@
     .badge-uploaded { background: #3b076444; color: #c084fc; border: 1px solid #6d28d9; }
     .badge-scored { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
     .badge-pending-send { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+    .badge-pending-approval { background: #78350f44; color: #fbbf24; border: 1px solid #b45309; }
+    .badge-approved { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
+    .badge-revision { background: #7f1d1d44; color: #f87171; border: 1px solid #991b1b; }
+    .score-pill { font-weight: 700; font-size: 13px; }
+    .score-green { color: #4ade80; }
+    .score-amber { color: #fbbf24; }
+    .score-red { color: #f87171; }
   </style>
 </head>
 <body>
@@ -382,12 +389,14 @@
                 <th>Checklist</th>
                 <th>Sent</th>
                 <th>Due Date</th>
+                <th>Score</th>
+                <th>Approval</th>
                 <th>Status</th>
                 <th style="width:120px;">Actions</th>
               </tr>
             </thead>
             <tbody id="offline-reviews-tbody">
-              <tr><td colspan="6" class="or-empty">Select a project to view offline reviews.</td></tr>
+              <tr><td colspan="8" class="or-empty">Select a project to view offline reviews.</td></tr>
             </tbody>
           </table>
         </div>
@@ -1257,13 +1266,13 @@
 
   async function loadOfflineReviews(projectId) {
     const tbody = document.getElementById('offline-reviews-tbody');
-    tbody.innerHTML = '<tr><td colspan="6" class="or-empty">Loading…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="or-empty">Loading…</td></tr>';
     try {
       const data = await api(`/api/reviews/?project_id=${projectId}&review_type=offline`);
       offlineReviews = data?.reviews || [];
       renderOfflineReviewsTable();
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="6" class="or-empty" style="color:#f87171;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="or-empty" style="color:#f87171;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
     }
   }
 
@@ -1273,10 +1282,35 @@
     return { label: 'Pending Send', cls: 'badge-pending-send' };
   }
 
+  function formatOfflineScore(r) {
+    if (r.compliance_score === null || r.compliance_score === undefined) return '—';
+    const score = Number(r.compliance_score);
+    const cls = score >= 75 ? 'score-green' : score >= 50 ? 'score-amber' : 'score-red';
+    return `<span class="score-pill ${cls}">${Math.round(score)}%</span>`;
+  }
+
+  function getApprovalBadge(r) {
+    if (!r.report_id) return '<span style="color:#475569">Not ready</span>';
+    const status = r.approval_status || 'pending';
+    const labelMap = {
+      pending: 'Pending Approval',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      revision_requested: 'Revision Requested',
+    };
+    const clsMap = {
+      pending: 'badge-pending-approval',
+      approved: 'badge-approved',
+      rejected: 'badge-revision',
+      revision_requested: 'badge-revision',
+    };
+    return `<span class="badge ${clsMap[status] || 'badge-gray'}">${labelMap[status] || escapeHtml(status)}</span>`;
+  }
+
   function renderOfflineReviewsTable() {
     const tbody = document.getElementById('offline-reviews-tbody');
     if (!offlineReviews.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="or-empty">No offline reviews yet — click "Send for Review" to invite a reviewer.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="or-empty">No offline reviews yet — click "Send for Review" to invite a reviewer.</td></tr>';
       return;
     }
     tbody.innerHTML = offlineReviews.map(r => {
@@ -1288,11 +1322,19 @@
       const dueDate = r.due_date ? `<span style="color:#fb923c;">${formatDate(r.due_date)}</span>` : '—';
       const token = r.upload_token ? escapeHtml(r.upload_token) : '';
       const reviewUrl = token ? `/offline-review?token=${token}` : '';
+      const score = formatOfflineScore(r);
+      const approval = getApprovalBadge(r);
 
       let actions = '';
       if (reviewUrl) {
         actions += `<a href="${reviewUrl}" target="_blank" class="btn btn-ghost btn-sm" title="Open review page" style="padding:3px 8px;">🔗 Open</a>`;
         actions += `<button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${reviewUrl}')" title="Copy magic link" style="padding:3px 8px;">📋 Copy Link</button>`;
+      }
+      if (r.report_id && r.approval_status !== 'approved') {
+        actions += `<button class="btn btn-primary btn-sm" onclick="approveOfflineReport(${r.report_id})" title="Approve generated report" style="padding:3px 8px;">Approve</button>`;
+      }
+      if (r.report_id && r.approval_status === 'pending') {
+        actions += `<button class="btn btn-ghost btn-sm" onclick="requestOfflineRevision(${r.report_id})" title="Request revision" style="padding:3px 8px;">Revise</button>`;
       }
       if (r.status !== 'completed') {
         actions += `<button class="btn btn-ghost btn-sm" onclick="resendOfflineEmail(${r.id})" title="Resend invitation email" style="padding:3px 8px;">✉ Resend</button>`;
@@ -1306,10 +1348,37 @@
         <td>${checklistName}</td>
         <td style="color:#94a3b8;font-size:12px;">${sentAt}</td>
         <td>${dueDate}</td>
+        <td>${score}</td>
+        <td>${approval}</td>
         <td><span class="badge ${status.cls}">${status.label}</span></td>
         <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${actions}</div></td>
       </tr>`;
     }).join('');
+  }
+
+  async function approveOfflineReport(reportId) {
+    try {
+      await api(`/api/reports/${reportId}/approve`, { method: 'POST' });
+      toast('Report approved', 'success');
+      const projectId = document.getElementById('project-select').value;
+      if (projectId) await loadOfflineReviews(projectId);
+    } catch (e) {
+      toast('Approval failed: ' + e.message, 'error');
+    }
+  }
+
+  async function requestOfflineRevision(reportId) {
+    const comments = prompt('Revision comments for the reviewer/admin record:');
+    if (comments === null) return;
+    if (!comments.trim()) { toast('Revision comments are required', 'error'); return; }
+    try {
+      await api(`/api/reports/${reportId}/reject?comments=${encodeURIComponent(comments.trim())}`, { method: 'POST' });
+      toast('Revision requested', 'success');
+      const projectId = document.getElementById('project-select').value;
+      if (projectId) await loadOfflineReviews(projectId);
+    } catch (e) {
+      toast('Revision request failed: ' + e.message, 'error');
+    }
   }
 
   function openCreateOfflineModal() {

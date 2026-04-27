@@ -201,7 +201,7 @@
       <div class="stat-card">
         <div class="stat-card-info">
           <div class="stat-num" id="stat-reviews">–</div>
-          <div class="stat-label">Autonomous Reviews</div>
+          <div class="stat-label">Reviews</div>
         </div>
         <div class="stat-card-icon stat-icon-purple">
           <svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -225,7 +225,7 @@
     </div>
 
     <!-- Recent activity -->
-    <div class="section-heading">Recent Autonomous Reviews</div>
+    <div class="section-heading">Recent Reviews</div>
     <div id="reviews-grid-container">
       <!-- ReviewTable will render here -->
     </div>
@@ -353,7 +353,7 @@
     // Load stats in parallel, fail silently
     const [projects, reviews, reports, checklists] = await Promise.allSettled([
       api('/api/projects/'),
-      api('/api/autonomous-reviews/'),
+      api('/api/reports/activity?limit=1'),
       api('/api/reports/'),
       api('/api/checklists/templates/global')
     ]);
@@ -364,7 +364,7 @@
       document.getElementById('stat-projects').textContent = val;
     }
 
-    // Autonomous reviews count
+    // Reviews count
     if (reviews.status === 'fulfilled') {
       const items = reviews.value?.items ?? reviews.value?.results ?? (Array.isArray(reviews.value) ? reviews.value : []);
       const total = reviews.value?.pagination?.total ?? reviews.value?.total ?? items.length;

@@ -61,6 +61,7 @@ async def list_reviews(
     query = select(Review).options(
         selectinload(Review.project),
         selectinload(Review.checklist),
+        selectinload(Review.report),
     )
 
     if project_id:
@@ -92,6 +93,12 @@ async def list_reviews(
                 "excel_uploaded_at": r.excel_uploaded_at.isoformat() if getattr(r, "excel_uploaded_at", None) else None,
                 "due_date": r.due_date.isoformat() if getattr(r, "due_date", None) else None,
                 "upload_token": getattr(r, "upload_token", None),
+                "report_id": r.report.id if r.report else None,
+                "compliance_score": r.report.compliance_score if r.report else None,
+                "overall_rag_status": r.report.overall_rag_status if r.report else None,
+                "approval_status": r.report.approval_status if r.report else None,
+                "requires_approval": r.report.requires_approval if r.report else None,
+                "report_created_at": r.report.created_at.isoformat() if r.report and r.report.created_at else None,
             }
             for r in reviews
         ]

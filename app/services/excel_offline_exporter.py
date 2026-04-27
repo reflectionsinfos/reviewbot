@@ -262,6 +262,10 @@ def _build_response_sheet(
     # Mark editable columns as not locked in their protection attribute
     ws.protection.sheet = True
     ws.protection.password = "reviewbot"
+    # Keep source cells protected, but let reviewers resize rows/columns to read
+    # long checklist content in Excel.
+    ws.protection.formatColumns = False
+    ws.protection.formatRows = False
     ws.protection.enable()
 
     for row_offset in range(len(items)):
