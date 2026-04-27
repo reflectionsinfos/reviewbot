@@ -83,7 +83,10 @@ ReviewBot helps teams run structured technical and delivery reviews using reusab
 | FR-43 | Security scan findings list the top CVEs with package name, installed version, available fix version, and CVSS severity | Must | Done | `_summarise()` builds structured evidence showing CVE ID, package, installed/fixed versions, and title. |
 | FR-44 | Checklist items about known CVEs and dependency vulnerabilities are automatically routed to the security scan strategy without manual configuration | Must | Done | Deterministic keyword rules in `_SECURITY_SCAN_RULES` route CVE-related questions before falling back to LLM classification; LLM prompt also includes `security_scan` as a strategy option. |
 | FR-45 | If no scanning tool is found in PATH the finding is marked `na` with installation instructions for each supported tool | Should | Done | `SecurityScanAnalyzer.analyze()` returns `AnalysisResult(rag_status="na", ...)` with links to Trivy, OSV Scanner, pip-audit, and npm. |
-| FR-46 | Admins can maintain a single global master checklist whose items include `team_category`, guidance text, expected evidence, and applicability metadata | Must | Planned | This is the target replacement for the long-term two-template model used today. |
+| FR-63 | Organizations can be created, updated, soft-deleted, and listed via `/api/organizations`; admins write, any authenticated user reads | Must | Done | `Organization` model with slug auto-generation; soft-delete via `is_active=False`. |
+| FR-64 | Global checklist templates are org-scoped: `organization_id = NULL` means platform-wide (visible to all users); `organization_id = X` means visible only to users whose own `organization_id = X` | Must | Done | Filter applied in `ChecklistService.get_global_checklist_templates` using `or_(organization_id IS NULL, organization_id = current_user.org)`. |
+| FR-65 | Users and projects can be assigned an `organization_id` at creation time; `/api/auth/me` and `/api/auth/register` expose and accept `organization_id` | Should | Done | `organization_id` added to `User`, `Project`, and `Checklist` models with incremental `ALTER TABLE … ADD COLUMN IF NOT EXISTS` migration. |
+| FR-46 | Admins can maintain a single global master checklist whose items include `team_category`, guidance text, expected evidence, and applicability metadata | Must | Partial | `team_category`, `guidance`, and `applicability_tags` are now stored on `ChecklistItem` and exposed through APIs and the `/globals` UI (Phase 1 item 1 complete); full single-master workflow is still planned. |
 | FR-47 | Reviewers can derive a project-scoped checklist from the global master checklist and edit, exclude, delete, or reassign items before external review distribution | Must | Planned | Project-level overrides happen before distribution, not on the frozen review snapshot. |
 | FR-48 | Projects can define one or more review teams with category, lead, email, and responsibility scope | Must | Planned | Teams are used to map checklist ownership and distribution targets. |
 | FR-49 | ReviewBot can freeze a review snapshot before external distribution and reject uploads that do not match that snapshot version | Must | Planned | Snapshot integrity is required for safe Excel generation and parsing. |
@@ -141,7 +144,7 @@ This section translates the approved external async review design into reviewer-
 | NFR-17 | External review distribution and upload access must support expiry, revocation, and audit visibility per team | Planned | External participants should receive least-privilege access only. |
 | NFR-18 | Evidence binding for distributed external reviews must use stable server-side identifiers rather than filename text alone | Planned | Filename-only binding is too fragile for production workflows. |
 | NFR-11 | Rate limiting and abuse protection | Planned | No production-grade rate limiting layer is wired yet. |
-| NFR-12 | Multi-tenant isolation | Planned | Current data model and routing assume a single deployment context. |
+| NFR-12 | Multi-tenant isolation | Partial | Lightweight org scoping implemented: `Organization` model, `organization_id` FK on `User`/`Project`/`Checklist`, and org-filtered global checklist visibility. Full row-level multi-tenancy isolation is still planned. |
 
 ## Current Release Boundaries
 
@@ -256,3 +259,64 @@ After pulling this change, generate and apply the Alembic migration:
 alembic revision --autogenerate -m "add integration configs and dispatches"
 alembic upgrade head
 ```
+
+---
+
+## Future Phase: Multi-Organization Support
+
+The following requirements are deferred to a future phase. The current release implements a simple single-org-per-user model (nullable FK on `User.organization_id`). The items below extend this toward full multi-org support.
+
+### FR-ORG-001 — Many-to-many user ↔ organization membership
+
+Users should be assignable to multiple organizations simultaneously. Requires a `user_organizations` junction table replacing the current scalar `organization_id` on `User`. An optional `is_primary` flag designates the user's default org context.
+
+### FR-ORG-002 — Role per organization membership
+
+A user's role (reviewer / manager / admin) should be scoped per-organization rather than being a single global value. The junction table would carry a `role` column; the platform-wide `User.role` becomes a fallback for users without org-specific roles.
+
+### FR-ORG-003 — Platform user flag
+
+A boolean `is_platform_user` on `User` to designate super-admins who operate across all organizations without explicit membership. Platform users bypass org-scoped visibility checks.
+
+### FR-ORG-004 — Organization hierarchy
+
+Support parent–child org relationships via a self-referencing `parent_id` FK on `Organization`. Child orgs inherit visible templates from the parent but can override with their own. Depth limited to two levels to keep query complexity manageable.
+
+### FR-ORG-005 — Organization type / classification
+
+An `org_type` field on `Organization` (e.g. `client`, `internal`, `partner`, `vendor`) to allow domain-level filtering of checklists, action plans, and review visibility rules.
+
+### FR-ORG-006 — Review domain access per organization
+
+Checklist and review visibility should be configurable per organization: which review domains (technical, delivery, security, governance, …) each org is permitted to run. Stored as an `allowed_domains` JSON array on `Organization`.
+
+### FR-ORG-007 — External / guest reviewer access
+
+A lightweight guest-user model scoped to a single organization and a specific review. Guests can submit checklist responses and view reports shared with them but cannot create reviews or access other org data.
+
+### FR-ORG-008 — Confidentiality classification on reviews
+
+A `confidentiality_level` field on `Review` and `Report` (e.g. `internal`, `restricted`, `confidential`). Restricted / confidential reports are visible only to users whose org membership and role satisfy the classification policy.
+
+### FR-ORG-009 — Multi-org project assignment
+
+`Project.organization_id` extended to support a many-to-many relationship so a single project can be co-owned by multiple organizations (e.g. a joint-venture engagement), with each org seeing only its own reviews and reports against that project.
+
+### FR-ORG-010 — Broader review scope domains
+
+The review system should support structured review workflows for each of the following domains, each backed by its own checklist template category:
+
+| Domain | Description |
+|---|---|
+| Project performance | Schedule, cost, scope adherence, KPI tracking |
+| Code quality | Automated + manual code review, coverage, technical debt |
+| Architecture & design | ADRs, design decisions, scalability, security posture |
+| Processes & governance | SDLC maturity, change management, risk registers |
+| Human behaviours | Team health, engagement, collaboration, coaching needs |
+| Client relationships | Satisfaction, escalation history, relationship health |
+| Business performance | Revenue, margin, utilization, pipeline vs actuals |
+| Organizational resources | Capacity planning, skill gaps, attrition risk |
+| Recruitment | Hiring pipeline, time-to-fill, offer acceptance rates |
+| Market & sales | Sales funnel, win/loss analysis, competitive positioning |
+| Org sales review | Quarterly sales review against targets |
+| Market trends | Emerging technology adoption, industry benchmark alignment |

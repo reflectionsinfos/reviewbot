@@ -56,8 +56,9 @@ services:
       - DEFAULT_LANGUAGE=${DEFAULT_LANGUAGE:-en}
       
     volumes:
-      # Persist data
-      - app_data:/app/data
+      # Persist data (uploads, reports, chroma are dedicated volumes)
+      # NOTE: /app/data is intentionally NOT a named volume — templates live there
+      # and must be readable from the image/bind-mount.
       - app_uploads:/app/uploads
       - app_reports:/app/reports
       - app_chroma:/app/chroma_db
@@ -153,8 +154,6 @@ networks:
     driver: bridge
 
 volumes:
-  app_data:
-    driver: local
   app_uploads:
     driver: local
   app_reports:

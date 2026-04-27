@@ -13,6 +13,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.core.config import settings
 from app.api.routes import projects, reviews, reports, checklists, auth
+from app.api.routes.organizations import router as organizations_router
 from app.api.routes.users import router as users_router
 from app.api.routes.autonomous_reviews import router as autonomous_reviews_router
 from app.api.routes.agent import router as agent_router
@@ -63,6 +64,7 @@ app.include_router(agent_router,               prefix="/api/v1/agent/scan",     
 app.include_router(routing_rules_router,       prefix="/api/routing-rules",      tags=["Routing Rules"])
 app.include_router(llm_configs_router,         prefix="/api/llm-configs",        tags=["LLM Configuration"])
 app.include_router(settings_router,            prefix="/api/settings",           tags=["System Settings"])
+app.include_router(organizations_router,       prefix="/api/organizations",       tags=["Organizations"])
 app.include_router(users_router,               prefix="/api/admin",              tags=["Admin - User Management"])
 app.include_router(integrations_router,        prefix="/api/integrations",        tags=["Integrations"])
 

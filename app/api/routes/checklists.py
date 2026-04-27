@@ -1,10 +1,12 @@
 """
 Checklists API Routes
 """
+import io
 import logging
 import os
 import tempfile
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -79,10 +81,164 @@ async def optimize_checklist(
 @router.get("/templates/global")
 async def get_global_checklist_templates(
     type: Optional[str] = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Get global checklist templates"""
-    return await ChecklistService.get_global_checklist_templates(db, type)
+    """Get global checklist templates visible to the current user's organization."""
+    return await ChecklistService.get_global_checklist_templates(
+        db, type, organization_id=current_user.organization_id
+    )
+
+
+@router.get("/templates/download-excel-template")
+async def download_excel_template(
+    type: Optional[str] = Query(None, description="Checklist type: 'delivery', 'technical', or 'master'"),
+):
+    """
+    Download a pre-filled Excel checklist template (.xlsx).
+
+    - type=master (or omitted) → single sheet "Master Template Items" with all 156 items
+    - type=delivery  → single sheet "Master Template Items" with 49 delivery items only
+    - type=technical → single sheet "Master Template Items" with 107 technical items only
+
+    Column layout: Area | Category | Team Category | Question | Guidance |
+                   Applicability Tags | Evidence | Weight | Review?
+    """
+    import pandas as pd
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+    from pathlib import Path
+
+    # ── column layout ────────────────────────────────────────────────────────
+    HEADERS = [
+        "Area", "Category", "Team Category", "Question", "Guidance",
+        "Applicability Tags", "Evidence", "Weight", "Review?",
+    ]
+    COL_WIDTHS = [26, 12, 16, 42, 52, 22, 52, 8, 8]
+
+    # ── styling ──────────────────────────────────────────────────────────────
+    HDR_FILL  = PatternFill("solid", fgColor="1F3864")
+    HDR_FONT  = Font(color="FFFFFF", bold=True, size=11)
+    ALT_FILL  = PatternFill("solid", fgColor="EEF2F7")
+    THIN      = Side(style="thin", color="BDC8D6")
+    BORDER    = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
+    DATA_FONT = Font(name="Calibri", size=10)
+
+    def _style_header(ws):
+        ws.row_dimensions[1].height = 28
+        for cell in ws[1]:
+            cell.font      = HDR_FONT
+            cell.fill      = HDR_FILL
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border    = BORDER
+
+    def _style_data_row(ws, row_idx: int, alternate: bool):
+        for cell in ws[row_idx]:
+            if alternate:
+                cell.fill = ALT_FILL
+            cell.font      = DATA_FONT
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            cell.border    = BORDER
+        ws.row_dimensions[row_idx].height = 36
+
+    def _set_col_widths(ws):
+        for i, w in enumerate(COL_WIDTHS, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+
+    def _add_data_validation(ws, max_row: int):
+        dv = DataValidation(type="list", formula1='"Yes,No"', allow_blank=False)
+        dv.sqref = f"I2:I{max(max_row + 200, 300)}"
+        ws.add_data_validation(dv)
+
+    def _populate_sheet(ws, rows):
+        """Write rows to the worksheet."""
+        ws.append(HEADERS)
+        _style_header(ws)
+        for idx, row_data in enumerate(rows, 1):
+            ws.append(row_data)
+            _style_data_row(ws, ws.max_row, alternate=(idx % 2 == 0))
+        _set_col_widths(ws)
+        _add_data_validation(ws, ws.max_row)
+        ws.freeze_panes = "A2"
+
+    # ── locate source files ───────────────────────────────────────────────────
+    tmpl_root = Path(__file__).resolve().parents[3] / "data" / "templates"
+    candidates = [tmpl_root / "reviewbot" / "v1", tmpl_root]
+    base = next((p for p in candidates if (p / "standard-delivery.xlsx").exists()), None)
+
+    def _read_source(src_path: Path) -> list:
+        """Read enriched source file (new unified column schema)."""
+        try:
+            df = pd.read_excel(src_path, sheet_name="Master Template Items")
+        except Exception:
+            return []
+        rows, current_area = [], ""
+        for _, row in df.iterrows():
+            av = row.get("Area")
+            if pd.notna(av) and str(av).strip():
+                current_area = str(av).strip()
+            q = row.get("Question")
+            if pd.isna(q) or not str(q).strip():
+                continue
+
+            def _s(col):
+                v = row.get(col)
+                return str(v).strip() if pd.notna(v) and str(v).strip() else ""
+
+            rows.append([
+                current_area,
+                _s("Category"),
+                _s("Team Category"),
+                str(q).strip(),
+                _s("Guidance"),
+                _s("Applicability Tags"),
+                _s("Evidence"),
+                float(row.get("Weight") or 1.0),
+                "Yes",
+            ])
+        return rows
+
+    def _read_delivery():
+        return _read_source(base / "standard-delivery.xlsx") if base else []
+
+    def _read_technical():
+        return _read_source(base / "standard-technical.xlsx") if base else []
+
+    # ── build workbook ───────────────────────────────────────────────────────
+    wb = Workbook()
+    checklist_type = (type or "master").strip().lower()
+
+    if checklist_type == "delivery":
+        ws = wb.active
+        ws.title = "Master Template Items"
+        _populate_sheet(ws, _read_delivery())
+        fname = "reviewbot_delivery_template.xlsx"
+
+    elif checklist_type == "technical":
+        ws = wb.active
+        ws.title = "Master Template Items"
+        _populate_sheet(ws, _read_technical())
+        fname = "reviewbot_technical_template.xlsx"
+
+    else:
+        # master (default) → all 156 items in one sheet
+        ws = wb.active
+        ws.title = "Master Template Items"
+        _populate_sheet(ws, _read_delivery() + _read_technical())
+        fname = "reviewbot_master_template.xlsx"
+
+    # ── stream ───────────────────────────────────────────────────────────────
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 
 
 @router.post("/templates/use/{template_id}")
@@ -179,6 +335,9 @@ async def add_checklist_item(
             "weight": new_item.weight,
             "is_review_mandatory": new_item.is_review_mandatory,
             "expected_evidence": new_item.expected_evidence,
+            "team_category": new_item.team_category,
+            "guidance": new_item.guidance,
+            "applicability_tags": new_item.applicability_tags,
             "item_code": new_item.item_code,
             "order": new_item.order
         }
@@ -211,6 +370,9 @@ async def update_checklist_item(
             "weight": item.weight,
             "is_review_mandatory": item.is_review_mandatory,
             "expected_evidence": item.expected_evidence,
+            "team_category": item.team_category,
+            "guidance": item.guidance,
+            "applicability_tags": item.applicability_tags,
             "item_code": item.item_code,
             "order": item.order
         }
@@ -311,6 +473,7 @@ async def create_global_checklist(
             "type": checklist.type,
             "version": checklist.version,
             "is_global": True,
+            "organization_id": checklist.organization_id,
             "item_count": 0
         }
 
@@ -436,6 +599,7 @@ async def upload_global_checklist(
                 version="1.0",
                 is_global=True,
                 project_id=None,
+                organization_id=current_user.organization_id,
             )
             db.add(checklist)
             await db.flush()  # get checklist.id
@@ -454,6 +618,9 @@ async def upload_global_checklist(
                     weight=item_data.get("weight", 1.0),
                     is_review_mandatory=item_data.get("is_review_mandatory", True),
                     expected_evidence=item_data.get("expected_evidence"),
+                    team_category=item_data.get("team_category"),
+                    guidance=item_data.get("guidance"),
+                    applicability_tags=item_data.get("applicability_tags"),
                     order=order,
                 )
                 db.add(item)
@@ -480,6 +647,131 @@ async def upload_global_checklist(
         await db.rollback()
         logger.error(f"Error uploading global checklist: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to parse Excel file: {str(e)}")
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@router.post("/globals/{checklist_id}/upload-items")
+async def upload_items_to_global_checklist(
+    checklist_id: int,
+    file: UploadFile = File(..., description="Excel checklist file (.xlsx)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Replace all items on an existing global checklist by uploading an Excel file.
+
+    The file must use the unified column layout:
+      Area | Team Category | Question | Guidance | Applicability Tags | Evidence | Weight | Review?
+
+    The correct sheet is selected automatically based on the checklist type:
+      - delivery  → reads "Delivery Check List V 1.0" sheet
+      - technical → reads "Technical Check List V 1.0" sheet
+
+    All existing items are deleted and replaced with the uploaded content.
+    Requires admin role.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin role required")
+
+    filename = file.filename or ""
+    if not filename.lower().endswith((".xlsx", ".xlsm")):
+        raise HTTPException(status_code=400, detail="Only .xlsx or .xlsm files are supported")
+
+    content = await file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 25 MB)")
+
+    tmp_path = None
+    try:
+        # Resolve the checklist and confirm it exists and is global
+        from sqlalchemy import select as sa_select, delete as sa_delete
+        result = await db.execute(
+            sa_select(Checklist).where(Checklist.id == checklist_id, Checklist.is_global == True)
+        )
+        checklist = result.scalar_one_or_none()
+        if checklist is None:
+            raise HTTPException(status_code=404, detail="Global checklist not found")
+
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        parsed = await parse_excel_checklist(tmp_path)
+        checklists_data = parsed.get("checklists", {})
+
+        # Pick items matching this checklist's type
+        checklist_type = checklist.type  # "delivery", "technical", or "master"
+        items_data = checklists_data.get(checklist_type)
+        if not items_data:
+            if checklist_type == "master":
+                # Master sheet parsed via parse_master_sheet — key is "master"
+                items_data = checklists_data.get("master")
+            if not items_data:
+                # Fallback: accept any single sheet present in the file
+                if len(checklists_data) == 1:
+                    items_data = next(iter(checklists_data.values()))
+                else:
+                    raise HTTPException(
+                        status_code=422,
+                        detail=(
+                            f"No '{checklist_type}' sheet found in the uploaded file. "
+                            "For master templates upload a file with a 'Master Template Items' sheet. "
+                            "For delivery/technical templates use the matching sheet name."
+                        ),
+                    )
+
+        if not items_data:
+            raise HTTPException(status_code=422, detail="The uploaded file contains no checklist items")
+
+        # Delete all existing items for this checklist
+        await db.execute(
+            sa_delete(ChecklistItem).where(ChecklistItem.checklist_id == checklist_id)
+        )
+        # Reset area codes so they are regenerated cleanly
+        checklist.area_codes = {}
+        await db.flush()
+
+        # Insert new items
+        for order, item_data in enumerate(items_data):
+            area = item_data.get("area", "General")
+            item_code = await _generate_item_code(db, checklist.id, area)
+            item = ChecklistItem(
+                checklist_id=checklist.id,
+                item_code=item_code,
+                area=area,
+                question=item_data.get("question", ""),
+                category=item_data.get("category", checklist_type),
+                weight=item_data.get("weight", 1.0),
+                is_review_mandatory=item_data.get("is_review_mandatory", True),
+                expected_evidence=item_data.get("expected_evidence"),
+                team_category=item_data.get("team_category"),
+                guidance=item_data.get("guidance"),
+                applicability_tags=item_data.get("applicability_tags"),
+                order=order,
+            )
+            db.add(item)
+            await db.flush()
+
+        await db.commit()
+        logger.info(
+            f"Items replaced on global checklist {checklist_id} ('{checklist.name}') "
+            f"from '{filename}' by {current_user.email}: {len(items_data)} items"
+        )
+        return {
+            "checklist_id": checklist_id,
+            "checklist_name": checklist.name,
+            "items_replaced": len(items_data),
+        }
+
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error uploading items to global checklist {checklist_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to parse Excel file: {e}")
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
@@ -516,6 +808,9 @@ async def add_item_to_global_checklist(
             "weight": item.weight,
             "is_review_mandatory": item.is_review_mandatory,
             "expected_evidence": item.expected_evidence,
+            "team_category": item.team_category,
+            "guidance": item.guidance,
+            "applicability_tags": item.applicability_tags,
             "order": item.order
         }
 
@@ -559,6 +854,9 @@ async def update_item_in_global_checklist(
             "weight": item.weight,
             "is_review_mandatory": item.is_review_mandatory,
             "expected_evidence": item.expected_evidence,
+            "team_category": item.team_category,
+            "guidance": item.guidance,
+            "applicability_tags": item.applicability_tags,
             "order": item.order
         }
 

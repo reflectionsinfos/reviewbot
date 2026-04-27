@@ -174,6 +174,7 @@ class ChecklistService:
             "version": checklist.version,
             "is_global": checklist.is_global,
             "project_id": checklist.project_id,
+            "organization_id": checklist.organization_id,
             "source_checklist_id": checklist.source_checklist_id,
             "created_at": checklist.created_at.isoformat() if checklist.created_at else None
         }
@@ -202,6 +203,9 @@ class ChecklistService:
                     "weight": item.weight,
                     "is_review_mandatory": item.is_review_mandatory,
                     "expected_evidence": item.expected_evidence,
+                    "team_category": item.team_category,
+                    "guidance": item.guidance,
+                    "applicability_tags": item.applicability_tags,
                     "order": item.order,
                     "strategy": strategy_map.get(item.id, "auto"),
                 }
@@ -308,15 +312,32 @@ class ChecklistService:
         }
 
     @staticmethod
-    async def get_global_checklist_templates(db: AsyncSession, type: Optional[str]) -> dict:
-        query = select(Checklist).options(selectinload(Checklist.items)).where(Checklist.is_global == True)
-        
+    async def get_global_checklist_templates(
+        db: AsyncSession,
+        type: Optional[str],
+        organization_id: Optional[int] = None,
+    ) -> dict:
+        from sqlalchemy import or_
+        query = (
+            select(Checklist)
+            .options(selectinload(Checklist.items))
+            .where(Checklist.is_global == True)
+        )
+
         if type:
             query = query.where(Checklist.type == type)
-        
+
+        # Org scoping: platform-wide (NULL) OR belonging to the user's org
+        query = query.where(
+            or_(
+                Checklist.organization_id == None,
+                Checklist.organization_id == organization_id,
+            )
+        )
+
         result = await db.execute(query)
         checklists = result.scalars().all()
-        
+
         return {
             "templates": [
                 {
@@ -324,7 +345,8 @@ class ChecklistService:
                     "name": c.name,
                     "type": c.type,
                     "version": c.version,
-                    "items_count": len(c.items)
+                    "items_count": len(c.items),
+                    "organization_id": c.organization_id,
                 }
                 for c in checklists
             ]
@@ -377,6 +399,9 @@ class ChecklistService:
                 weight=item.weight,
                 is_review_mandatory=item.is_review_mandatory,
                 expected_evidence=item.expected_evidence,
+                team_category=item.team_category,
+                guidance=item.guidance,
+                applicability_tags=item.applicability_tags,
                 suggested_for_domains=item.suggested_for_domains,
                 order=item.order
             )
@@ -446,6 +471,9 @@ class ChecklistService:
                     weight=g_item.weight,
                     is_review_mandatory=g_item.is_review_mandatory,
                     expected_evidence=g_item.expected_evidence,
+                    team_category=g_item.team_category,
+                    guidance=g_item.guidance,
+                    applicability_tags=g_item.applicability_tags,
                     suggested_for_domains=g_item.suggested_for_domains,
                     order=g_item.order
                 )
@@ -478,6 +506,9 @@ class ChecklistService:
                     p_item.weight != g_item.weight or
                     p_item.is_review_mandatory != g_item.is_review_mandatory or
                     p_item.expected_evidence != g_item.expected_evidence or
+                    p_item.team_category != g_item.team_category or
+                    p_item.guidance != g_item.guidance or
+                    p_item.applicability_tags != g_item.applicability_tags or
                     p_item.order != g_item.order):
                     changed_items.append((p_item, g_item))
                     
@@ -496,6 +527,9 @@ class ChecklistService:
                 weight=g_item.weight,
                 is_review_mandatory=g_item.is_review_mandatory,
                 expected_evidence=g_item.expected_evidence,
+                team_category=g_item.team_category,
+                guidance=g_item.guidance,
+                applicability_tags=g_item.applicability_tags,
                 suggested_for_domains=g_item.suggested_for_domains,
                 order=g_item.order
             )
@@ -510,6 +544,9 @@ class ChecklistService:
                 p_item.weight = g_item.weight
                 p_item.is_review_mandatory = g_item.is_review_mandatory
                 p_item.expected_evidence = g_item.expected_evidence
+                p_item.team_category = g_item.team_category
+                p_item.guidance = g_item.guidance
+                p_item.applicability_tags = g_item.applicability_tags
                 p_item.order = g_item.order
                 updated += 1
                 
@@ -559,6 +596,9 @@ class ChecklistService:
             weight=item_in.weight,
             is_review_mandatory=item_in.is_review_mandatory,
             expected_evidence=item_in.expected_evidence.strip() if item_in.expected_evidence else None,
+            team_category=item_in.team_category.strip() if item_in.team_category else None,
+            guidance=item_in.guidance.strip() if item_in.guidance else None,
+            applicability_tags=item_in.applicability_tags,
             order=item_in.order
         )
         db.add(new_item)
@@ -696,7 +736,8 @@ class ChecklistService:
             version=req.version.strip() if req.version else "1.0",
             is_global=True,
             project_id=None,
-            source_checklist_id=None
+            source_checklist_id=None,
+            organization_id=req.organization_id,
         )
 
         db.add(checklist)
@@ -809,6 +850,9 @@ class ChecklistService:
             weight=item_in.weight,
             is_review_mandatory=item_in.is_review_mandatory,
             expected_evidence=item_in.expected_evidence.strip() if item_in.expected_evidence else None,
+            team_category=item_in.team_category.strip() if item_in.team_category else None,
+            guidance=item_in.guidance.strip() if item_in.guidance else None,
+            applicability_tags=item_in.applicability_tags,
             order=item_in.order
         )
 

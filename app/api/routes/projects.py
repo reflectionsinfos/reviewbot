@@ -29,6 +29,7 @@ class ProjectCreate(BaseModel):
     tech_stack: Optional[List[str]] = None
     stakeholders: Optional[Dict] = None
     status: str = "active"
+    organization_id: Optional[int] = None
 
 
 class ProjectWithChecklistsCreate(ProjectCreate):
@@ -180,7 +181,8 @@ async def create_project(
         description=payload.description.strip() if payload.description else None,
         tech_stack=payload.tech_stack,
         stakeholders=payload.stakeholders,
-        status=payload.status
+        status=payload.status,
+        organization_id=payload.organization_id,
     )
 
     db.add(project)
@@ -220,7 +222,8 @@ async def create_project_with_checklists(
             tech_stack=req.tech_stack,
             stakeholders=req.stakeholders,
             status=req.status,
-            owner_id=current_user.id
+            owner_id=current_user.id,
+            organization_id=req.organization_id,
         )
 
         db.add(project)
@@ -279,6 +282,9 @@ async def create_project_with_checklists(
                     weight=item.weight,
                     is_review_mandatory=item.is_review_mandatory,
                     expected_evidence=item.expected_evidence,
+                    team_category=item.team_category,
+                    guidance=item.guidance,
+                    applicability_tags=item.applicability_tags,
                     suggested_for_domains=item.suggested_for_domains,
                     order=item.order
                 )
@@ -406,6 +412,9 @@ async def upload_checklist(
                     weight=item_data.get("weight", 1.0),
                     is_review_mandatory=item_data.get("is_review_mandatory", item_data.get("is_required", True)),
                     expected_evidence=item_data.get("expected_evidence"),
+                    team_category=item_data.get("team_category"),
+                    guidance=item_data.get("guidance"),
+                    applicability_tags=item_data.get("applicability_tags"),
                     order=idx
                 )
                 db.add(item)
@@ -565,7 +574,11 @@ async def get_project_checklists(
                     "question": item.question,
                     "category": item.category,
                     "weight": item.weight,
-                    "is_review_mandatory": item.is_review_mandatory
+                    "is_review_mandatory": item.is_review_mandatory,
+                    "expected_evidence": item.expected_evidence,
+                    "team_category": item.team_category,
+                    "guidance": item.guidance,
+                    "applicability_tags": item.applicability_tags,
                 }
                 for item in checklist.items
             ]

@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReviewBot — Offline Review</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 40px 16px 80px;
+    }
+
+    /* ── Logo Bar ─────────────────────────────────────────────────────────── */
+    .logo-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 40px;
+      animation: fadeDown 0.5s ease both;
+    }
+    .logo-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: linear-gradient(135deg, #1E3A5F, #0ea5e9);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .logo-text { font-size: 22px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.5px; }
+    .logo-sub  { font-size: 12px; color: #64748b; letter-spacing: 1px; text-transform: uppercase; }
+
+    /* ── States ───────────────────────────────────────────────────────────── */
+    #state-loading, #state-error, #state-already-done, #state-main, #state-success {
+      display: none;
+      width: 100%;
+      max-width: 640px;
+    }
+    #state-loading { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: 40px; }
+
+    /* ── Spinner ──────────────────────────────────────────────────────────── */
+    .spinner {
+      width: 48px; height: 48px; border: 4px solid #1e293b;
+      border-top-color: #38bdf8; border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* ── Card ─────────────────────────────────────────────────────────────── */
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      animation: fadeUp 0.55s ease both;
+    }
+    .card-header {
+      background: linear-gradient(135deg, #1E3A5F 0%, #0c2a4a 100%);
+      padding: 28px 32px;
+    }
+    .card-header-label {
+      font-size: 11px; color: #90CAF9; text-transform: uppercase;
+      letter-spacing: 1.5px; margin-bottom: 8px;
+    }
+    .card-header-project {
+      font-size: 26px; font-weight: 800; color: #fff;
+      line-height: 1.2; letter-spacing: -0.5px;
+    }
+    .card-header-checklist {
+      font-size: 14px; color: #90CAF9; margin-top: 6px;
+    }
+    .card-body { padding: 28px 32px; }
+
+    /* ── Info Grid ────────────────────────────────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .info-tile {
+      background: #0f172a;
+      border: 1px solid #1e3a5f;
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .info-tile-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+    .info-tile-value { font-size: 15px; font-weight: 600; color: #f1f5f9; }
+    .info-tile-value.due { color: #fb923c; }
+    .info-tile-value.items { color: #38bdf8; }
+
+    /* ── Admin Message ────────────────────────────────────────────────────── */
+    .admin-msg {
+      background: #1a2a1a;
+      border: 1px solid #166534;
+      border-left: 4px solid #22c55e;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #bbf7d0;
+      font-style: italic;
+    }
+    .admin-msg-label { font-size: 11px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; font-style: normal; }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 24px; border-radius: 10px; font-size: 15px;
+      font-weight: 700; cursor: pointer; border: none;
+      transition: all 0.15s; text-decoration: none;
+    }
+    .btn-primary {
+      background: #0ea5e9; color: #fff; width: 100%;
+    }
+    .btn-primary:hover:not(:disabled) { background: #38bdf8; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-download {
+      background: linear-gradient(135deg, #1E3A5F, #0ea5e9);
+      color: #fff; width: 100%; font-size: 16px; padding: 14px 24px;
+      letter-spacing: 0.3px;
+    }
+    .btn-download:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-download:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ── Divider ──────────────────────────────────────────────────────────── */
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 24px 0; color: #475569; font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: #334155;
+    }
+
+    /* ── Upload Zone ──────────────────────────────────────────────────────── */
+    .upload-zone {
+      border: 2px dashed #334155;
+      border-radius: 12px;
+      padding: 32px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #38bdf8; background: rgba(56,189,248,0.04);
+    }
+    .upload-zone input[type=file] { display: none; }
+    .upload-zone-icon { font-size: 36px; margin-bottom: 10px; }
+    .upload-zone-title { font-size: 15px; font-weight: 600; color: #f1f5f9; margin-bottom: 6px; }
+    .upload-zone-hint { font-size: 12px; color: #64748b; }
+    .upload-selected {
+      margin-top: 12px; padding: 10px 14px;
+      background: #0f172a; border: 1px solid #334155;
+      border-radius: 8px; font-size: 13px; color: #94a3b8;
+      display: none; align-items: center; gap: 8px;
+    }
+    .upload-selected.visible { display: flex; }
+
+    /* ── Error / Info Tiles ───────────────────────────────────────────────── */
+    .msg-card {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 16px; padding: 40px 32px; text-align: center;
+      animation: fadeUp 0.5s ease both;
+    }
+    .msg-icon { font-size: 52px; margin-bottom: 16px; }
+    .msg-title { font-size: 22px; font-weight: 800; color: #f1f5f9; margin-bottom: 10px; }
+    .msg-body { font-size: 14px; color: #94a3b8; line-height: 1.6; }
+
+    /* ── Success State ────────────────────────────────────────────────────── */
+    .score-circle {
+      width: 120px; height: 120px; border-radius: 50%;
+      border: 8px solid #1e293b;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; margin: 0 auto 20px;
+      position: relative;
+    }
+    .score-value { font-size: 28px; font-weight: 900; }
+    .score-label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+    .rag-bar {
+      display: flex; gap: 6px; margin: 16px 0; border-radius: 8px; overflow: hidden;
+    }
+    .rag-seg {
+      height: 10px; border-radius: 3px; transition: width 0.5s ease;
+    }
+    .rag-legend { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+    .rag-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+    /* ── Animations ───────────────────────────────────────────────────────── */
+    @keyframes spin   { to { transform: rotate(360deg); } }
+    @keyframes fadeUp   { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+    @keyframes pulse    { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    .uploading-pulse { animation: pulse 1.2s infinite; }
+  </style>
+</head>
+<body>
+
+  <!-- Logo Bar -->
+  <div class="logo-bar">
+    <div class="logo-icon">📋</div>
+    <div>
+      <div class="logo-text">ReviewBot</div>
+      <div class="logo-sub">AI Review Platform</div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="state-loading">
+    <div class="spinner"></div>
+    <p style="color:#64748b;font-size:14px">Loading your review…</p>
+  </div>
+
+  <!-- Error State (not found / invalid token) -->
+  <div id="state-error">
+    <div class="msg-card">
+      <div class="msg-icon">🔗</div>
+      <div class="msg-title">Review link not found</div>
+      <div class="msg-body" id="error-text">
+        This review link is invalid or has expired.<br/>
+        Please contact your ReviewBot administrator to get a new link.
+      </div>
+    </div>
+  </div>
+
+  <!-- Already Submitted State -->
+  <div id="state-already-done">
+    <div class="msg-card">
+      <div class="msg-icon">✅</div>
+      <div class="msg-title">Already submitted</div>
+      <div class="msg-body">
+        Your response has already been uploaded for this review.<br/>
+        The admin will be notified once it's been reviewed and approved.
+      </div>
+    </div>
+  </div>
+
+  <!-- Main State -->
+  <div id="state-main" style="max-width:640px;width:100%">
+
+    <div class="card" id="welcome-card">
+      <div class="card-header">
+        <div class="card-header-label">You've been invited to review</div>
+        <div class="card-header-project" id="project-name">Loading…</div>
+        <div class="card-header-checklist" id="checklist-name"></div>
+      </div>
+      <div class="card-body">
+
+        <!-- Info grid -->
+        <div class="info-grid">
+          <div class="info-tile">
+            <div class="info-tile-label">Reviewer</div>
+            <div class="info-tile-value" id="reviewer-name">—</div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Checklist items</div>
+            <div class="info-tile-value items" id="item-count">—</div>
+          </div>
+          <div class="info-tile" id="due-tile" style="display:none">
+            <div class="info-tile-label">Complete by</div>
+            <div class="info-tile-value due" id="due-date">—</div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Sent</div>
+            <div class="info-tile-value" id="sent-date" style="font-size:13px">—</div>
+          </div>
+        </div>
+
+        <!-- Admin message -->
+        <div class="admin-msg" id="admin-msg-block" style="display:none">
+          <div class="admin-msg-label">Message from the admin</div>
+          <span id="admin-msg-text"></span>
+        </div>
+
+        <!-- Download CTA -->
+        <button class="btn btn-download" id="btn-download" onclick="downloadChecklist()">
+          📥 &nbsp;Download Checklist
+        </button>
+
+        <div class="divider">Already filled it in? Upload your response below</div>
+
+        <!-- Upload zone -->
+        <div class="upload-zone" id="upload-zone"
+             ondragover="onDragOver(event)" ondragleave="onDragLeave(event)"
+             ondrop="onDrop(event)" onclick="document.getElementById('file-input').click()">
+          <input type="file" id="file-input" accept=".xlsx" onchange="onFileSelected(event)" />
+          <div class="upload-zone-icon">📤</div>
+          <div class="upload-zone-title">Drop your completed Excel here</div>
+          <div class="upload-zone-hint">or click to browse &nbsp;·&nbsp; .xlsx files only</div>
+        </div>
+
+        <!-- Selected file indicator -->
+        <div class="upload-selected" id="file-selected">
+          <span>📄</span>
+          <span id="file-name"></span>
+        </div>
+
+        <!-- Upload button -->
+        <button class="btn btn-primary" id="btn-upload" onclick="submitUpload()" disabled
+                style="margin-top:16px">
+          Upload Response
+        </button>
+
+        <p id="upload-status" style="text-align:center;font-size:13px;color:#64748b;margin-top:12px"></p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Success State -->
+  <div id="state-success" style="max-width:520px;width:100%">
+    <div class="msg-card">
+      <div class="msg-icon">🎉</div>
+      <div class="msg-title">Response submitted!</div>
+
+      <div id="score-block" style="margin:20px 0">
+        <div class="score-circle" id="score-circle">
+          <div class="score-value" id="score-value">—</div>
+          <div class="score-label">score</div>
+        </div>
+
+        <div class="rag-bar" id="rag-bar"></div>
+        <div class="rag-legend" id="rag-legend"></div>
+      </div>
+
+      <div class="msg-body">
+        Thank you! Your response has been recorded and a report is being generated.<br/>
+        The admin will be notified once it's ready for approval.
+      </div>
+    </div>
+  </div>
+
+<script>
+  const API = '';    // same-origin
+  const params = new URLSearchParams(location.search);
+  const TOKEN  = params.get('token');
+
+  let reviewInfo = null;
+  let selectedFile = null;
+
+  function show(stateId) {
+    ['state-loading','state-error','state-already-done','state-main','state-success']
+      .forEach(id => { document.getElementById(id).style.display = 'none'; });
+    document.getElementById(stateId).style.display = 'block';
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  async function boot() {
+    if (!TOKEN) { showError('No review token found in the URL. Please check the link in your email.'); return; }
+
+    show('state-loading');
+
+    // Small delay to let the page render with a nice entrance
+    await new Promise(r => setTimeout(r, 600));
+
+    try {
+      const res = await fetch(`${API}/api/reviews/upload-info/${TOKEN}`);
+      if (res.status === 410) { showError('This review link has expired. Please contact your ReviewBot administrator.'); return; }
+      if (!res.ok) { showError('This review link is invalid or could not be loaded.'); return; }
+
+      reviewInfo = await res.json();
+
+      if (reviewInfo.already_submitted) { show('state-already-done'); return; }
+
+      populateUI(reviewInfo);
+      show('state-main');
+
+    } catch (e) {
+      showError('Unable to connect to ReviewBot. Please try again later.');
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('error-text').textContent = msg;
+    show('state-error');
+  }
+
+  // ── Populate UI ──────────────────────────────────────────────────────────
+  function populateUI(info) {
+    document.title = `ReviewBot — ${info.project_name}`;
+    document.getElementById('project-name').textContent   = info.project_name;
+    document.getElementById('checklist-name').textContent = info.checklist_name;
+    document.getElementById('reviewer-name').textContent  = info.reviewer_name;
+    document.getElementById('item-count').textContent     = `${info.item_count} items`;
+
+    if (info.due_date) {
+      const d = new Date(info.due_date);
+      document.getElementById('due-date').textContent = d.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+      document.getElementById('due-tile').style.display = 'block';
+    }
+
+    if (info.sent_at) {
+      const s = new Date(info.sent_at);
+      document.getElementById('sent-date').textContent = s.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+    }
+
+    if (info.admin_message) {
+      document.getElementById('admin-msg-text').textContent = info.admin_message;
+      document.getElementById('admin-msg-block').style.display = 'block';
+    }
+  }
+
+  // ── Download ─────────────────────────────────────────────────────────────
+  async function downloadChecklist() {
+    const btn = document.getElementById('btn-download');
+    btn.disabled = true;
+    btn.textContent = '⏳  Generating Excel…';
+    try {
+      const res = await fetch(`${API}/api/reviews/download-checklist/${TOKEN}`);
+      if (!res.ok) { alert('Download failed. Please try again.'); return; }
+
+      const blob = await res.blob();
+      const cd   = res.headers.get('Content-Disposition') || '';
+      const fnMatch = cd.match(/filename="([^"]+)"/);
+      const filename = fnMatch ? fnMatch[1] : 'ReviewBot_Checklist.xlsx';
+
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      btn.textContent = '✅  Downloaded — fill it in and upload below';
+    } catch(e) {
+      alert('Download failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ── File selection ────────────────────────────────────────────────────────
+  function onFileSelected(e) {
+    setFile(e.target.files[0]);
+  }
+  function onDragOver(e)  { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
+  function onDragLeave(e) { document.getElementById('upload-zone').classList.remove('drag-over'); }
+  function onDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f) setFile(f);
+  }
+  function setFile(f) {
+    if (!f) return;
+    if (!f.name.endsWith('.xlsx')) { alert('Please select a .xlsx file.'); return; }
+    selectedFile = f;
+    document.getElementById('file-name').textContent = f.name;
+    document.getElementById('file-selected').classList.add('visible');
+    document.getElementById('btn-upload').disabled = false;
+    document.getElementById('upload-status').textContent = '';
+  }
+
+  // ── Upload ────────────────────────────────────────────────────────────────
+  async function submitUpload() {
+    if (!selectedFile) return;
+
+    const btn = document.getElementById('btn-upload');
+    const status = document.getElementById('upload-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="uploading-pulse">⏳ Uploading…</span>';
+    status.textContent = 'Processing your responses…';
+
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+
+    try {
+      const res = await fetch(`${API}/api/reviews/upload/${TOKEN}`, { method: 'POST', body: fd });
+
+      if (res.status === 409) {
+        status.textContent = '';
+        show('state-already-done');
+        return;
+      }
+      if (res.status === 422) {
+        const err = await res.json();
+        status.textContent = '';
+        alert('Upload error: ' + (err.detail || 'Invalid file format'));
+        btn.disabled = false;
+        btn.textContent = 'Upload Response';
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(`Server error ${res.status}`);
+      }
+
+      const data = await res.json();
+      renderSuccess(data);
+
+    } catch(e) {
+      status.textContent = 'Upload failed: ' + e.message;
+      btn.disabled = false;
+      btn.textContent = 'Upload Response';
+    }
+  }
+
+  // ── Success ───────────────────────────────────────────────────────────────
+  function renderSuccess(data) {
+    const score = data.compliance_score || 0;
+    const rag   = data.rag_summary || {};
+
+    // Score circle colour
+    const circle = document.getElementById('score-circle');
+    const scoreColor = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
+    circle.style.borderColor = scoreColor;
+    document.getElementById('score-value').style.color = scoreColor;
+    document.getElementById('score-value').textContent = score.toFixed(1) + '%';
+
+    // RAG bar
+    const total = (rag.green||0) + (rag.amber||0) + (rag.red||0) + (rag.na||0);
+    const bar   = document.getElementById('rag-bar');
+    if (total > 0) {
+      const segs = [
+        { key: 'green', color: '#22c55e' },
+        { key: 'amber', color: '#f59e0b' },
+        { key: 'red',   color: '#ef4444' },
+        { key: 'na',    color: '#475569' },
+      ];
+      bar.innerHTML = segs.map(s => {
+        const pct = ((rag[s.key]||0) / total * 100).toFixed(1);
+        if (pct == 0) return '';
+        return `<div class="rag-seg" style="background:${s.color};flex:${rag[s.key]}"></div>`;
+      }).join('');
+
+      document.getElementById('rag-legend').innerHTML = segs.map(s => {
+        if (!rag[s.key]) return '';
+        return `<span><span class="rag-dot" style="background:${s.color}"></span>${rag[s.key]} ${s.key}</span>`;
+      }).join('');
+    }
+
+    show('state-success');
+  }
+
+  // Boot on load
+  boot();
+</script>
+</body>
+</html>

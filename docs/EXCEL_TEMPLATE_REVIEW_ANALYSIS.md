@@ -1,8 +1,8 @@
 # Excel Template-Based External Review - Feature Analysis
 
 **Date:** 2026-04-23
-**Last Updated:** 2026-04-23 (v1.3 - single master checklist model, frozen review snapshots, implementation task list)
-**Status:** Proposal Review
+**Last Updated:** 2026-04-26 (v1.6 - Phase 1 item 1 complete; org-scoped global checklists implemented)
+**Status:** In Progress
 **Author:** Mallikarjun Shankesi
 **Reviewed by:** Codex
 
@@ -556,9 +556,22 @@ Outcome: a single `spike_excel_roundtrip.py` script that generates a sample work
 
 > **Why this matters:** Excel worksheet protection and dropdown validation behaviour differ between `openpyxl` and `xlsxwriter`, and both have known gaps when files are opened in non-Excel applications. Discovering this in Phase 0 costs one day; discovering it in Phase 4 costs a sprint.
 
+### Phase 0.5 — Organization Scoping ✅ Done (2026-04-26)
+
+A lightweight organization-scoping layer was added to enable multi-org deployments without a full multi-tenant rewrite. This is a prerequisite for scoped global checklist distribution.
+
+1. ✅ Added `Organization` model with `id`, `name`, `slug`, `description`, `is_active`, `created_at`, `updated_at`
+2. ✅ Added `organization_id` FK (nullable) to `User`, `Project`, and `Checklist` tables
+3. ✅ Added `/api/organizations` CRUD router — any authenticated user can list/read; admin-only writes
+4. ✅ Global checklist visibility rule: `WHERE is_global=true AND (organization_id IS NULL OR organization_id = current_user.organization_id)` — `NULL` means platform-wide
+5. ✅ `GlobalChecklistCreate.type` changed from `Literal["delivery", "technical"]` to `str = "master"` — supports free-form master checklist model
+6. ✅ `/api/auth/me` and `/api/auth/register` return and accept `organization_id`
+7. ✅ `/globals` UI shows org-badge on org-scoped templates and includes scope filter (All / Platform-only / My org only) and type text filter
+8. ✅ Create modal in `/globals` has scope dropdown defaulting to "My organization" when user has an org
+
 ### Phase 1 - Data Model and Requirements Baseline
 
-1. Add `team_category`, `guidance`, and optional applicability metadata to `ChecklistItem`
+1. ✅ **Done** — Add `team_category`, `guidance`, and optional applicability metadata to `ChecklistItem` — `team_category` (string, optional), `guidance` (text, optional), and `applicability_tags` (JSON array, optional) are stored on `ChecklistItem` and exposed through all item create/update/list APIs and the `/globals` UI
 2. Define `ProjectReviewTeam` model for team mapping at project level
 3. Extend `Review` with `mode`, `snapshot_id`, and partial-completion flags
 4. Extend `ReviewResponse` with `team_id`, `response_state`, `confidence`, `assigned_owner`, and clarification text
@@ -645,6 +658,7 @@ Outcome: a single `spike_excel_roundtrip.py` script that generates a sample work
 | 1.3 | 2026-04-23 | Reframed design around one global master checklist, project-level edits before distribution, frozen review snapshots, explicit response states and scoring rules, and a phased implementation task list |
 | 1.4 | 2026-04-23 | Added section 6: snapshot definition and end-to-end distribution sequence diagram with key invariants; renumbered subsequent sections; moved external auth tokens and revocation into Phase 4; moved coordinator notifications and atomic re-upload into Phase 5 |
 | 1.5 | 2026-04-23 | Added Phase 0 (Excel library spike); added ExcelResponseParser incremental extension note; added SMTP integration reuse note; added ReviewSnapshot / ReviewRevision data model with field table; updated Phase 1 and Phase 5 task lists to reference these decisions |
+| 1.6 | 2026-04-26 | Added Phase 0.5 (Organization Scoping — fully implemented); marked Phase 1 item 1 (`team_category`, `guidance`, `applicability_tags` on ChecklistItem) as done; updated document status to In Progress |
 
 ---
 

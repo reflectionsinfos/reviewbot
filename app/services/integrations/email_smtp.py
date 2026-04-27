@@ -226,6 +226,173 @@ async def send_summary_email(
         return DispatchResult(success=False, error_message=str(exc))
 
 
+async def send_offline_review_email(
+    cfg: dict,
+    reviewer_email: str,
+    reviewer_name: str,
+    project_name: str,
+    checklist_name: str,
+    app_url: str,
+    upload_token: str,
+    due_date: Any = None,
+    admin_message: str | None = None,
+    item_count: int = 0,
+) -> DispatchResult:
+    """
+    Send an offline-review invitation email with a link to the ReviewBot upload page.
+
+    No Excel attachment — the reviewer downloads the checklist after clicking the link.
+
+    Args:
+        cfg: SMTP integration config dict.
+        reviewer_email: Destination email address.
+        reviewer_name: Reviewer's display name (used in greeting).
+        project_name: Project being reviewed.
+        checklist_name: Checklist template name.
+        app_url: Base URL of the ReviewBot app (e.g. http://reviewbot.company.com).
+        upload_token: Secure one-time token included in the review URL.
+        due_date: Optional target completion datetime.
+        admin_message: Optional personal message from the admin.
+        item_count: Number of checklist items (informational).
+
+    Returns:
+        DispatchResult indicating success or failure.
+    """
+    review_url = f"{app_url.rstrip('/')}/offline-review.html?token={upload_token}"
+    due_str = due_date.strftime("%A, %d %b %Y") if due_date else None
+
+    # ── Plain text ────────────────────────────────────────────────────────────
+    lines = [
+        f"Hi {reviewer_name},",
+        "",
+        f"You have been invited to complete an offline project review on ReviewBot.",
+        "",
+        f"  Project:   {project_name}",
+        f"  Checklist: {checklist_name}",
+        f"  Items:     {item_count}",
+    ]
+    if due_str:
+        lines.append(f"  Due by:    {due_str}")
+    if admin_message:
+        lines += ["", "Message from the admin:", f"  {admin_message}"]
+    lines += [
+        "",
+        "To get started, click the link below:",
+        f"  {review_url}",
+        "",
+        "The page will let you download the checklist Excel, fill in your responses,",
+        "and upload it back — all in one place.",
+        "",
+        f"This link expires in 30 days. If it has expired, contact your ReviewBot administrator.",
+        "",
+        "— ReviewBot",
+        "This is an automated message — do not reply.",
+    ]
+    plain_text = "\n".join(lines)
+
+    # ── HTML ──────────────────────────────────────────────────────────────────
+    due_badge = (
+        f"<tr><td style='padding:6px 12px;color:#666'><b>Due by</b></td>"
+        f"<td style='padding:6px 12px;color:#E65100;font-weight:bold'>{due_str}</td></tr>"
+        if due_str else ""
+    )
+    msg_block = (
+        f"<div style='background:#FFF8E1;border-left:4px solid #FFC107;"
+        f"padding:12px 16px;margin:16px 0;border-radius:4px;font-style:italic'>"
+        f"<b>Message from the admin:</b><br/>{admin_message}</div>"
+        if admin_message else ""
+    )
+    items_badge = f"{item_count} checklist items" if item_count else "checklist items"
+
+    html = f"""<!DOCTYPE html>
+<html><body style='font-family:Arial,Helvetica,sans-serif;background:#f4f6f9;margin:0;padding:20px'>
+<div style='max-width:580px;margin:auto;background:#fff;border-radius:8px;overflow:hidden;
+            box-shadow:0 2px 8px rgba(0,0,0,.12)'>
+
+  <!-- Header -->
+  <div style='background:#1E3A5F;padding:24px 32px;text-align:center'>
+    <h1 style='color:#fff;margin:0;font-size:22px;letter-spacing:1px'>ReviewBot</h1>
+    <p style='color:#90CAF9;margin:6px 0 0;font-size:14px'>AI Review Platform</p>
+  </div>
+
+  <!-- Body -->
+  <div style='padding:28px 32px'>
+    <p style='font-size:16px;color:#333'>Hi <b>{reviewer_name}</b>,</p>
+    <p style='font-size:15px;color:#444'>
+      You have been invited to complete an <b>offline project review</b>.
+      Please download the checklist, fill in your responses, and upload it back.
+    </p>
+
+    <!-- Project info card -->
+    <table cellspacing='0' style='width:100%;border:1px solid #E0E0E0;border-radius:6px;
+           margin:16px 0;border-collapse:collapse;overflow:hidden'>
+      <tr style='background:#F5F7FA'>
+        <td style='padding:6px 12px;color:#666'><b>Project</b></td>
+        <td style='padding:6px 12px;font-size:15px;font-weight:bold;color:#1E3A5F'>{project_name}</td>
+      </tr>
+      <tr>
+        <td style='padding:6px 12px;color:#666'><b>Checklist</b></td>
+        <td style='padding:6px 12px'>{checklist_name}</td>
+      </tr>
+      <tr style='background:#F5F7FA'>
+        <td style='padding:6px 12px;color:#666'><b>Items</b></td>
+        <td style='padding:6px 12px'>{items_badge}</td>
+      </tr>
+      {due_badge}
+    </table>
+
+    {msg_block}
+
+    <!-- CTA Button -->
+    <div style='text-align:center;margin:28px 0'>
+      <a href='{review_url}'
+         style='background:#1E3A5F;color:#fff;padding:14px 32px;border-radius:6px;
+                text-decoration:none;font-size:16px;font-weight:bold;display:inline-block'>
+        Open Review &rarr;
+      </a>
+    </div>
+
+    <p style='font-size:13px;color:#777;text-align:center'>
+      The page lets you <b>download</b> the checklist Excel, fill in your responses,
+      and <b>upload</b> it back &mdash; no account required.
+    </p>
+
+    <p style='font-size:12px;color:#aaa;text-align:center;margin-top:8px'>
+      Can't click the button? Copy this link:<br/>
+      <a href='{review_url}' style='color:#1E3A5F;word-break:break-all'>{review_url}</a>
+    </p>
+  </div>
+
+  <!-- Footer -->
+  <div style='background:#F5F7FA;padding:16px 32px;text-align:center;
+              border-top:1px solid #E0E0E0'>
+    <p style='color:#bbb;font-size:11px;margin:0'>
+      This link expires in 30 days &bull; Automated message &mdash; do not reply
+    </p>
+  </div>
+
+</div>
+</body></html>"""
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"[ReviewBot] Review Request: {project_name}"
+    msg["From"] = cfg.get("from_address", cfg.get("username", "reviewbot@noreply"))
+    msg["To"] = reviewer_email
+    msg.attach(MIMEText(plain_text, "plain"))
+    msg.attach(MIMEText(html, "html"))
+
+    try:
+        await asyncio.to_thread(_send_sync, cfg, msg, [reviewer_email])
+        logger.info("Offline review invitation sent to %s", reviewer_email)
+        return DispatchResult(
+            success=True,
+            items=[DispatchItem(type="email", ref=reviewer_email, status="success")],
+        )
+    except Exception as exc:
+        logger.error("Failed to send offline review email to %s: %s", reviewer_email, exc)
+        return DispatchResult(success=False, error_message=str(exc))
+
+
 async def test_connection(cfg: dict) -> tuple[bool, str]:
     """Verify SMTP credentials by opening a connection. Returns (ok, message)."""
     try:

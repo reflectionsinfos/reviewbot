@@ -10,6 +10,19 @@ import enum
 Base = declarative_base()
 
 
+class Organization(Base):
+    """Organization / Department / Tenant — scopes global checklists and projects."""
+    __tablename__ = "organizations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    slug = Column(String, unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class RAGStatus(str, enum.Enum):
     """Red Amber Green status"""
     RED = "red"
@@ -46,9 +59,11 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String, default="reviewer")  # reviewer, manager, admin
     is_active = Column(Boolean, default=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Relationships
+    organization = relationship("Organization")
     projects = relationship("Project", back_populates="owner")
     reviews_conducted = relationship("Review", foreign_keys="Review.conducted_by", back_populates="conductor")
     approvals = relationship("ReportApproval", back_populates="approver")
@@ -73,7 +88,9 @@ class Project(Base):
     # Ownership
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="projects")
-    
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    organization = relationship("Organization")
+
     # Relationships
     checklists = relationship("Checklist", back_populates="project", cascade="all, delete-orphan")
     reviews = relationship("Review", back_populates="project", cascade="all, delete-orphan")
@@ -96,6 +113,10 @@ class Checklist(Base):
 
     # Is this a global template or project-specific
     is_global = Column(Boolean, default=True)
+
+    # Organization scope: NULL = platform-wide (visible to all), set = org-specific
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    organization = relationship("Organization")
 
     # Optional reference to original template if cloned
     source_checklist_id = Column(Integer, ForeignKey("checklists.id", ondelete="SET NULL"), nullable=True)
@@ -127,7 +148,10 @@ class ChecklistItem(Base):
     weight = Column(Float, default=1.0)  # For scoring
     is_review_mandatory = Column(Boolean, default=True)  # Blocks completion until reviewed
     expected_evidence = Column(Text)  # What evidence to look for
-    
+    team_category = Column(String, nullable=True)  # Development, QA, DevOps, Delivery, etc.
+    guidance = Column(Text, nullable=True)  # Reviewer/respondent guidance for the item
+    applicability_tags = Column(JSON, nullable=True)  # Optional filters such as platform/domain/phase
+
     # Domain-specific suggestions
     suggested_for_domains = Column(JSON)  # List of domains where this is critical
     
@@ -165,6 +189,20 @@ class Review(Base):
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime)
+
+    # Offline review fields
+    review_type = Column(String, default="online")  # online | offline | autonomous
+    assigned_reviewer_email = Column(String, nullable=True)
+    assigned_reviewer_name = Column(String, nullable=True)
+    upload_token = Column(String, nullable=True, index=True)
+    upload_token_expiry = Column(DateTime, nullable=True)
+    excel_sent_at = Column(DateTime, nullable=True)
+    first_accessed_at = Column(DateTime, nullable=True)
+    excel_downloaded_at = Column(DateTime, nullable=True)
+    excel_uploaded_at = Column(DateTime, nullable=True)
+    excel_response_path = Column(String, nullable=True)
+    offline_message = Column(Text, nullable=True)
+    due_date = Column(DateTime, nullable=True)
 
 
 class ReviewResponse(Base):

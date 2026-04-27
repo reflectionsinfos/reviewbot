@@ -10,7 +10,7 @@ from sqlalchemy import select
 from typing import Optional
 
 from app.db.session import get_db
-from app.models import User
+from app.models import Organization, User
 from app.api.routes.auth import get_current_user, get_password_hash
 
 router = APIRouter()
@@ -38,11 +38,14 @@ class CreateUserRequest(BaseModel):
     email: str
     full_name: str
     role: str = "reviewer"
+    organization_id: Optional[int] = None
 
 
 class UpdateUserRequest(BaseModel):
     is_active: Optional[bool] = None
     role: Optional[str] = None
+    # Pass positive int to assign, 0 to unassign, None to leave unchanged
+    organization_id: Optional[int] = None
 
 
 @router.get("/users")
@@ -50,9 +53,19 @@ async def list_users(
     admin: User = Depends(_require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all users (admin only)"""
+    """List all users with organization info (admin only)"""
     result = await db.execute(select(User).order_by(User.created_at.desc()))
     users = result.scalars().all()
+
+    org_ids = {u.organization_id for u in users if u.organization_id}
+    org_names: dict = {}
+    if org_ids:
+        org_result = await db.execute(
+            select(Organization).where(Organization.id.in_(org_ids))
+        )
+        for org in org_result.scalars().all():
+            org_names[org.id] = org.name
+
     return [
         {
             "id": u.id,
@@ -60,6 +73,8 @@ async def list_users(
             "full_name": u.full_name,
             "role": u.role,
             "is_active": u.is_active,
+            "organization_id": u.organization_id,
+            "organization_name": org_names.get(u.organization_id) if u.organization_id else None,
             "created_at": u.created_at.isoformat() if u.created_at else None,
         }
         for u in users
@@ -87,6 +102,7 @@ async def create_user(
         hashed_password=get_password_hash(plain_password),
         role=req.role,
         is_active=True,
+        organization_id=req.organization_id,
     )
     db.add(user)
     await db.commit()
@@ -163,6 +179,15 @@ async def update_user(
         if req.role not in ("reviewer", "manager", "admin"):
             raise HTTPException(status_code=400, detail="Role must be reviewer, manager, or admin")
         user.role = req.role
+    if req.organization_id is not None:
+        # 0 means unassign, positive int means assign to that org
+        user.organization_id = req.organization_id if req.organization_id > 0 else None
 
     await db.commit()
-    return {"id": user.id, "email": user.email, "role": user.role, "is_active": user.is_active}
+    return {
+        "id": user.id,
+        "email": user.email,
+        "role": user.role,
+        "is_active": user.is_active,
+        "organization_id": user.organization_id,
+    }

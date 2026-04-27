@@ -80,6 +80,33 @@ async def init_db():
                ADD COLUMN IF NOT EXISTS na_count INTEGER DEFAULT 0""",
             """ALTER TABLE autonomous_review_jobs
                ADD COLUMN IF NOT EXISTS compliance_score FLOAT DEFAULT 0.0""",
+            # 010 — external review checklist item metadata
+            """ALTER TABLE checklist_items
+               ADD COLUMN IF NOT EXISTS team_category VARCHAR""",
+            """ALTER TABLE checklist_items
+               ADD COLUMN IF NOT EXISTS guidance TEXT""",
+            """ALTER TABLE checklist_items
+               ADD COLUMN IF NOT EXISTS applicability_tags JSONB""",
+            # 011 — organization scoping
+            """ALTER TABLE users
+               ADD COLUMN IF NOT EXISTS organization_id INTEGER""",
+            """ALTER TABLE projects
+               ADD COLUMN IF NOT EXISTS organization_id INTEGER""",
+            """ALTER TABLE checklists
+               ADD COLUMN IF NOT EXISTS organization_id INTEGER""",
+            # 012 — offline review fields on reviews table
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS review_type VARCHAR DEFAULT 'online'""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS assigned_reviewer_email VARCHAR""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS assigned_reviewer_name VARCHAR""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS upload_token VARCHAR""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS upload_token_expiry TIMESTAMP""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS excel_sent_at TIMESTAMP""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS first_accessed_at TIMESTAMP""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS excel_downloaded_at TIMESTAMP""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS excel_uploaded_at TIMESTAMP""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS excel_response_path VARCHAR""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS offline_message TEXT""",
+            """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS due_date TIMESTAMP""",
         ]
         for sql in migrations:
             try:
@@ -94,7 +121,7 @@ async def init_db():
             "checklist_items", "checklist_recommendations", "checklist_routing_rules",
             "checklists", "consolidated_self_review_reports", "gap_tracking",
             "llm_configs",
-            "meeting_blocks", "milestone_review_triggers", "project_members",
+            "meeting_blocks", "milestone_review_triggers", "organizations", "project_members",
             "projects", "recurring_review_schedules", "reminder_queue",
             "report_approvals", "reports", "review_instances",
             "review_responses", "review_trend_analytics", "reviews",

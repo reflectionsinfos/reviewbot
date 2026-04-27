@@ -61,18 +61,23 @@
     .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
     .badge-blue { background: #1e3a5f44; color: #7dd3fc; border: 1px solid #1d4ed8; }
     .badge-purple { background: #3b0764aa; color: #c084fc; border: 1px solid #6d28d9; }
+    .badge-teal { background: #0f3f3f88; color: #5eead4; border: 1px solid #0f766e; }
+    .badge-amber { background: #4a2c0b88; color: #fbbf24; border: 1px solid #b45309; }
     .badge-gray { background: #1e293b; color: #94a3b8; border-color: #334155; }
 
     /* ── Left Panel ───────────────────────────────────────────────────────── */
     .left-panel { width: 320px; background: #1e293b; border-right: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; }
     .left-panel-header { padding: 16px 20px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
     .left-panel-header h2 { font-size: 16px; font-weight: 700; color: #f1f5f9; }
+    .left-panel-filters { padding: 8px 12px; border-bottom: 1px solid #1e293b; display: flex; gap: 6px; background: #1a2537; }
+    .left-panel-filters input, .left-panel-filters select { font-size: 11px; padding: 5px 8px; border-radius: 6px; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; flex: 1; }
     .left-panel-content { flex: 1; overflow-y: auto; padding: 12px 12px 104px; }
     .template-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
     .template-card:hover { border-color: #475569; }
     .template-card.selected { border-color: #38bdf8; background: #1e3a5f33; }
     .template-card-name { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bottom: 6px; }
-    .template-card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; }
+    .template-card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; flex-wrap: wrap; }
+    .badge-org { background: #1a2f1a88; color: #86efac; border: 1px solid #166534; }
 
     /* ── Right Panel ──────────────────────────────────────────────────────── */
     .right-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -101,6 +106,11 @@
     .col-info-icon .col-tooltip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; font-weight: 400; line-height: 1.4; padding: 7px 10px; border-radius: 6px; white-space: normal; width: 180px; text-align: center; text-transform: none; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
     .col-info-icon:hover .col-tooltip { display: block; }
     .inline-textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
+    .cell-stack { display: flex; flex-direction: column; gap: 6px; }
+    .question-text { color: #e2e8f0; line-height: 1.45; }
+    .meta-text { font-size: 11px; color: #94a3b8; line-height: 1.45; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: #0f172a; border: 1px solid #334155; font-size: 10px; color: #94a3b8; }
     .add-row { background: #0f172a44; border-top: 2px dashed #334155; }
     .add-row td { vertical-align: middle; }
 
@@ -151,12 +161,20 @@
   <div class="left-panel">
     <div class="left-panel-header">
       <h2>Global Templates</h2>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-ghost btn-sm" onclick="triggerUpload()" title="Upload from Excel (.xlsx)">⬆ Upload</button>
-        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
-      </div>
+      <button class="btn btn-ghost btn-sm" onclick="downloadMasterTemplate()" title="Download all 156 standard checklist items as a single Excel sheet — edit and upload back">&#8595; Master Template</button>
+      <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
     </div>
-    <input type="file" id="excel-upload-input" accept=".xlsx,.xlsm" style="display:none;" onchange="handleExcelUpload(event)" />
+    <!-- hidden file inputs -->
+    <input type="file" id="excel-upload-input"       accept=".xlsx,.xlsm" style="display:none;" onchange="handleExcelUpload(event)" />
+    <input type="file" id="excel-upload-items-input" accept=".xlsx,.xlsm" style="display:none;" onchange="handleUploadItems(event)" />
+    <div class="left-panel-filters">
+      <input id="filter-type" type="text" placeholder="Filter by type…" oninput="renderTemplateList()" style="min-width:0;" />
+      <select id="filter-scope" onchange="renderTemplateList()">
+        <option value="all">All orgs</option>
+        <option value="platform">Platform only</option>
+        <option value="org">My org only</option>
+      </select>
+    </div>
     <div class="left-panel-content" id="template-list">
       <div style="text-align:center;color:#64748b;font-size:13px;padding:24px;">Loading…</div>
     </div>
@@ -186,6 +204,8 @@
             <div id="td-area-codes" style="margin-top:8px;font-size:11px;color:#64748b;"></div>
           </div>
           <div class="right-panel-actions">
+            <button class="btn btn-ghost btn-sm" onclick="downloadExcelTemplate()" title="Download the standard Excel template pre-filled with all items — customise and re-upload">⬇ Template Excel</button>
+            <button class="btn btn-ghost btn-sm" onclick="triggerUploadItems()" title="Replace this template's items by uploading a filled Excel file">⬆ Upload Items</button>
             <button id="btn-rename" class="btn btn-ghost btn-sm" onclick="startRename()">Rename</button>
             <button id="btn-delete-template" class="btn btn-danger btn-sm" onclick="confirmDeleteTemplate()">Delete Template</button>
           </div>
@@ -198,6 +218,7 @@
                 <tr>
                   <th style="width:80px;">Code</th>
                   <th style="width:120px;">Area</th>
+                  <th style="width:130px;">Team</th>
                   <th>Question</th>
                   <th style="width:100px;">Evidence</th>
                   <th style="width:70px;">Weight</th>
@@ -210,7 +231,8 @@
                 <tr class="add-row">
                   <td><input id="add-code" class="inline-input" placeholder="SEC-001" style="width:80px;" title="Leave blank for auto-generation" /></td>
                   <td><input id="add-area" class="inline-input" placeholder="General" /></td>
-                  <td><textarea id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;"></textarea></td>
+                  <td><select id="add-team" class="inline-input"></select></td>
+                  <td><div class="cell-stack"><textarea id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;"></textarea><textarea id="add-guidance" class="inline-textarea" placeholder="Guidance for reviewers or external teams" style="min-height:52px;"></textarea><input id="add-tags" class="inline-input" placeholder="Applicability tags, comma separated" /></div></td>
                   <td><input id="add-evidence" class="inline-input" placeholder="Evidence..." /></td>
                   <td><input id="add-weight" type="number" step="0.5" class="inline-input" value="1.0" style="width:60px;" /></td>
                   <td><select id="add-req" class="inline-input" style="width:50px;"><option value="true">Yes</option><option value="false">No</option></select></td>
@@ -230,8 +252,25 @@
   <div class="modal-box">
     <h3>Create New Template</h3>
     <div class="form-group"><label>Name *</label><input id="ct-name" type="text" maxlength="200" /></div>
-    <div class="form-group"><label>Type *</label><select id="ct-type"><option value="delivery">Delivery</option><option value="technical">Technical</option></select></div>
+    <div class="form-group">
+      <label>Type *</label>
+      <input id="ct-type" type="text" list="template-type-options" value="master" maxlength="50" placeholder="master" />
+      <datalist id="template-type-options">
+        <option value="master"></option>
+        <option value="delivery"></option>
+        <option value="technical"></option>
+        <option value="security"></option>
+        <option value="governance"></option>
+      </datalist>
+    </div>
     <div class="form-group"><label>Version</label><input id="ct-version" type="text" value="1.0" maxlength="20" /></div>
+    <div class="form-group">
+      <label>Scope</label>
+      <select id="ct-scope">
+        <option value="platform">Platform-wide (visible to all orgs)</option>
+        <option value="org">My organization only</option>
+      </select>
+    </div>
     <div id="ct-error" style="display:none;color:#f87171;font-size:13px;margin-bottom:12px;"></div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button><button id="btn-create" class="btn btn-primary" onclick="submitCreate()">Create</button></div>
   </div>
@@ -279,6 +318,8 @@
   let selectedItems = [];
   let editingItemId = null;
   let _logoutInProgress = false;
+  let currentUserOrgId = null;
+  const TEAM_CATEGORY_OPTIONS = ['', 'Development', 'QA', 'DevOps', 'CloudOps', 'Delivery', 'Governance', 'Resourcing', 'Client', 'Human Behavioural'];
 
   function isTokenExpired(tok) {
     try { const payload = JSON.parse(atob(tok.split('.')[1])); return payload.exp && (payload.exp * 1000) < Date.now(); } catch { return true; }
@@ -315,11 +356,47 @@
   }
   function toast(msg, type = '') { const el = document.getElementById('toast'); el.textContent = msg; el.className = type; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 3500); }
   function escapeHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function formatChecklistType(type) {
+    return String(type || 'master').trim() || 'master';
+  }
+  function typeBadgeClass(type) {
+    const normalized = formatChecklistType(type).toLowerCase();
+    if (normalized === 'technical') return 'badge-purple';
+    if (normalized === 'delivery') return 'badge-blue';
+    if (normalized === 'master') return 'badge-teal';
+    if (normalized === 'security' || normalized === 'governance') return 'badge-amber';
+    return 'badge-gray';
+  }
+  function typeBadgeMarkup(type) {
+    const normalized = formatChecklistType(type);
+    return `<span class="badge ${typeBadgeClass(normalized)}">${escapeHtml(normalized.toUpperCase())}</span>`;
+  }
+  function teamCategoryOptions(selected = '') {
+    return TEAM_CATEGORY_OPTIONS.map(option => `<option value="${escapeHtml(option)}" ${selected===option?'selected':''}>${escapeHtml(option || 'Unassigned')}</option>`).join('');
+  }
+  function parseApplicabilityTags(value) {
+    const tags = String(value || '').split(',').map(tag => tag.trim()).filter(Boolean);
+    return tags.length ? tags : null;
+  }
+  function renderApplicabilityTags(tags) {
+    if (!Array.isArray(tags) || tags.length === 0) return '';
+    return `<div class="tag-list">${tags.map(tag => `<span class="tag-chip">${escapeHtml(tag)}</span>`).join('')}</div>`;
+  }
+  function renderQuestionMeta(item) {
+    const guidance = item.guidance ? `<div class="meta-text">${escapeHtml(item.guidance)}</div>` : '';
+    const tags = renderApplicabilityTags(item.applicability_tags);
+    return `${guidance}${tags}`;
+  }
 
   async function loadTemplates() {
     const container = document.getElementById('template-list'); container.innerHTML = 'Loading…';
     try {
-      const data = await api('/api/checklists/templates/global');
+      // Fetch current user org in parallel with templates
+      const [data, meData] = await Promise.all([
+        api('/api/checklists/templates/global'),
+        api('/api/auth/me').catch(() => null),
+      ]);
+      if (meData) currentUserOrgId = meData.organization_id || null;
       templates = data.templates || [];
       if (templates.length === 0) { container.innerHTML = 'No templates found.'; return; }
       renderTemplateList();
@@ -328,10 +405,27 @@
 
   function renderTemplateList() {
     const container = document.getElementById('template-list');
-    container.innerHTML = templates.map(t => `<div class="template-card ${selectedTemplate?.id===t.id?'selected':''}" onclick="selectTemplate(${t.id})">
-      <div class="template-card-name">${escapeHtml(t.name)}</div>
-      <div class="template-card-meta"><span class="badge ${t.type==='technical'?'badge-purple':'badge-blue'}">${t.type.toUpperCase()}</span><span>${t.items_count} items</span></div>
-    </div>`).join('');
+    const typeFilter = (document.getElementById('filter-type')?.value || '').trim().toLowerCase();
+    const scopeFilter = document.getElementById('filter-scope')?.value || 'all';
+
+    const visible = templates.filter(t => {
+      if (typeFilter && !String(t.type || '').toLowerCase().includes(typeFilter)) return false;
+      if (scopeFilter === 'platform' && t.organization_id != null) return false;
+      if (scopeFilter === 'org' && t.organization_id == null) return false;
+      return true;
+    });
+
+    if (visible.length === 0) { container.innerHTML = '<div style="text-align:center;color:#64748b;font-size:13px;padding:24px;">No templates match the filters.</div>'; return; }
+
+    container.innerHTML = visible.map(t => {
+      const orgBadge = t.organization_id != null
+        ? `<span class="badge badge-org" title="Org-scoped (ID: ${t.organization_id})">🏢 Org</span>`
+        : '';
+      return `<div class="template-card ${selectedTemplate?.id===t.id?'selected':''}" onclick="selectTemplate(${t.id})">
+        <div class="template-card-name">${escapeHtml(t.name)}</div>
+        <div class="template-card-meta">${typeBadgeMarkup(t.type)}${orgBadge}<span>${t.items_count} items</span></div>
+      </div>`;
+    }).join('');
   }
 
   async function selectTemplate(id) {
@@ -339,8 +433,8 @@
       const data = await api(`/api/checklists/${id}?include_items=true`);
       selectedTemplate = data; selectedItems = data.items || [];
       document.getElementById('empty-state').classList.add('hidden'); document.getElementById('template-detail').classList.remove('hidden');
-      document.getElementById('td-name').textContent = data.name; document.getElementById('td-type').textContent = data.type.toUpperCase();
-      document.getElementById('td-type').className = `badge ${data.type==='technical'?'badge-purple':'badge-blue'}`;
+      document.getElementById('td-name').textContent = data.name; document.getElementById('td-type').textContent = formatChecklistType(data.type).toUpperCase();
+      document.getElementById('td-type').className = `badge ${typeBadgeClass(data.type)}`;
       document.getElementById('td-version').textContent = `v${data.version}`; document.getElementById('td-id').textContent = `ID: ${data.id}`;
       renderItemsTable(); renderTemplateList();
     } catch(e) { toast('Error: ' + e.message, 'error'); }
@@ -348,18 +442,20 @@
 
   function renderItemsTable() {
     const tbody = document.getElementById('items-tbody'); tbody.innerHTML = '';
+    document.getElementById('add-team').innerHTML = teamCategoryOptions('');
     selectedItems.sort((a,b)=>a.order-b.order).forEach(item => {
       const tr = document.createElement('tr');
       if (editingItemId === item.id) {
         tr.innerHTML = `<td><input id="edit-code-${item.id}" class="inline-input" value="${item.item_code||''}"></td>
           <td><input id="edit-area-${item.id}" class="inline-input" value="${item.area||''}"></td>
-          <td><textarea id="edit-q-${item.id}" class="inline-textarea">${escapeHtml(item.question)}</textarea></td>
+          <td><select id="edit-team-${item.id}" class="inline-input">${teamCategoryOptions(item.team_category || '')}</select></td>
+          <td><div class="cell-stack"><textarea id="edit-q-${item.id}" class="inline-textarea">${escapeHtml(item.question)}</textarea><textarea id="edit-guidance-${item.id}" class="inline-textarea" placeholder="Guidance">${escapeHtml(item.guidance || '')}</textarea><input id="edit-tags-${item.id}" class="inline-input" value="${escapeHtml((item.applicability_tags || []).join(', '))}" placeholder="Applicability tags, comma separated"></div></td>
           <td><input id="edit-ev-${item.id}" class="inline-input" value="${escapeHtml(item.expected_evidence)}"></td>
           <td><input id="edit-weight-${item.id}" type="number" step="0.5" class="inline-input" value="${item.weight}"></td>
           <td><select id="edit-req-${item.id}" class="inline-input"><option value="true" ${item.is_review_mandatory?'selected':''}>Yes</option><option value="false" ${!item.is_review_mandatory?'selected':''}>No</option></select></td>
           <td class="actions-cell"><button onclick="saveItem(${item.id})">💾</button><button onclick="cancelEdit()">✕</button></td>`;
       } else {
-        tr.innerHTML = `<td style="font-family:monospace;">${item.item_code||''}</td><td>${item.area||''}</td><td>${item.question}</td><td>${item.expected_evidence||''}</td><td>${item.weight}</td><td style="text-align:center;">${item.is_review_mandatory?'Yes':'No'}</td>
+        tr.innerHTML = `<td style="font-family:monospace;">${item.item_code||''}</td><td>${item.area||''}</td><td>${item.team_category ? `<span class="tag-chip">${escapeHtml(item.team_category)}</span>` : '<span class="meta-text">Unassigned</span>'}</td><td><div class="cell-stack"><div class="question-text">${escapeHtml(item.question)}</div>${renderQuestionMeta(item)}</div></td><td>${item.expected_evidence||''}</td><td>${item.weight}</td><td style="text-align:center;">${item.is_review_mandatory?'Yes':'No'}</td>
           <td class="actions-cell"><button onclick="startEdit(${item.id})">✏️</button><button style="color:#f87171" onclick="deleteItem(${item.id})">🗑️</button></td>`;
       }
       tbody.appendChild(tr);
@@ -369,7 +465,7 @@
   function startEdit(id) { editingItemId = id; renderItemsTable(); }
   function cancelEdit() { editingItemId = null; renderItemsTable(); }
   async function saveItem(id) {
-    const payload = { item_code: document.getElementById(`edit-code-${id}`).value, area: document.getElementById(`edit-area-${id}`).value, question: document.getElementById(`edit-q-${id}`).value, expected_evidence: document.getElementById(`edit-ev-${id}`).value, weight: parseFloat(document.getElementById(`edit-weight-${id}`).value), is_review_mandatory: document.getElementById(`edit-req-${id}`).value === 'true' };
+    const payload = { item_code: document.getElementById(`edit-code-${id}`).value, area: document.getElementById(`edit-area-${id}`).value, team_category: document.getElementById(`edit-team-${id}`).value || null, question: document.getElementById(`edit-q-${id}`).value, guidance: document.getElementById(`edit-guidance-${id}`).value || null, applicability_tags: parseApplicabilityTags(document.getElementById(`edit-tags-${id}`).value), expected_evidence: document.getElementById(`edit-ev-${id}`).value, weight: parseFloat(document.getElementById(`edit-weight-${id}`).value), is_review_mandatory: document.getElementById(`edit-req-${id}`).value === 'true' };
     try { await api(`/api/checklists/globals/${selectedTemplate.id}/items/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) }); toast('Saved', 'success'); editingItemId = null; selectTemplate(selectedTemplate.id); } catch(e) { toast('Error','error'); }
   }
   async function deleteItem(id) {
@@ -377,15 +473,26 @@
     try { await api(`/api/checklists/globals/${selectedTemplate.id}/items/${id}`, { method: 'DELETE' }); toast('Deleted', 'success'); selectTemplate(selectedTemplate.id); } catch(e) { toast('Error','error'); }
   }
   async function addItem() {
-    const payload = { item_code: document.getElementById('add-code').value || null, area: document.getElementById('add-area').value, question: document.getElementById('add-question').value, expected_evidence: document.getElementById('add-evidence').value, weight: parseFloat(document.getElementById('add-weight').value || 1), is_review_mandatory: document.getElementById('add-req').value === 'true', order: selectedItems.length };
-    try { await api(`/api/checklists/globals/${selectedTemplate.id}/items`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) }); toast('Added', 'success'); selectTemplate(selectedTemplate.id); } catch(e) { toast('Error','error'); }
+    const payload = { item_code: document.getElementById('add-code').value || null, area: document.getElementById('add-area').value, team_category: document.getElementById('add-team').value || null, question: document.getElementById('add-question').value, guidance: document.getElementById('add-guidance').value || null, applicability_tags: parseApplicabilityTags(document.getElementById('add-tags').value), expected_evidence: document.getElementById('add-evidence').value, weight: parseFloat(document.getElementById('add-weight').value || 1), is_review_mandatory: document.getElementById('add-req').value === 'true', order: selectedItems.length };
+    try { await api(`/api/checklists/globals/${selectedTemplate.id}/items`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) }); document.getElementById('add-code').value = ''; document.getElementById('add-question').value = ''; document.getElementById('add-guidance').value = ''; document.getElementById('add-tags').value = ''; document.getElementById('add-evidence').value = ''; document.getElementById('add-team').value = ''; toast('Added', 'success'); selectTemplate(selectedTemplate.id); } catch(e) { toast('Error','error'); }
   }
 
-  function openCreateModal() { document.getElementById('ct-name').value=''; document.getElementById('create-modal').classList.remove('hidden'); }
+  function openCreateModal() {
+    document.getElementById('ct-name').value='';
+    document.getElementById('ct-type').value='master';
+    document.getElementById('ct-scope').value = currentUserOrgId ? 'org' : 'platform';
+    document.getElementById('create-modal').classList.remove('hidden');
+  }
   function closeCreateModal() { document.getElementById('create-modal').classList.add('hidden'); }
   async function submitCreate() {
     const name = document.getElementById('ct-name').value.trim(); if (!name) return;
-    try { const res = await api('/api/checklists/globals', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, type: document.getElementById('ct-type').value, version: document.getElementById('ct-version').value }) }); closeCreateModal(); toast('Created', 'success'); loadTemplates(); selectTemplate(res.id); } catch(e) { toast('Error','error'); }
+    const type = formatChecklistType(document.getElementById('ct-type').value);
+    const scope = document.getElementById('ct-scope').value;
+    const organization_id = (scope === 'org' && currentUserOrgId) ? currentUserOrgId : null;
+    try {
+      const res = await api('/api/checklists/globals', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, type, version: document.getElementById('ct-version').value, organization_id }) });
+      closeCreateModal(); toast('Created', 'success'); loadTemplates(); selectTemplate(res.id);
+    } catch(e) { toast('Error','error'); }
   }
 
   function startRename() { document.getElementById('rn-name').value=selectedTemplate.name; document.getElementById('rn-version').value=selectedTemplate.version; document.getElementById('rename-modal').classList.remove('hidden'); }
@@ -416,6 +523,60 @@
       toast('Template deleted', 'success');
       loadTemplates();
     } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+  }
+
+  // ── Excel template download ───────────────────────────────────────────────
+  async function downloadExcelTemplate() {
+    const typeParam = selectedTemplate ? `?type=${encodeURIComponent(selectedTemplate.type)}` : '';
+    const fname = selectedTemplate
+      ? `reviewbot_${selectedTemplate.type}_template.xlsx`
+      : 'reviewbot_checklist_template.xlsx';
+    try {
+      const res = await fetch(`/api/checklists/templates/download-excel-template${typeParam}`, {
+        headers: TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {}
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        toast(err.detail || 'Download failed', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast('Download failed: ' + e.message, 'error');
+    }
+  }
+
+  // ── Master template download (left-panel button) ─────────────────────────
+  async function downloadMasterTemplate() {
+    try {
+      const res = await fetch('/api/checklists/templates/download-excel-template?type=master', {
+        headers: TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {}
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        toast(err.detail || 'Download failed', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reviewbot_master_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast('Download failed: ' + e.message, 'error');
+    }
   }
 
   // ── Excel upload ─────────────────────────────────────────────────────────
@@ -470,6 +631,58 @@
 
   function closeUploadModal() {
     document.getElementById('upload-modal').classList.add('hidden');
+  }
+
+  // ── Per-template Upload Items ─────────────────────────────────────────────
+  function triggerUploadItems() {
+    if (!selectedTemplate) return;
+    document.getElementById('excel-upload-items-input').value = '';
+    document.getElementById('excel-upload-items-input').click();
+  }
+
+  async function handleUploadItems(event) {
+    const file = event.target.files[0];
+    if (!file || !selectedTemplate) return;
+
+    const modal = document.getElementById('upload-modal');
+    document.getElementById('upload-modal-msg').textContent =
+      `Uploading items for "${selectedTemplate.name}" from "${file.name}"…`;
+    document.getElementById('upload-spinner').style.display = 'block';
+    document.getElementById('upload-result').style.display = 'none';
+    document.getElementById('upload-modal-actions').style.display = 'none';
+    modal.classList.remove('hidden');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const headers = { 'Authorization': `Bearer ${TOKEN}` };
+      const res = await fetch(
+        `/api/checklists/globals/${selectedTemplate.id}/upload-items`,
+        { method: 'POST', headers, body: formData }
+      );
+      const body = await res.json();
+
+      document.getElementById('upload-spinner').style.display = 'none';
+      const resultEl = document.getElementById('upload-result');
+      resultEl.style.display = 'block';
+
+      if (!res.ok) {
+        resultEl.innerHTML = `<div style="color:#f87171;">❌ ${body.detail || 'Upload failed'}</div>`;
+      } else {
+        resultEl.innerHTML =
+          `<div style="color:#4ade80;">✅ Replaced <strong>${body.items_replaced}</strong> items in <strong>${escapeHtml(body.checklist_name)}</strong></div>`;
+        await loadTemplates();
+        selectTemplate(selectedTemplate.id);
+      }
+    } catch (e) {
+      document.getElementById('upload-spinner').style.display = 'none';
+      document.getElementById('upload-result').style.display = 'block';
+      document.getElementById('upload-result').innerHTML =
+        `<div style="color:#f87171;">❌ ${e.message}</div>`;
+    }
+
+    document.getElementById('upload-modal-actions').style.display = 'flex';
   }
 </script>
 </body>

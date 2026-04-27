@@ -110,6 +110,18 @@
     .score-red   { color: #f87171; font-weight: 700; }
     .score-na    { color: #64748b; }
 
+    /* ── Pending offline reviews banner ─────────────────────────────────────── */
+    #pending-offline-wrap { display: none; max-width: 1400px; margin: 20px auto 0; padding: 0 24px; }
+    .offline-banner { background: #451a0322; border: 1px solid #b4530955; border-radius: 10px; overflow: hidden; }
+    .offline-banner-header { background: #451a0344; padding: 10px 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #fb923c; border-bottom: 1px solid #b4530944; }
+    .offline-banner-body { padding: 4px 0; }
+    .offline-banner-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #33415522; flex-wrap: wrap; }
+    .offline-banner-item:last-child { border-bottom: none; }
+    .offline-banner-item-info { flex: 1; min-width: 180px; }
+    .offline-banner-item-project { font-size: 13px; font-weight: 600; color: #f1f5f9; }
+    .offline-banner-item-checklist { font-size: 11px; color: #64748b; margin-top: 1px; }
+    .offline-banner-item-due { font-size: 11px; color: #fb923c; background: #78350f44; border: 1px solid #b4530955; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+
     /* ── Responsive ──────────────────────────────────────────────────────────── */
     @media (max-width: 700px) {
       header nav { display: none; }
@@ -155,6 +167,17 @@
     <div class="hero-inner">
       <h1>ReviewBot <span>Dashboard</span></h1>
       <p>AI-powered technical and delivery project reviews. Evaluate projects against structured checklists, generate compliance reports, and track approval workflows.</p>
+    </div>
+  </div>
+
+  <!-- Pending offline reviews banner -->
+  <div id="pending-offline-wrap">
+    <div class="offline-banner">
+      <div class="offline-banner-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span id="pending-offline-title">Pending Offline Reviews</span>
+      </div>
+      <div class="offline-banner-body" id="pending-offline-list"></div>
     </div>
   </div>
 
@@ -355,12 +378,51 @@
       document.getElementById('stat-checklists').textContent = total;
     }
 
+    // Check for pending offline reviews assigned to this user
+    loadPendingOfflineReviews();
+
     // Recent activity grid (Unified Component)
     if (!window.reviewTable) {
         window.reviewTable = new ReviewTable('#reviews-grid-container', { limit: 10, paginate: true });
     } else {
         window.reviewTable.refresh();
     }
+  }
+
+  /* ── Pending offline reviews ────────────────────────────────────────────── */
+  function escHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch { return iso; }
+  }
+
+  async function loadPendingOfflineReviews() {
+    try {
+      const data = await api('/api/reviews/offline/pending');
+      const pending = data?.pending_reviews || [];
+      if (!pending.length) return;
+      const titleEl = document.getElementById('pending-offline-title');
+      const listEl = document.getElementById('pending-offline-list');
+      const wrap = document.getElementById('pending-offline-wrap');
+      titleEl.textContent = `You have ${pending.length} pending offline review${pending.length > 1 ? 's' : ''} awaiting your response`;
+      listEl.innerHTML = pending.map(r => {
+        const due = r.due_date ? `<span class="offline-banner-item-due">Due ${fmtDate(r.due_date)}</span>` : '';
+        return `<div class="offline-banner-item">
+          <div class="offline-banner-item-info">
+            <div class="offline-banner-item-project">${escHtml(r.project_name)}</div>
+            <div class="offline-banner-item-checklist">${escHtml(r.checklist_name)}</div>
+          </div>
+          ${due}
+          <a href="${escHtml(r.review_url)}" class="btn btn-primary btn-sm">Open Review</a>
+        </div>`;
+      }).join('');
+      wrap.style.display = 'block';
+    } catch (e) { /* fail silently — banner is non-critical */ }
   }
 
   /* ── Removed old loadRecentReviews logic (now in ReviewTable component) ── */

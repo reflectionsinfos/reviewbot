@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     VOICE_ENABLED: bool = True
     REQUIRE_HUMAN_APPROVAL: bool = True
     
+    # Offline review
+    APP_BASE_URL: str = "http://localhost:8000"
+    OFFLINE_REVIEW_TOKEN_DAYS: int = 30
+
     # Data directories
     DATA_DIR: str = "./data"
     TEMPLATES_DIR: str = "./data/templates"

@@ -65,6 +65,7 @@ class RegisterRequest(BaseModel):
     password: str
     full_name: str
     role: str = "reviewer"
+    organization_id: Optional[int] = None
 
 
 @router.post("/register", status_code=201)
@@ -80,6 +81,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         hashed_password=get_password_hash(req.password),
         role=req.role,
         is_active=True,
+        organization_id=req.organization_id,
     )
     db.add(user)
     await db.commit()
@@ -90,6 +92,7 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         "user_id": user.id,
         "email": user.email,
         "role": user.role,
+        "organization_id": user.organization_id,
     }
 
 
@@ -132,6 +135,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
         "email": current_user.email,
         "full_name": current_user.full_name,
         "role": current_user.role,
+        "organization_id": current_user.organization_id,
     }
 
 

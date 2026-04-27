@@ -2,17 +2,26 @@
 Reviews API Routes
 """
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
+import io
 import os
+import secrets
 
 from app.db.session import get_db
-from app.models import Review, ReviewResponse, Checklist, ChecklistItem, Project
+from app.models import Review, ReviewResponse, Checklist, ChecklistItem, Project, Report, IntegrationConfig
 from app.agents.review_agent import get_review_agent
 from sqlalchemy.orm import selectinload
 from app.services.voice_interface import get_voice_interface
+from app.services.excel_offline_exporter import generate_offline_excel
+from app.services.excel_response_parser import parse_response_excel
+from app.services.integrations.email_smtp import send_offline_review_email
+from app.api.routes.auth import get_current_user
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -21,29 +30,44 @@ router = APIRouter()
 async def list_reviews(
     project_id: Optional[int] = None,
     status: Optional[str] = None,
+    review_type: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
     """List all reviews"""
-    query = select(Review).options(selectinload(Review.project))
+    query = select(Review).options(
+        selectinload(Review.project),
+        selectinload(Review.checklist),
+    )
 
     if project_id:
         query = query.where(Review.project_id == project_id)
     if status:
         query = query.where(Review.status == status)
+    if review_type:
+        query = query.where(Review.review_type == review_type)
 
     result = await db.execute(query)
     reviews = result.scalars().all()
-    
+
     return {
         "reviews": [
             {
                 "id": r.id,
                 "project_id": r.project_id,
                 "project_name": r.project.name if r.project else "Unknown",
+                "checklist_id": r.checklist_id,
+                "checklist_name": r.checklist.name if r.checklist else None,
                 "title": r.title,
                 "status": r.status,
+                "review_type": getattr(r, "review_type", "online"),
                 "review_date": r.review_date.isoformat() if r.review_date else None,
-                "voice_enabled": r.voice_enabled
+                "voice_enabled": r.voice_enabled,
+                "assigned_reviewer_email": getattr(r, "assigned_reviewer_email", None),
+                "assigned_reviewer_name": getattr(r, "assigned_reviewer_name", None),
+                "excel_sent_at": r.excel_sent_at.isoformat() if getattr(r, "excel_sent_at", None) else None,
+                "excel_uploaded_at": r.excel_uploaded_at.isoformat() if getattr(r, "excel_uploaded_at", None) else None,
+                "due_date": r.due_date.isoformat() if getattr(r, "due_date", None) else None,
+                "upload_token": getattr(r, "upload_token", None),
             }
             for r in reviews
         ]
@@ -400,11 +424,502 @@ async def delete_review(
         select(Review).where(Review.id == review_id)
     )
     review = result.scalar_one_or_none()
-    
+
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
-    
+
     await db.delete(review)
     await db.commit()
-    
+
     return {"message": "Review deleted successfully"}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Offline Review Endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+class OfflineReviewCreate(BaseModel):
+    project_id: int
+    checklist_id: int
+    assigned_reviewer_email: str
+    assigned_reviewer_name: str
+    offline_message: Optional[str] = None
+    due_date: Optional[str] = None  # ISO format: "2026-05-09"
+
+
+async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSession):
+    """Parse uploaded response Excel, upsert ReviewResponse rows, create/update Report."""
+    content = await file.read()
+
+    # Load checklist items for item_code → id mapping
+    checklist_result = await db.execute(
+        select(Checklist)
+        .options(selectinload(Checklist.items))
+        .where(Checklist.id == review.checklist_id)
+    )
+    checklist = checklist_result.scalar_one_or_none()
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+
+    try:
+        parsed = parse_response_excel(content, checklist.items)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    if not parsed:
+        raise HTTPException(status_code=422, detail="No responses found in the uploaded file.")
+
+    # Save the uploaded file for audit trail
+    upload_dir = os.path.join(settings.UPLOAD_DIR, "offline_responses")
+    os.makedirs(upload_dir, exist_ok=True)
+    response_path = os.path.join(upload_dir, f"{review.id}_response.xlsx")
+    with open(response_path, "wb") as f:
+        f.write(content)
+
+    # Upsert ReviewResponse rows
+    existing_result = await db.execute(
+        select(ReviewResponse).where(ReviewResponse.review_id == review.id)
+    )
+    existing_map = {r.checklist_item_id: r for r in existing_result.scalars().all()}
+
+    rag_scores = {"green": 100, "amber": 50, "red": 0}
+    rag_counts: Dict[str, int] = {"green": 0, "amber": 0, "red": 0, "na": 0}
+
+    for item_data in parsed:
+        cid = item_data["checklist_item_id"]
+        rag = item_data["rag_status"]
+        rag_counts[rag] = rag_counts.get(rag, 0) + 1
+
+        if cid in existing_map:
+            resp = existing_map[cid]
+            resp.answer = item_data["answer"]
+            resp.rag_status = rag
+            resp.comments = item_data.get("comments") or ""
+            resp.evidence_links = item_data.get("evidence_links") or []
+        else:
+            resp = ReviewResponse(
+                review_id=review.id,
+                checklist_item_id=cid,
+                answer=item_data["answer"],
+                rag_status=rag,
+                comments=item_data.get("comments") or "",
+                evidence_links=item_data.get("evidence_links") or [],
+            )
+            db.add(resp)
+
+    # Compliance score: N/A items excluded from denominator
+    scored = [r for r in parsed if r["rag_status"] != "na"]
+    compliance_score = (
+        sum(rag_scores.get(r["rag_status"], 0) for r in scored) / len(scored)
+        if scored else 0.0
+    )
+
+    overall_rag = (
+        "red" if rag_counts["red"] > 0
+        else "amber" if rag_counts["amber"] > 0
+        else "green" if rag_counts["green"] > 0
+        else "na"
+    )
+
+    # Update review fields
+    now = datetime.utcnow()
+    review.excel_uploaded_at = now
+    review.excel_response_path = response_path
+    review.status = "completed"
+    review.completed_at = now
+
+    # Create or update Report
+    existing_report_result = await db.execute(
+        select(Report).where(Report.review_id == review.id)
+    )
+    report = existing_report_result.scalar_one_or_none()
+
+    gaps = [
+        {
+            "item_code": r["item_code"],
+            "rag_status": r["rag_status"],
+            "answer": r["answer"],
+            "comments": r.get("comments") or "",
+        }
+        for r in parsed if r["rag_status"] in ("red", "amber")
+    ]
+    green_items = [r["item_code"] for r in parsed if r["rag_status"] == "green"]
+
+    if report:
+        report.compliance_score = compliance_score
+        report.overall_rag_status = overall_rag
+        report.gaps_identified = gaps
+        report.areas_followed = green_items
+        report.approval_status = "pending"
+        report.created_at = now
+    else:
+        report = Report(
+            review_id=review.id,
+            compliance_score=compliance_score,
+            overall_rag_status=overall_rag,
+            gaps_identified=gaps,
+            areas_followed=green_items,
+            recommendations=[],
+            action_items=[],
+            approval_status="pending",
+            requires_approval=True,
+        )
+        db.add(report)
+
+    await db.commit()
+
+    return {
+        "review_id": review.id,
+        "responses_recorded": len(parsed),
+        "compliance_score": round(compliance_score, 1),
+        "rag_summary": rag_counts,
+        "report_status": "pending_approval",
+    }
+
+
+@router.post("/offline")
+async def create_offline_review(
+    request: OfflineReviewCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Create an offline review and optionally send an invitation email to the reviewer."""
+    # Verify project and checklist exist
+    project_result = await db.execute(select(Project).where(Project.id == request.project_id))
+    project = project_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    checklist_result = await db.execute(
+        select(Checklist)
+        .options(selectinload(Checklist.items))
+        .where(Checklist.id == request.checklist_id)
+    )
+    checklist = checklist_result.scalar_one_or_none()
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+
+    due_dt = None
+    if request.due_date:
+        try:
+            due_dt = datetime.fromisoformat(request.due_date)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid due_date. Use ISO format: YYYY-MM-DD")
+
+    token = secrets.token_urlsafe(32)
+    expiry = datetime.utcnow() + timedelta(days=settings.OFFLINE_REVIEW_TOKEN_DAYS)
+
+    review = Review(
+        project_id=request.project_id,
+        checklist_id=request.checklist_id,
+        title=f"Offline Review — {project.name}",
+        review_type="offline",
+        status="in_progress",
+        assigned_reviewer_email=request.assigned_reviewer_email,
+        assigned_reviewer_name=request.assigned_reviewer_name,
+        upload_token=token,
+        upload_token_expiry=expiry,
+        offline_message=request.offline_message,
+        due_date=due_dt,
+        voice_enabled=False,
+    )
+    db.add(review)
+    await db.commit()
+    await db.refresh(review)
+
+    # Send invitation email if SMTP is configured
+    email_sent = False
+    email_error = None
+    smtp_result = await db.execute(
+        select(IntegrationConfig).where(
+            IntegrationConfig.type == "smtp",
+            IntegrationConfig.is_enabled == True
+        )
+    )
+    smtp_cfg = smtp_result.scalar_one_or_none()
+
+    if smtp_cfg:
+        try:
+            dispatch = await send_offline_review_email(
+                cfg=smtp_cfg.config_json,
+                reviewer_email=request.assigned_reviewer_email,
+                reviewer_name=request.assigned_reviewer_name,
+                project_name=project.name,
+                checklist_name=checklist.name,
+                app_url=settings.APP_BASE_URL,
+                upload_token=token,
+                due_date=due_dt,
+                admin_message=request.offline_message,
+                item_count=len(checklist.items),
+            )
+            email_sent = dispatch.success
+            if dispatch.success:
+                review.excel_sent_at = datetime.utcnow()
+                await db.commit()
+            else:
+                email_error = dispatch.error_message
+        except Exception as exc:
+            email_error = str(exc)
+
+    review_url = f"{settings.APP_BASE_URL.rstrip('/')}/offline-review.html?token={token}"
+
+    return {
+        "message": "Offline review created",
+        "review_id": review.id,
+        "upload_token": token,
+        "review_url": review_url,
+        "email_sent": email_sent,
+        "email_error": email_error,
+        "reviewer_email": request.assigned_reviewer_email,
+        "project_name": project.name,
+        "checklist_name": checklist.name,
+        "item_count": len(checklist.items),
+        "token_expires_at": expiry.isoformat(),
+    }
+
+
+@router.get("/offline/pending")
+async def get_pending_offline_reviews(
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """List offline reviews assigned to the current user that haven't been uploaded yet."""
+    now = datetime.utcnow()
+    result = await db.execute(
+        select(Review)
+        .options(selectinload(Review.project), selectinload(Review.checklist))
+        .where(
+            Review.review_type == "offline",
+            Review.assigned_reviewer_email == current_user.email,
+            Review.excel_uploaded_at == None,
+            Review.upload_token_expiry > now,
+        )
+    )
+    reviews = result.scalars().all()
+
+    return {
+        "pending_reviews": [
+            {
+                "review_id": r.id,
+                "project_name": r.project.name if r.project else "Unknown",
+                "checklist_name": r.checklist.name if r.checklist else "Unknown",
+                "due_date": r.due_date.isoformat() if r.due_date else None,
+                "sent_at": r.excel_sent_at.isoformat() if r.excel_sent_at else None,
+                "review_url": f"{settings.APP_BASE_URL.rstrip('/')}/offline-review.html?token={r.upload_token}",
+            }
+            for r in reviews
+        ]
+    }
+
+
+@router.get("/upload-info/{token}")
+async def get_upload_info(
+    token: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get review metadata by upload token (no authentication required)."""
+    now = datetime.utcnow()
+    result = await db.execute(
+        select(Review)
+        .options(
+            selectinload(Review.project),
+            selectinload(Review.checklist).selectinload(Checklist.items)
+        )
+        .where(Review.upload_token == token)
+    )
+    review = result.scalar_one_or_none()
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Invalid or expired review link")
+
+    if review.upload_token_expiry and review.upload_token_expiry < now:
+        raise HTTPException(
+            status_code=410,
+            detail="This review link has expired. Please contact your ReviewBot administrator."
+        )
+
+    if not review.first_accessed_at:
+        review.first_accessed_at = now
+        await db.commit()
+
+    return {
+        "review_id": review.id,
+        "project_name": review.project.name if review.project else "Unknown",
+        "checklist_name": review.checklist.name if review.checklist else "Unknown",
+        "reviewer_name": review.assigned_reviewer_name or "Reviewer",
+        "admin_message": review.offline_message,
+        "due_date": review.due_date.isoformat() if review.due_date else None,
+        "sent_at": review.excel_sent_at.isoformat() if review.excel_sent_at else None,
+        "token_expires_at": review.upload_token_expiry.isoformat() if review.upload_token_expiry else None,
+        "item_count": len(review.checklist.items) if review.checklist else 0,
+        "already_submitted": review.excel_uploaded_at is not None,
+        "submitted_at": review.excel_uploaded_at.isoformat() if review.excel_uploaded_at else None,
+    }
+
+
+@router.get("/download-checklist/{token}")
+async def download_checklist_by_token(
+    token: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate and download the review checklist Excel by upload token (no authentication required)."""
+    now = datetime.utcnow()
+    result = await db.execute(
+        select(Review)
+        .options(
+            selectinload(Review.project),
+            selectinload(Review.checklist).selectinload(Checklist.items)
+        )
+        .where(Review.upload_token == token)
+    )
+    review = result.scalar_one_or_none()
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Invalid review link")
+
+    if review.upload_token_expiry and review.upload_token_expiry < now:
+        raise HTTPException(status_code=410, detail="This review link has expired.")
+
+    if not review.checklist or not review.checklist.items:
+        raise HTTPException(status_code=404, detail="No checklist items found for this review")
+
+    project_name = review.project.name if review.project else "Project"
+    checklist_name = review.checklist.name if review.checklist else "Checklist"
+
+    excel_bytes = generate_offline_excel(
+        project_name=project_name,
+        checklist_name=checklist_name,
+        reviewer_name=review.assigned_reviewer_name or "Reviewer",
+        items=review.checklist.items,
+        due_date=review.due_date,
+        admin_message=review.offline_message,
+    )
+
+    review.excel_downloaded_at = now
+    await db.commit()
+
+    safe_project = "".join(c if c.isalnum() or c in "-_" else "_" for c in project_name)
+    filename = f"ReviewBot_{safe_project}_Checklist.xlsx"
+
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/upload/{token}")
+async def upload_response_by_token(
+    token: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload a completed response Excel by upload token (no authentication required)."""
+    now = datetime.utcnow()
+    result = await db.execute(
+        select(Review).where(Review.upload_token == token)
+    )
+    review = result.scalar_one_or_none()
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Invalid review link")
+
+    if review.upload_token_expiry and review.upload_token_expiry < now:
+        raise HTTPException(status_code=410, detail="This review link has expired.")
+
+    if review.excel_uploaded_at:
+        raise HTTPException(
+            status_code=409,
+            detail="A response has already been submitted for this review."
+        )
+
+    return await _process_offline_upload(review, file, db)
+
+
+@router.post("/{review_id}/upload-response")
+async def upload_response_by_id(
+    review_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Upload a completed response Excel by review ID (authentication required)."""
+    result = await db.execute(
+        select(Review).where(Review.id == review_id)
+    )
+    review = result.scalar_one_or_none()
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    if review.review_type != "offline":
+        raise HTTPException(status_code=400, detail="This endpoint is only for offline reviews.")
+
+    return await _process_offline_upload(review, file, db)
+
+
+@router.post("/{review_id}/resend-email")
+async def resend_offline_invitation(
+    review_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Resend the offline review invitation email (authentication required)."""
+    result = await db.execute(
+        select(Review)
+        .options(
+            selectinload(Review.project),
+            selectinload(Review.checklist).selectinload(Checklist.items)
+        )
+        .where(Review.id == review_id)
+    )
+    review = result.scalar_one_or_none()
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    if review.review_type != "offline":
+        raise HTTPException(status_code=400, detail="This is not an offline review.")
+
+    if not review.assigned_reviewer_email:
+        raise HTTPException(status_code=400, detail="No reviewer email assigned to this review.")
+
+    smtp_result = await db.execute(
+        select(IntegrationConfig).where(
+            IntegrationConfig.type == "smtp",
+            IntegrationConfig.is_enabled == True
+        )
+    )
+    smtp_cfg = smtp_result.scalar_one_or_none()
+
+    if not smtp_cfg:
+        raise HTTPException(
+            status_code=503,
+            detail="No active SMTP integration configured. Set one up in Settings > Integrations."
+        )
+
+    project_name = review.project.name if review.project else "Project"
+    checklist_name = review.checklist.name if review.checklist else "Checklist"
+
+    dispatch = await send_offline_review_email(
+        cfg=smtp_cfg.config_json,
+        reviewer_email=review.assigned_reviewer_email,
+        reviewer_name=review.assigned_reviewer_name or "Reviewer",
+        project_name=project_name,
+        checklist_name=checklist_name,
+        app_url=settings.APP_BASE_URL,
+        upload_token=review.upload_token,
+        due_date=review.due_date,
+        admin_message=review.offline_message,
+        item_count=len(review.checklist.items) if review.checklist else 0,
+    )
+
+    if dispatch.success:
+        review.excel_sent_at = datetime.utcnow()
+        await db.commit()
+
+    return {
+        "message": "Email resent successfully" if dispatch.success else "Failed to send email",
+        "email_sent": dispatch.success,
+        "error": dispatch.error_message if not dispatch.success else None,
+        "reviewer_email": review.assigned_reviewer_email,
+    }

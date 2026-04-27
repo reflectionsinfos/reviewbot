@@ -1,4 +1,4 @@
-from typing import List, Optional, Literal
+from typing import List, Literal, Optional
 from pydantic import AliasChoices, BaseModel, Field
 
 
@@ -12,6 +12,9 @@ class ChecklistItemCreate(BaseModel):
         validation_alias=AliasChoices("is_review_mandatory", "is_required"),
     )
     expected_evidence: Optional[str] = None
+    team_category: Optional[str] = None
+    guidance: Optional[str] = None
+    applicability_tags: Optional[List[str]] = None
     item_code: Optional[str] = None
     order: int = 0
 
@@ -26,6 +29,9 @@ class ChecklistItemUpdate(BaseModel):
         validation_alias=AliasChoices("is_review_mandatory", "is_required"),
     )
     expected_evidence: Optional[str] = None
+    team_category: Optional[str] = None
+    guidance: Optional[str] = None
+    applicability_tags: Optional[List[str]] = None
     item_code: Optional[str] = None
     order: Optional[int] = None
 
@@ -64,8 +70,9 @@ class SyncResult(BaseModel):
 
 class GlobalChecklistCreate(BaseModel):
     name: str
-    type: Literal["delivery", "technical"]
+    type: str = "master"
     version: Optional[str] = "1.0"
+    organization_id: Optional[int] = None
 
 
 class GlobalChecklistUpdate(BaseModel):
@@ -84,6 +91,9 @@ class GlobalChecklistItemCreate(BaseModel):
         validation_alias=AliasChoices("is_review_mandatory", "is_required"),
     )
     expected_evidence: Optional[str] = None
+    team_category: Optional[str] = None
+    guidance: Optional[str] = None
+    applicability_tags: Optional[List[str]] = None
     order: int = 0
 
 
@@ -98,4 +108,7 @@ class GlobalChecklistItemUpdate(BaseModel):
         validation_alias=AliasChoices("is_review_mandatory", "is_required"),
     )
     expected_evidence: Optional[str] = None
+    team_category: Optional[str] = None
+    guidance: Optional[str] = None
+    applicability_tags: Optional[List[str]] = None
     order: Optional[int] = None

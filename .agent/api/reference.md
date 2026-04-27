@@ -14,25 +14,65 @@ Complete API documentation for AI Tech & Delivery Review Agent.
 
 ```http
 POST /api/auth/register
-Content-Type: application/x-www-form-urlencoded
+Content-Type: application/json
 ```
 
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
+**Body (JSON):**
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
 | email | string | Yes | User email |
 | password | string | Yes | Password (min 8 chars) |
 | full_name | string | Yes | Display name |
 | role | string | No | reviewer/manager/admin (default: reviewer) |
+| organization_id | integer | No | Assign user to an organization on creation |
 
 **Response:**
 ```json
 {
   "message": "User created successfully",
   "user_id": 1,
-  "email": "user@example.com"
+  "email": "user@example.com",
+  "role": "reviewer",
+  "organization_id": 3
 }
 ```
+
+---
+
+## Organizations
+
+### List Organizations
+
+```http
+GET /api/organizations/
+Authorization: Bearer <token>
+```
+
+Returns all active organizations. Any authenticated user may call this (used to populate dropdowns).
+
+### Create Organization
+
+```http
+POST /api/organizations/
+Authorization: Bearer <token>   (admin only)
+Content-Type: application/json
+```
+
+**Body:**
+```json
+{ "name": "Acme Corp", "description": "Main client org" }
+```
+
+Slug is auto-generated from name: `acme-corp`.
+
+### Get My Organization
+
+```http
+GET /api/organizations/mine
+Authorization: Bearer <token>
+```
+
+Returns the organization the current user belongs to. 404 if user has no organization.
 
 ---
 

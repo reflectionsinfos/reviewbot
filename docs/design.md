@@ -53,6 +53,7 @@ FastAPI application
 ### Core API groups
 
 - `/api/auth`
+- `/api/organizations`
 - `/api/projects`
 - `/api/checklists`
 - `/api/autonomous-reviews`
@@ -61,6 +62,8 @@ FastAPI application
 - `/api/llm-configs`
 - `/api/settings`
 - `/api/admin/users`
+- `/api/integrations`
+- `/api/routing-rules`
 
 ## Main Design Flows
 
@@ -211,10 +214,11 @@ Design intent:
 
 ### Core implemented entities
 
-- `User`
-- `Project`
-- `Checklist`
-- `ChecklistItem`
+- `Organization` — name, slug, description, is_active; parent for users/projects/checklists
+- `User` — email, hashed_password, role, is_active, organization_id (FK)
+- `Project` — name, domain, tech_stack (JSON), stakeholders (JSON), organization_id (FK)
+- `Checklist` — name, type, is_global, organization_id (FK); NULL org = platform-wide
+- `ChecklistItem` — area, code, question, expected_evidence, weight, is_mandatory, team_category, guidance, applicability_tags (JSON), sort_order
 - `Review`
 - `ReviewResponse`
 - `Report`
@@ -227,6 +231,8 @@ Design intent:
 - `SystemSetting`
 - `ChecklistRoutingRule`
 - `ChecklistRecommendation`
+- `IntegrationConfig` — type (jira/smtp/webhook/linear/github_issues), credentials (JSON, masked on GET), trigger_condition, is_enabled
+- `IntegrationDispatch` — audit record per dispatch attempt
 
 ### Future-oriented v2 entities already modeled
 
@@ -254,6 +260,43 @@ The approved external-review design adds a new layer between checklist managemen
 - `Review` gains a `mode` field (`autonomous` / `external_async` / `live`) and a `current_snapshot_id` FK.
 - `ReviewResponse` gains `team_id`, `response_state` (`answered` / `na_out_of_scope` / `delegated` / `needs_clarification` / `not_submitted`), `confidence`, `assigned_owner`, and clarification text fields.
 - `ReviewSnapshot` stores the frozen item set and is the key new entity: `id`, `review_id`, `revision` (int), `checksum`, `frozen_at`, `status` (`active` / `superseded` / `revoked`), `item_snapshot` (JSONB), `team_snapshot` (JSONB), `scoring_rules` (JSONB). A distribution token table references `ReviewSnapshot.id` and `ProjectReviewTeam.id` with expiry and revocation fields.
+
+## Organization Scoping Design
+
+ReviewBot uses a **lightweight org-scoping layer** — not full multi-tenancy — to support multi-org deployments without a complete architectural rewrite.
+
+### Key design decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| `organization_id = NULL` means platform-wide | Zero-config default; existing data needs no migration |
+| Scoping only on `User`, `Project`, `Checklist` | The minimum surface needed; reviews and results inherit context from parent |
+| Admin-only writes, any-auth reads for `/api/organizations` | Orgs are reference data; listing them for dropdowns needs no privilege |
+| `Organization.is_active = False` for soft-delete | Preserves referential integrity with existing users and projects |
+| `GlobalChecklistCreate.type` accepts any string | Enables the planned master-checklist model (`type = "master"`) without breaking existing `delivery` / `technical` templates |
+
+### Global checklist visibility rule
+
+```python
+# applied in ChecklistService.get_global_checklist_templates
+or_(
+    Checklist.organization_id == None,           # platform-wide
+    Checklist.organization_id == current_user.organization_id,  # user's org
+)
+```
+
+Templates created with `organization_id = NULL` are visible to every user. Templates created with an explicit org id are private to that org's users.
+
+### `/api/organizations` endpoints
+
+| Method | Path | Role | Description |
+|--------|------|------|-------------|
+| `GET` | `/api/organizations/` | any auth | List all active organizations |
+| `GET` | `/api/organizations/mine` | any auth | Return current user's organization (404 if unassigned) |
+| `GET` | `/api/organizations/{id}` | any auth | Get one organization |
+| `POST` | `/api/organizations/` | admin | Create organization (slug auto-generated) |
+| `PUT` | `/api/organizations/{id}` | admin | Update name/description |
+| `DELETE` | `/api/organizations/{id}` | admin | Soft-delete (sets is_active=False) |
 
 ## Configuration Design
 
@@ -307,7 +350,7 @@ The approved external-review design adds a new layer between checklist managemen
 
 - Direct repository-intake flow is not as stable as the agent-upload workflow and needs further completion.
 - Conversational review is present as a scaffolded capability rather than a flagship production path.
-- General audit logging, rate limiting, and multi-tenant boundaries are not implemented.
+- General audit logging and rate limiting are not implemented. Lightweight org scoping is now in place; full row-level multi-tenant isolation remains a future concern.
 - Several v2 workflow entities are modeled but not yet activated through user-facing flows.
 - Frontend is functional and fast to ship, but long-term complexity may justify a richer client architecture later.
 - Frontend currently exposes only template CRUD and project checklist CRUD; it does not yet expose master-checklist metadata, project review team mapping, snapshot distribution, upload-status monitoring, or consolidated external-review operations.
