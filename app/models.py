@@ -183,6 +183,7 @@ class Review(Base):
     voice_enabled = Column(Boolean, default=True)
     
     # Relationships
+    items = relationship("ReviewItem", back_populates="review", cascade="all, delete-orphan")
     responses = relationship("ReviewResponse", back_populates="review", cascade="all, delete-orphan")
     report = relationship("Report", back_populates="review", uselist=False, cascade="all, delete-orphan")
     
@@ -205,6 +206,35 @@ class Review(Base):
     due_date = Column(DateTime, nullable=True)
 
 
+class ReviewItem(Base):
+    """Immutable checklist item snapshot for a specific review."""
+    __tablename__ = "review_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    review_id = Column(Integer, ForeignKey("reviews.id"), nullable=False, index=True)
+    review = relationship("Review", back_populates="items")
+
+    source_checklist_item_id = Column(Integer, ForeignKey("checklist_items.id"), nullable=True, index=True)
+    source_checklist_item = relationship("ChecklistItem")
+
+    item_code = Column(String)
+    area = Column(String)
+    question = Column(Text, nullable=False)
+    category = Column(String)
+    weight = Column(Float, default=1.0)
+    is_review_mandatory = Column(Boolean, default=True)
+    expected_evidence = Column(Text)
+    team_category = Column(String, nullable=True)
+    guidance = Column(Text, nullable=True)
+    applicability_tags = Column(JSON, nullable=True)
+    suggested_for_domains = Column(JSON)
+    order = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    responses = relationship("ReviewResponse", back_populates="review_item")
+
+
 class ReviewResponse(Base):
     """Individual response to a checklist item"""
     __tablename__ = "review_responses"
@@ -215,6 +245,9 @@ class ReviewResponse(Base):
     
     checklist_item_id = Column(Integer, ForeignKey("checklist_items.id"), nullable=False)
     checklist_item = relationship("ChecklistItem")
+
+    review_item_id = Column(Integer, ForeignKey("review_items.id"), nullable=True, index=True)
+    review_item = relationship("ReviewItem", back_populates="responses")
     
     # Response data
     answer = Column(String)  # Yes/No/Partial or free text
@@ -228,7 +261,10 @@ class ReviewResponse(Base):
     # Voice interaction
     voice_recording_path = Column(String, nullable=True)
     transcript = Column(Text, nullable=True)
-    
+
+    # Tracks whether this response was last written via web portal, excel upload, or ai
+    last_updated_via = Column(String, nullable=True)  # web | excel | ai
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -467,6 +503,30 @@ class ChecklistRoutingRule(Base):
 
     checklist_item = relationship("ChecklistItem")
     created_by = relationship("User")
+
+
+class ManualReviewShare(Base):
+    """Sharing record for a manual review — internal user or external magic link."""
+    __tablename__ = "manual_review_shares"
+
+    id = Column(Integer, primary_key=True, index=True)
+    review_id = Column(Integer, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Internal share: linked to an existing user
+    shared_with_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    # External share: email-only recipient
+    shared_with_email = Column(String, nullable=True)
+
+    role = Column(String, default="contributor")  # viewer | contributor | approver
+    token = Column(String, nullable=True, unique=True, index=True)  # magic link token
+    token_expires_at = Column(DateTime, nullable=True)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    revoked_at = Column(DateTime, nullable=True)
+
+    review = relationship("Review")
+    shared_with_user = relationship("User", foreign_keys=[shared_with_user_id])
+    created_by = relationship("User", foreign_keys=[created_by_user_id])
 
 
 # ── V2 Models ─────────────────────────────────────────────────────────────────

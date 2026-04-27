@@ -255,8 +255,7 @@
     <div class="tabs-toolbar">
       <div id="checklist-tabs" style="display:flex;gap:4px;"></div>
       <div class="tabs-sep"></div>
-      <div class="tab review-nav-tab" onclick="switchReviewTab('online')">Online Review</div>
-      <div class="tab review-nav-tab" onclick="switchReviewTab('offline')">Offline Review</div>
+      <div class="tab review-nav-tab" onclick="switchReviewTab('manual')">Manual Review</div>
       <div class="tab review-nav-tab" onclick="switchReviewTab('autonomous')">Autonomous</div>
       <div class="tabs-spacer"></div>
       <button class="btn btn-ghost btn-sm btn-add-checklist" onclick="openAddModal()">+ Add Checklist</button>
@@ -345,58 +344,34 @@
     <!-- Reviews content (visible when a review nav tab is active) -->
     <div id="reviews-content" class="hidden">
 
-      <!-- Online Reviews Tab -->
-      <div id="tab-online" class="review-tab-content active">
+      <!-- Manual Reviews Tab (merged Online + Offline) -->
+      <div id="tab-manual" class="review-tab-content active">
         <div class="review-tab-header">
           <div class="review-tab-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-            Online Reviews
+            Manual Reviews
           </div>
-          <button class="btn btn-primary btn-sm" onclick="openCreateReviewModal()">+ Start New Review</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="openNewManualReviewModal()">+ Self Review</button>
+            <button class="btn btn-primary btn-sm" onclick="openCreateOfflineModal()">+ Send for Review</button>
+          </div>
         </div>
         <div class="or-table-wrap">
           <table class="or-table">
             <thead>
               <tr>
-                <th>Title</th>
+                <th>Reviewer / Creator</th>
                 <th>Checklist</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th style="width:100px;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="online-reviews-tbody">
-              <tr><td colspan="5" class="or-empty">Select a project to view online reviews.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Offline Reviews Tab -->
-      <div id="tab-offline" class="review-tab-content">
-        <div class="review-tab-header">
-          <div class="review-tab-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Offline Reviews
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="openCreateOfflineModal()">+ Send for Review</button>
-        </div>
-        <div class="or-table-wrap">
-          <table class="or-table">
-            <thead>
-              <tr>
-                <th>Reviewer</th>
-                <th>Checklist</th>
-                <th>Sent</th>
+                <th>Type</th>
+                <th>Created / Sent</th>
                 <th>Due Date</th>
                 <th>Score</th>
-                <th>Approval</th>
                 <th>Status</th>
-                <th style="width:120px;">Actions</th>
+                <th style="width:160px;">Actions</th>
               </tr>
             </thead>
-            <tbody id="offline-reviews-tbody">
-              <tr><td colspan="8" class="or-empty">Select a project to view offline reviews.</td></tr>
+            <tbody id="manual-reviews-tbody">
+              <tr><td colspan="8" class="or-empty">Select a project to view manual reviews.</td></tr>
             </tbody>
           </table>
         </div>
@@ -545,10 +520,36 @@
 
 <div id="toast"></div>
 
+<!-- ── New Manual Review Modal (self-initiated) ────────────────────────── -->
+<div id="create-manual-modal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:480px;">
+    <h3>Self Review</h3>
+    <p class="modal-subtitle">Create a private review that only you can see. Fill it in via the web portal or download the Excel sheet — and share with others later if needed.</p>
+
+    <div class="form-group">
+      <label>Checklist *</label>
+      <select id="new-manual-checklist-id"></select>
+    </div>
+
+    <div class="form-group">
+      <label>Title <span class="badge badge-gray" style="font-size:10px;">optional</span></label>
+      <input id="new-manual-title" type="text" placeholder="e.g. Q2 Security Review" />
+    </div>
+
+    <div id="new-manual-error" style="display:none;color:#f87171;font-size:13px;padding:10px 14px;background:#7f1d1d22;border:1px solid #7f1d1d55;border-radius:8px;margin-bottom:12px;"></div>
+    <div id="new-manual-success" style="display:none;font-size:13px;padding:10px 14px;background:#14532d22;border:1px solid #16653444;border-radius:8px;color:#4ade80;margin-bottom:12px;line-height:1.5;"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeNewManualReviewModal()">Cancel</button>
+      <button id="btn-create-manual" class="btn btn-primary" onclick="submitNewManualReview()">Create Review</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Create Offline Review Modal ────────────────────────────────────────── -->
 <div id="create-offline-modal" class="modal-overlay hidden">
   <div class="modal-box" style="max-width:580px;">
-    <h3>Send Checklist for Offline Review</h3>
+    <h3>Send for Manual Review — Assign to Reviewer</h3>
     <p class="modal-subtitle">The reviewer will receive an email with a secure link to download the checklist, fill in responses, and upload it back.</p>
 
     <div class="form-group">
@@ -603,6 +604,7 @@
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
   let TOKEN = localStorage.getItem('rb_token') || '';
+  let currentUser = { name: '', email: '' };
   let globalTemplates = [];
   let allProjects = [];
   let currentProjectChecklists = [];
@@ -654,9 +656,18 @@
     location.reload();
   }
 
+  async function loadCurrentUser() {
+    try {
+      const data = await api('/api/auth/me');
+      if (data) {
+        currentUser = { name: data.full_name || data.name || '', email: data.email || '' };
+      }
+    } catch (_) {}
+  }
+
   function parseTokenAndLoad() {
     if (window.updateSharedUserInfo) window.updateSharedUserInfo();
-    loadInitialData();
+    loadCurrentUser().then(() => loadInitialData());
   }
 
   if (TOKEN) {
@@ -1167,7 +1178,6 @@
 
   // ── Offline Reviews ──────────────────────────────────────────────────────────
 
-  let offlineReviews = [];
   let currentReviewTab = null;
 
   function switchReviewTab(tabName) {
@@ -1175,7 +1185,7 @@
     // Deactivate all checklist tabs
     document.querySelectorAll('#checklist-tabs .tab').forEach(t => t.classList.remove('active'));
     // Activate the matching review nav tab
-    const reviewNavNames = ['online', 'offline', 'autonomous'];
+    const reviewNavNames = ['manual', 'autonomous'];
     document.querySelectorAll('.review-nav-tab').forEach((t, i) => {
       t.classList.toggle('active', reviewNavNames[i] === tabName);
     });
@@ -1190,34 +1200,32 @@
     // Load data
     const projectId = document.getElementById('project-select').value;
     if (!projectId) return;
-    if (tabName === 'online') loadOnlineReviews(projectId);
-    else if (tabName === 'offline') loadOfflineReviews(projectId);
+    if (tabName === 'manual') loadManualReviews(projectId);
     else if (tabName === 'autonomous') loadAutonomousReviews(projectId);
   }
 
-  async function loadOnlineReviews(projectId) {
-    const tbody = document.getElementById('online-reviews-tbody');
-    tbody.innerHTML = '<tr><td colspan="5" class="or-empty">Loading…</td></tr>';
+  let manualReviews = [];
+
+  async function loadManualReviews(projectId) {
+    const tbody = document.getElementById('manual-reviews-tbody');
+    tbody.innerHTML = '<tr><td colspan="8" class="or-empty">Loading…</td></tr>';
     try {
-      const data = await api(`/api/reviews/?project_id=${projectId}&review_type=online`);
-      const reviews = data?.reviews || [];
-      if (!reviews.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="or-empty">No online reviews yet — click "+ Start New Review" to begin.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = reviews.map(r => {
-        const statusColors = { completed: '#4ade80', in_progress: '#fbbf24', pending: '#94a3b8' };
-        const statusColor = statusColors[r.status] || '#94a3b8';
-        return `<tr>
-          <td style="font-weight:600;color:#f1f5f9;">${escapeHtml(r.title || 'Untitled')}</td>
-          <td style="color:#94a3b8;">${escapeHtml(r.checklist_name || '—')}</td>
-          <td><span style="color:${statusColor};text-transform:capitalize;">${escapeHtml(r.status || '—')}</span></td>
-          <td style="color:#64748b;font-size:12px;">${formatDate(r.review_date)}</td>
-          <td><a href="/ui?review_id=${r.id}" class="btn btn-ghost btn-sm" style="padding:3px 8px;">Open</a></td>
-        </tr>`;
-      }).join('');
+      const fetchType = async (type) => {
+        try {
+          const d = await api(`/api/reviews/?project_id=${projectId}&review_type=${type}`);
+          return (d?.reviews || []).map(r => ({ ...r, _display_type: type }));
+        } catch (_) { return []; }
+      };
+      const [online, offline, manual] = await Promise.all([
+        fetchType('online'), fetchType('offline'), fetchType('manual'),
+      ]);
+      manualReviews = [...online, ...offline, ...manual];
+      manualReviews.sort((a, b) =>
+        new Date(b.review_date || b.created_at || 0) - new Date(a.review_date || a.created_at || 0)
+      );
+      renderManualReviewsTable();
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="5" class="or-empty" style="color:#f87171;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="or-empty" style="color:#f87171;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
     }
   }
 
@@ -1264,17 +1272,6 @@
     } catch { return iso; }
   }
 
-  async function loadOfflineReviews(projectId) {
-    const tbody = document.getElementById('offline-reviews-tbody');
-    tbody.innerHTML = '<tr><td colspan="8" class="or-empty">Loading…</td></tr>';
-    try {
-      const data = await api(`/api/reviews/?project_id=${projectId}&review_type=offline`);
-      offlineReviews = data?.reviews || [];
-      renderOfflineReviewsTable();
-    } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="8" class="or-empty" style="color:#f87171;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
-    }
-  }
 
   function getOfflineStatus(r) {
     if (r.status === 'completed' || r.excel_uploaded_at) return { label: 'Scored', cls: 'badge-scored' };
@@ -1307,49 +1304,65 @@
     return `<span class="badge ${clsMap[status] || 'badge-gray'}">${labelMap[status] || escapeHtml(status)}</span>`;
   }
 
-  function renderOfflineReviewsTable() {
-    const tbody = document.getElementById('offline-reviews-tbody');
-    if (!offlineReviews.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="or-empty">No offline reviews yet — click "Send for Review" to invite a reviewer.</td></tr>';
+  function renderManualReviewsTable() {
+    const tbody = document.getElementById('manual-reviews-tbody');
+    if (!manualReviews.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="or-empty">No manual reviews yet — click "+ Self Review" to start one, or "+ Send for Review" to invite a reviewer.</td></tr>';
       return;
     }
-    tbody.innerHTML = offlineReviews.map(r => {
-      const status = getOfflineStatus(r);
-      const reviewerName = escapeHtml(r.assigned_reviewer_name || '—');
-      const reviewerEmail = escapeHtml(r.assigned_reviewer_email || '—');
-      const checklistName = escapeHtml(r.checklist_name || '—');
-      const sentAt = r.excel_sent_at ? formatDate(r.excel_sent_at) : '<span style="color:#475569">Not sent</span>';
-      const dueDate = r.due_date ? `<span style="color:#fb923c;">${formatDate(r.due_date)}</span>` : '—';
-      const token = r.upload_token ? escapeHtml(r.upload_token) : '';
-      const reviewUrl = token ? `/offline-review?token=${token}` : '';
-      const score = formatOfflineScore(r);
-      const approval = getApprovalBadge(r);
+    tbody.innerHTML = manualReviews.map(r => {
+      const isOnline = r._display_type === 'online';
+      const isSelfInitiated = r._display_type === 'manual' && !isOnline;
 
+      // Reviewer / creator column
+      const reviewerName = escapeHtml(r.assigned_reviewer_name || (isOnline ? r.title || 'AI-guided' : (currentUser.name || 'Me')));
+      const reviewerEmail = escapeHtml(r.assigned_reviewer_email || (isSelfInitiated ? currentUser.email : ''));
+
+      // Type badge
+      const typeBadge = isOnline
+        ? '<span class="badge badge-gray" style="font-size:10px;">AI-guided</span>'
+        : isSelfInitiated
+          ? '<span class="badge badge-gray" style="font-size:10px;">Self</span>'
+          : '<span class="badge badge-gray" style="font-size:10px;">Assigned</span>';
+
+      const checklistName = escapeHtml(r.checklist_name || '—');
+      const createdAt = formatDate(r.excel_sent_at || r.review_date || r.created_at);
+      const dueDate = r.due_date ? `<span style="color:#fb923c;">${formatDate(r.due_date)}</span>` : '—';
+      const score = formatOfflineScore(r);
+      const status = getOfflineStatus(r);
+
+      // Actions
       let actions = '';
-      if (reviewUrl) {
-        actions += `<a href="${reviewUrl}" target="_blank" class="btn btn-ghost btn-sm" title="Open review page" style="padding:3px 8px;">🔗 Open</a>`;
-        actions += `<button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${reviewUrl}')" title="Copy magic link" style="padding:3px 8px;">📋 Copy Link</button>`;
-      }
-      if (r.report_id && r.approval_status !== 'approved') {
-        actions += `<button class="btn btn-primary btn-sm" onclick="approveOfflineReport(${r.report_id})" title="Approve generated report" style="padding:3px 8px;">Approve</button>`;
-      }
-      if (r.report_id && r.approval_status === 'pending') {
-        actions += `<button class="btn btn-ghost btn-sm" onclick="requestOfflineRevision(${r.report_id})" title="Request revision" style="padding:3px 8px;">Revise</button>`;
-      }
-      if (r.status !== 'completed') {
-        actions += `<button class="btn btn-ghost btn-sm" onclick="resendOfflineEmail(${r.id})" title="Resend invitation email" style="padding:3px 8px;">✉ Resend</button>`;
+      if (isOnline) {
+        actions += `<a href="/ui?review_id=${r.id}" class="btn btn-ghost btn-sm" style="padding:3px 8px;">Open</a>`;
+      } else {
+        const token = r.upload_token ? escapeHtml(r.upload_token) : '';
+        const reviewUrl = token ? `/offline-review?token=${token}` : '';
+        if (reviewUrl) {
+          actions += `<a href="${reviewUrl}" target="_blank" class="btn btn-ghost btn-sm" title="Open review page" style="padding:3px 8px;">🔗 Open</a>`;
+          actions += `<button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${reviewUrl}')" title="Copy link" style="padding:3px 8px;">📋 Copy</button>`;
+        }
+        if (r.report_id && r.approval_status !== 'approved') {
+          actions += `<button class="btn btn-primary btn-sm" onclick="approveOfflineReport(${r.report_id})" style="padding:3px 8px;">Approve</button>`;
+        }
+        if (r.report_id && r.approval_status === 'pending') {
+          actions += `<button class="btn btn-ghost btn-sm" onclick="requestOfflineRevision(${r.report_id})" style="padding:3px 8px;">Revise</button>`;
+        }
+        if (r.status !== 'completed' && r.assigned_reviewer_email) {
+          actions += `<button class="btn btn-ghost btn-sm" onclick="resendOfflineEmail(${r.id})" style="padding:3px 8px;">✉ Resend</button>`;
+        }
       }
 
       return `<tr>
         <td>
           <div style="font-weight:600;color:#f1f5f9;margin-bottom:2px;">${reviewerName}</div>
-          <div style="font-size:11px;color:#64748b;">${reviewerEmail}</div>
+          ${reviewerEmail ? `<div style="font-size:11px;color:#64748b;">${reviewerEmail}</div>` : ''}
         </td>
         <td>${checklistName}</td>
-        <td style="color:#94a3b8;font-size:12px;">${sentAt}</td>
+        <td>${typeBadge}</td>
+        <td style="color:#94a3b8;font-size:12px;">${createdAt}</td>
         <td>${dueDate}</td>
         <td>${score}</td>
-        <td>${approval}</td>
         <td><span class="badge ${status.cls}">${status.label}</span></td>
         <td><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">${actions}</div></td>
       </tr>`;
@@ -1361,7 +1374,7 @@
       await api(`/api/reports/${reportId}/approve`, { method: 'POST' });
       toast('Report approved', 'success');
       const projectId = document.getElementById('project-select').value;
-      if (projectId) await loadOfflineReviews(projectId);
+      if (projectId) await loadManualReviews(projectId);
     } catch (e) {
       toast('Approval failed: ' + e.message, 'error');
     }
@@ -1375,7 +1388,7 @@
       await api(`/api/reports/${reportId}/reject?comments=${encodeURIComponent(comments.trim())}`, { method: 'POST' });
       toast('Revision requested', 'success');
       const projectId = document.getElementById('project-select').value;
-      if (projectId) await loadOfflineReviews(projectId);
+      if (projectId) await loadManualReviews(projectId);
     } catch (e) {
       toast('Revision request failed: ' + e.message, 'error');
     }
@@ -1468,12 +1481,91 @@
       succEl.style.display = 'block';
       btn.textContent = 'Done';
 
-      await loadOfflineReviews(projectId);
+      await loadManualReviews(projectId);
     } catch (e) {
       errEl.textContent = e.message;
       errEl.style.display = 'block';
       btn.disabled = false;
       btn.textContent = 'Send Invitation';
+    }
+  }
+
+  // ── New Manual Review (self-initiated) ────────────────────────────────────
+  function openNewManualReviewModal() {
+    const projectId = document.getElementById('project-select').value;
+    if (!projectId) { toast('Please select a project first', 'error'); return; }
+
+    const sel = document.getElementById('new-manual-checklist-id');
+    if (currentProjectChecklists.length) {
+      sel.innerHTML = currentProjectChecklists.map(c =>
+        `<option value="${c.id}">${escapeHtml(c.name)}</option>`
+      ).join('');
+    } else {
+      sel.innerHTML = '<option value="">No checklists — add one first</option>';
+    }
+
+    document.getElementById('new-manual-title').value = '';
+    document.getElementById('new-manual-error').style.display = 'none';
+    document.getElementById('new-manual-success').style.display = 'none';
+    const btn = document.getElementById('btn-create-manual');
+    btn.disabled = false;
+    btn.textContent = 'Create Review';
+
+    document.getElementById('create-manual-modal').classList.remove('hidden');
+  }
+
+  function closeNewManualReviewModal() {
+    document.getElementById('create-manual-modal').classList.add('hidden');
+  }
+
+  async function submitNewManualReview() {
+    const projectId = parseInt(document.getElementById('project-select').value);
+    const checklistId = parseInt(document.getElementById('new-manual-checklist-id').value);
+    const title = document.getElementById('new-manual-title').value.trim();
+
+    const errEl = document.getElementById('new-manual-error');
+    const succEl = document.getElementById('new-manual-success');
+    errEl.style.display = 'none';
+    succEl.style.display = 'none';
+
+    if (!checklistId) { errEl.textContent = 'Please select a checklist.'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('btn-create-manual');
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+
+    try {
+      const body = { project_id: projectId, checklist_id: checklistId };
+      if (title) body.title = title;
+
+      const result = await api('/api/reviews/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const portalUrl = result.portal_url || '';
+      succEl.innerHTML = `
+        <div style="margin-bottom:10px;">✓ Manual review created.</div>
+        ${portalUrl ? `
+        <div style="margin-top:10px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">🔗 Review Portal Link</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input readonly value="${escapeHtml(portalUrl)}"
+              style="flex:1;background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:12px;font-family:monospace;" />
+            <button onclick="copyReviewLink('${escapeHtml(portalUrl)}')" style="padding:8px 14px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">Copy</button>
+            <a href="${escapeHtml(portalUrl)}" target="_blank" style="padding:8px 14px;background:rgba(255,255,255,0.07);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">Open ↗</a>
+          </div>
+        </div>` : ''}`;
+      succEl.style.display = 'block';
+      btn.textContent = 'Done';
+
+      await loadManualReviews(projectId);
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Create Review';
     }
   }
 

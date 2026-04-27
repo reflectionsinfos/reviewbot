@@ -113,8 +113,15 @@ def parse_response_excel(
         raw_links = str(row[8] or "").strip()
         evidence_links = [ln.strip() for ln in raw_links.split(",") if ln.strip()] if raw_links else []
 
+        is_review_item = hasattr(db_item, "source_checklist_item_id")
+        source_checklist_item_id = (
+            getattr(db_item, "source_checklist_item_id", None)
+            if is_review_item else db_item.id
+        )
+
         results.append({
-            "checklist_item_id": db_item.id,
+            "checklist_item_id": source_checklist_item_id,
+            "review_item_id": db_item.id if is_review_item else None,
             "item_code": item_code,
             "answer": raw_response,
             "rag_status": rag_status,

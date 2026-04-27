@@ -107,6 +107,43 @@ async def init_db():
             """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS excel_response_path VARCHAR""",
             """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS offline_message TEXT""",
             """ALTER TABLE reviews ADD COLUMN IF NOT EXISTS due_date TIMESTAMP""",
+            # 013 — review-owned checklist snapshots for manual/offline reviews
+            """CREATE TABLE IF NOT EXISTS review_items (
+                   id SERIAL PRIMARY KEY,
+                   review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+                   source_checklist_item_id INTEGER REFERENCES checklist_items(id) ON DELETE SET NULL,
+                   item_code VARCHAR,
+                   area VARCHAR,
+                   question TEXT NOT NULL,
+                   category VARCHAR,
+                   weight FLOAT DEFAULT 1.0,
+                   is_review_mandatory BOOLEAN DEFAULT TRUE,
+                   expected_evidence TEXT,
+                   team_category VARCHAR,
+                   guidance TEXT,
+                   applicability_tags JSONB,
+                   suggested_for_domains JSONB,
+                   "order" INTEGER DEFAULT 0,
+                   created_at TIMESTAMP DEFAULT NOW()
+               )""",
+            """ALTER TABLE review_responses ADD COLUMN IF NOT EXISTS review_item_id INTEGER""",
+            # 014 — track whether a response was last set via web portal, excel upload, or ai
+            """ALTER TABLE review_responses ADD COLUMN IF NOT EXISTS last_updated_via VARCHAR""",
+            # 015 — manual review sharing
+            """CREATE TABLE IF NOT EXISTS manual_review_shares (
+                   id SERIAL PRIMARY KEY,
+                   review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+                   shared_with_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                   shared_with_email VARCHAR,
+                   role VARCHAR DEFAULT 'contributor',
+                   token VARCHAR UNIQUE,
+                   token_expires_at TIMESTAMP,
+                   created_by_user_id INTEGER REFERENCES users(id),
+                   created_at TIMESTAMP DEFAULT NOW(),
+                   revoked_at TIMESTAMP
+               )""",
+            """CREATE UNIQUE INDEX IF NOT EXISTS ix_manual_review_shares_token
+               ON manual_review_shares(token) WHERE token IS NOT NULL""",
         ]
         for sql in migrations:
             try:
@@ -124,7 +161,8 @@ async def init_db():
             "meeting_blocks", "milestone_review_triggers", "organizations", "project_members",
             "projects", "recurring_review_schedules", "reminder_queue",
             "report_approvals", "reports", "review_instances",
-            "review_responses", "review_trend_analytics", "reviews",
+            "manual_review_shares",
+            "review_items", "review_responses", "review_trend_analytics", "reviews",
             "self_review_sessions", "stakeholder_preparation", "users",
             "system_settings"
         ]

@@ -174,6 +174,7 @@ async def get_review_activity(
         .options(
             selectinload(Review.project),
             selectinload(Review.checklist).selectinload(Checklist.items),
+            selectinload(Review.items),
             selectinload(Review.responses),
             selectinload(Review.report),
         )
@@ -220,7 +221,9 @@ async def get_review_activity(
         amber = sum(1 for r in responses if r.rag_status == "amber")
         red = sum(1 for r in responses if r.rag_status == "red")
         na = sum(1 for r in responses if r.rag_status == "na")
-        total_items = len(review.checklist.items) if review.checklist and review.checklist.items else len(responses)
+        total_items = len(review.items or []) or (
+            len(review.checklist.items) if review.checklist and review.checklist.items else len(responses)
+        )
         generated_at = (
             (review.report.created_at if review.report else None)
             or review.completed_at

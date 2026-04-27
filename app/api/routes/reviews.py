@@ -13,7 +13,7 @@ import os
 import secrets
 
 from app.db.session import get_db
-from app.models import Review, ReviewResponse, Checklist, ChecklistItem, Project, Report, IntegrationConfig
+from app.models import Review, ReviewItem, ReviewResponse, Checklist, ChecklistItem, Project, Report, IntegrationConfig, ManualReviewShare
 from app.agents.review_agent import get_review_agent
 from sqlalchemy.orm import selectinload
 from app.services.voice_interface import get_voice_interface
@@ -48,6 +48,46 @@ async def _send_offline_review_email(integration: IntegrationConfig, **kwargs):
     return await _smtp_svc.send_offline_review_email(
         cfg=integration.config_json, **kwargs
     )
+
+
+def _snapshot_review_item(review_id: int, item: ChecklistItem) -> ReviewItem:
+    """Copy a mutable checklist item into an immutable review item snapshot."""
+    return ReviewItem(
+        review_id=review_id,
+        source_checklist_item_id=item.id,
+        item_code=item.item_code,
+        area=item.area,
+        question=item.question,
+        category=item.category,
+        weight=item.weight,
+        is_review_mandatory=item.is_review_mandatory,
+        expected_evidence=item.expected_evidence,
+        team_category=item.team_category,
+        guidance=item.guidance,
+        applicability_tags=item.applicability_tags,
+        suggested_for_domains=item.suggested_for_domains,
+        order=item.order,
+    )
+
+
+async def _ensure_review_item_snapshots(
+    review: Review,
+    checklist: Checklist,
+    db: AsyncSession,
+) -> list[ReviewItem]:
+    """Return review-owned item snapshots, creating them once if missing."""
+    # Read from __dict__ to avoid triggering a lazy-load in async context.
+    # If items were eager-loaded they'll be in __dict__; for new reviews it's absent.
+    existing = list(review.__dict__.get("items") or [])
+    if existing:
+        return sorted(existing, key=lambda item: item.order or 0)
+
+    source_items = sorted(checklist.items or [], key=lambda item: item.order or 0)
+    snapshots = [_snapshot_review_item(review.id, item) for item in source_items]
+    for snapshot in snapshots:
+        db.add(snapshot)
+    await db.flush()
+    return snapshots
 
 
 @router.get("/")
@@ -216,7 +256,8 @@ async def start_review(
         select(Review)
         .options(
             selectinload(Review.project),
-            selectinload(Review.checklist).selectinload(Checklist.items)
+            selectinload(Review.checklist).selectinload(Checklist.items),
+            selectinload(Review.items),
         )
         .where(Review.id == review_id)
     )
@@ -491,9 +532,10 @@ async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSes
     checklist = checklist_result.scalar_one_or_none()
     if not checklist:
         raise HTTPException(status_code=404, detail="Checklist not found")
+    review_items = await _ensure_review_item_snapshots(review, checklist, db)
 
     try:
-        parsed = parse_response_excel(content, checklist.items)
+        parsed = parse_response_excel(content, review_items)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
 
@@ -511,30 +553,40 @@ async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSes
     existing_result = await db.execute(
         select(ReviewResponse).where(ReviewResponse.review_id == review.id)
     )
-    existing_map = {r.checklist_item_id: r for r in existing_result.scalars().all()}
+    existing_map = {
+        (r.review_item_id if r.review_item_id is not None else r.checklist_item_id): r
+        for r in existing_result.scalars().all()
+    }
 
     rag_scores = {"green": 100, "amber": 50, "red": 0}
     rag_counts: Dict[str, int] = {"green": 0, "amber": 0, "red": 0, "na": 0}
 
     for item_data in parsed:
         cid = item_data["checklist_item_id"]
+        rid = item_data.get("review_item_id")
+        response_key = rid if rid is not None else cid
         rag = item_data["rag_status"]
         rag_counts[rag] = rag_counts.get(rag, 0) + 1
 
-        if cid in existing_map:
-            resp = existing_map[cid]
+        if response_key in existing_map:
+            resp = existing_map[response_key]
             resp.answer = item_data["answer"]
             resp.rag_status = rag
             resp.comments = item_data.get("comments") or ""
             resp.evidence_links = item_data.get("evidence_links") or []
+            resp.review_item_id = rid
+            resp.checklist_item_id = cid
+            resp.last_updated_via = "excel"
         else:
             resp = ReviewResponse(
                 review_id=review.id,
                 checklist_item_id=cid,
+                review_item_id=rid,
                 answer=item_data["answer"],
                 rag_status=rag,
                 comments=item_data.get("comments") or "",
                 evidence_links=item_data.get("evidence_links") or [],
+                last_updated_via="excel",
             )
             db.add(resp)
 
@@ -654,6 +706,8 @@ async def create_offline_review(
         voice_enabled=False,
     )
     db.add(review)
+    await db.flush()
+    await _ensure_review_item_snapshots(review, checklist, db)
     await db.commit()
     await db.refresh(review)
 
@@ -806,6 +860,7 @@ async def download_checklist_by_token(
 
     if not review.checklist or not review.checklist.items:
         raise HTTPException(status_code=404, detail="No checklist items found for this review")
+    review_items = await _ensure_review_item_snapshots(review, review.checklist, db)
 
     project_name = review.project.name if review.project else "Project"
     checklist_name = review.checklist.name if review.checklist else "Checklist"
@@ -814,7 +869,7 @@ async def download_checklist_by_token(
         project_name=project_name,
         checklist_name=checklist_name,
         reviewer_name=review.assigned_reviewer_name or "Reviewer",
-        items=review.checklist.items,
+        items=review_items,
         due_date=review.due_date,
         admin_message=review.offline_message,
     )
@@ -841,7 +896,9 @@ async def upload_response_by_token(
     """Upload a completed response Excel by upload token (no authentication required)."""
     now = datetime.utcnow()
     result = await db.execute(
-        select(Review).where(Review.upload_token == token)
+        select(Review)
+        .options(selectinload(Review.items))
+        .where(Review.upload_token == token)
     )
     review = result.scalar_one_or_none()
 
@@ -869,7 +926,9 @@ async def upload_response_by_id(
 ):
     """Upload a completed response Excel by review ID (authentication required)."""
     result = await db.execute(
-        select(Review).where(Review.id == review_id)
+        select(Review)
+        .options(selectinload(Review.items))
+        .where(Review.id == review_id)
     )
     review = result.scalar_one_or_none()
 
@@ -942,3 +1001,483 @@ async def resend_offline_invitation(
         "error": dispatch.error_message if not dispatch.success else None,
         "reviewer_email": review.assigned_reviewer_email,
     }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Portal (Web) Editing Endpoints
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.get("/{review_id}/portal-items")
+async def get_portal_items(
+    review_id: int,
+    token: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return all snapshot items for a review merged with their current responses.
+    Accessible either by authenticated users or via a valid share token.
+    """
+    review = await _load_review_for_portal(review_id, token, db)
+
+    checklist_result = await db.execute(
+        select(Checklist)
+        .options(selectinload(Checklist.items))
+        .where(Checklist.id == review.checklist_id)
+    )
+    checklist = checklist_result.scalar_one_or_none()
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+
+    review_items = await _ensure_review_item_snapshots(review, checklist, db)
+
+    # Load all existing responses for this review
+    responses_result = await db.execute(
+        select(ReviewResponse).where(ReviewResponse.review_id == review_id)
+    )
+    response_map: Dict[int, ReviewResponse] = {
+        r.review_item_id: r
+        for r in responses_result.scalars().all()
+        if r.review_item_id is not None
+    }
+
+    items_out = []
+    for ri in review_items:
+        resp = response_map.get(ri.id)
+        items_out.append({
+            "review_item_id": ri.id,
+            "item_code": ri.item_code,
+            "area": ri.area,
+            "team_category": ri.team_category,
+            "question": ri.question,
+            "expected_evidence": ri.expected_evidence,
+            "guidance": ri.guidance,
+            "weight": ri.weight,
+            "is_review_mandatory": ri.is_review_mandatory,
+            "order": ri.order,
+            # Response fields — None if not yet answered
+            "response_id": resp.id if resp else None,
+            "answer": resp.answer if resp else None,
+            "rag_status": resp.rag_status if resp else "na",
+            "comments": resp.comments if resp else None,
+            "evidence_links": resp.evidence_links if resp else [],
+            "last_updated_via": getattr(resp, "last_updated_via", None) if resp else None,
+            "last_updated_at": resp.updated_at.isoformat() if resp and resp.updated_at else None,
+        })
+
+    return {
+        "review_id": review_id,
+        "project_name": review.project.name if review.project else None,
+        "checklist_name": checklist.name,
+        "review_status": review.status,
+        "excel_downloaded_at": review.excel_downloaded_at.isoformat() if review.excel_downloaded_at else None,
+        "excel_uploaded_at": review.excel_uploaded_at.isoformat() if review.excel_uploaded_at else None,
+        "items": items_out,
+        "total": len(items_out),
+    }
+
+
+class PortalItemUpdate(BaseModel):
+    answer: Optional[str] = None          # Yes | No | Partial | N/A
+    comments: Optional[str] = None
+    evidence_links: Optional[List[str]] = None
+
+
+_PORTAL_RAG_MAP = {
+    "yes": "green",
+    "no": "red",
+    "partial": "amber",
+    "n/a": "na",
+    "na": "na",
+}
+
+
+@router.patch("/{review_id}/items/{review_item_id}")
+async def update_portal_item(
+    review_id: int,
+    review_item_id: int,
+    body: PortalItemUpdate,
+    token: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a single checklist item response via the web portal."""
+    review = await _load_review_for_portal(review_id, token, db)
+
+    # Verify the review item belongs to this review
+    ri_result = await db.execute(
+        select(ReviewItem).where(
+            ReviewItem.id == review_item_id,
+            ReviewItem.review_id == review_id,
+        )
+    )
+    review_item = ri_result.scalar_one_or_none()
+    if not review_item:
+        raise HTTPException(status_code=404, detail="Review item not found")
+
+    # Load existing response if any
+    resp_result = await db.execute(
+        select(ReviewResponse).where(
+            ReviewResponse.review_id == review_id,
+            ReviewResponse.review_item_id == review_item_id,
+        )
+    )
+    response = resp_result.scalar_one_or_none()
+
+    rag_status = "na"
+    if body.answer:
+        normalised = body.answer.lower().strip()
+        rag_status = _PORTAL_RAG_MAP.get(normalised, "na")
+
+    now = datetime.utcnow()
+    if response:
+        if body.answer is not None:
+            response.answer = body.answer
+            response.rag_status = rag_status
+        if body.comments is not None:
+            response.comments = body.comments
+        if body.evidence_links is not None:
+            response.evidence_links = body.evidence_links
+        response.last_updated_via = "web"
+        response.updated_at = now
+    else:
+        response = ReviewResponse(
+            review_id=review_id,
+            checklist_item_id=review_item.source_checklist_item_id,
+            review_item_id=review_item_id,
+            answer=body.answer or "",
+            rag_status=rag_status,
+            comments=body.comments or "",
+            evidence_links=body.evidence_links or [],
+            last_updated_via="web",
+        )
+        db.add(response)
+
+    # Move review to in_progress when responses start arriving
+    if review.status == "draft":
+        review.status = "in_progress"
+
+    await db.commit()
+
+    return {
+        "review_item_id": review_item_id,
+        "answer": response.answer,
+        "rag_status": response.rag_status,
+        "comments": response.comments,
+        "evidence_links": response.evidence_links,
+        "last_updated_via": "web",
+    }
+
+
+async def _load_review_for_portal(review_id: int, token: Optional[str], db: AsyncSession) -> Review:
+    """Load a review for portal access, verifying either a share token or review upload token."""
+    result = await db.execute(
+        select(Review)
+        .options(selectinload(Review.project), selectinload(Review.items))
+        .where(Review.id == review_id)
+    )
+    review = result.scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    if token:
+        now = datetime.utcnow()
+        # Accept the review's own upload token
+        if review.upload_token == token:
+            if review.upload_token_expiry and review.upload_token_expiry < now:
+                raise HTTPException(status_code=410, detail="This review link has expired.")
+            return review
+        # Accept a share token from manual_review_shares
+        share_result = await db.execute(
+            select(ManualReviewShare).where(
+                ManualReviewShare.review_id == review_id,
+                ManualReviewShare.token == token,
+                ManualReviewShare.revoked_at == None,
+            )
+        )
+        share = share_result.scalar_one_or_none()
+        if not share:
+            raise HTTPException(status_code=403, detail="Invalid or revoked share token.")
+        if share.token_expires_at and share.token_expires_at < now:
+            raise HTTPException(status_code=410, detail="This share link has expired.")
+        return review
+
+    return review
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Self-Initiated Manual Review
+# ──────────────────────────────────────────────────────────────────────────────
+
+class ManualReviewCreate(BaseModel):
+    project_id: int
+    checklist_id: int
+    title: Optional[str] = None
+    due_date: Optional[str] = None  # ISO format: "2026-05-09"
+
+
+@router.post("/manual")
+async def create_manual_review(
+    request: ManualReviewCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Create a self-initiated manual review. Private to the creator by default.
+    Returns a portal URL the creator can use to fill in responses via the web.
+    """
+    project_result = await db.execute(select(Project).where(Project.id == request.project_id))
+    project = project_result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    checklist_result = await db.execute(
+        select(Checklist)
+        .options(selectinload(Checklist.items))
+        .where(Checklist.id == request.checklist_id)
+    )
+    checklist = checklist_result.scalar_one_or_none()
+    if not checklist:
+        raise HTTPException(status_code=404, detail="Checklist not found")
+
+    due_dt = None
+    if request.due_date:
+        try:
+            due_dt = datetime.fromisoformat(request.due_date)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Invalid due_date. Use ISO format: YYYY-MM-DD")
+
+    token = secrets.token_urlsafe(32)
+    expiry = datetime.utcnow() + timedelta(days=settings.OFFLINE_REVIEW_TOKEN_DAYS)
+
+    review = Review(
+        project_id=request.project_id,
+        checklist_id=request.checklist_id,
+        title=request.title or f"Manual Review — {project.name}",
+        review_type="manual",
+        status="draft",
+        conducted_by=current_user.id,
+        assigned_reviewer_name=current_user.full_name,
+        assigned_reviewer_email=current_user.email,
+        upload_token=token,
+        upload_token_expiry=expiry,
+        due_date=due_dt,
+        voice_enabled=False,
+    )
+    db.add(review)
+    await db.flush()
+    await _ensure_review_item_snapshots(review, checklist, db)
+    await db.commit()
+    await db.refresh(review)
+
+    portal_url = f"{settings.APP_BASE_URL.rstrip('/')}/manual-review/{review.id}?token={token}"
+
+    return {
+        "message": "Manual review created",
+        "review_id": review.id,
+        "upload_token": token,
+        "portal_url": portal_url,
+        "project_name": project.name,
+        "checklist_name": checklist.name,
+        "item_count": len(checklist.items),
+        "token_expires_at": expiry.isoformat(),
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Conflict-Aware Excel Upload (replaces the 409-guard with richer conflict info)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.post("/upload-with-conflict-check/{token}")
+async def upload_response_with_conflict_check(
+    token: str,
+    file: UploadFile = File(...),
+    force_override: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Upload a completed response Excel by token.
+    If any items were edited via the web portal after the Excel was downloaded,
+    returns HTTP 409 with a conflict summary unless force_override=true.
+    """
+    now = datetime.utcnow()
+    result = await db.execute(
+        select(Review)
+        .options(selectinload(Review.items))
+        .where(Review.upload_token == token)
+    )
+    review = result.scalar_one_or_none()
+
+    if not review:
+        raise HTTPException(status_code=404, detail="Invalid review link")
+    if review.upload_token_expiry and review.upload_token_expiry < now:
+        raise HTTPException(status_code=410, detail="This review link has expired.")
+
+    if not force_override and review.excel_downloaded_at:
+        conflicts = await _detect_web_conflicts(review, db)
+        if conflicts:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": (
+                        "Some items were updated via the web portal after the Excel was downloaded. "
+                        "Set force_override=true to overwrite portal data with Excel values, "
+                        "or edit those items directly in the portal."
+                    ),
+                    "conflicts": conflicts,
+                },
+            )
+
+    return await _process_offline_upload(review, file, db)
+
+
+async def _detect_web_conflicts(review: Review, db: AsyncSession) -> List[Dict[str, Any]]:
+    """Return items that were edited via web after the Excel was last downloaded."""
+    if not review.excel_downloaded_at:
+        return []
+
+    responses_result = await db.execute(
+        select(ReviewResponse).where(
+            ReviewResponse.review_id == review.id,
+            ReviewResponse.last_updated_via == "web",
+        )
+    )
+    conflicts = []
+    for resp in responses_result.scalars().all():
+        if resp.updated_at and resp.updated_at > review.excel_downloaded_at:
+            # Attach item_code for context
+            ri_result = await db.execute(
+                select(ReviewItem).where(ReviewItem.id == resp.review_item_id)
+            )
+            ri = ri_result.scalar_one_or_none()
+            conflicts.append({
+                "review_item_id": resp.review_item_id,
+                "item_code": ri.item_code if ri else None,
+                "area": ri.area if ri else None,
+                "current_answer": resp.answer,
+                "current_rag_status": resp.rag_status,
+                "web_updated_at": resp.updated_at.isoformat(),
+                "excel_downloaded_at": review.excel_downloaded_at.isoformat(),
+            })
+    return conflicts
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Review Sharing
+# ──────────────────────────────────────────────────────────────────────────────
+
+class ShareRequest(BaseModel):
+    shared_with_email: Optional[str] = None    # external user email
+    shared_with_user_id: Optional[int] = None  # internal user id
+    role: str = "contributor"                  # viewer | contributor | approver
+    expires_in_days: int = 30
+
+
+@router.post("/{review_id}/share")
+async def share_review(
+    review_id: int,
+    body: ShareRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Share a manual review with an internal user or an external email.
+    Returns a magic link token valid for expires_in_days days (default 30).
+    """
+    result = await db.execute(select(Review).where(Review.id == review_id))
+    review = result.scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    if not body.shared_with_email and not body.shared_with_user_id:
+        raise HTTPException(status_code=422, detail="Provide either shared_with_email or shared_with_user_id.")
+
+    share_token = secrets.token_urlsafe(32)
+    expiry = datetime.utcnow() + timedelta(days=body.expires_in_days)
+
+    share = ManualReviewShare(
+        review_id=review_id,
+        shared_with_user_id=body.shared_with_user_id,
+        shared_with_email=body.shared_with_email,
+        role=body.role,
+        token=share_token,
+        token_expires_at=expiry,
+        created_by_user_id=current_user.id,
+    )
+    db.add(share)
+    await db.commit()
+
+    portal_url = (
+        f"{settings.APP_BASE_URL.rstrip('/')}/manual-review/{review_id}?token={share_token}"
+    )
+
+    return {
+        "share_id": share.id,
+        "review_id": review_id,
+        "role": body.role,
+        "shared_with_email": body.shared_with_email,
+        "shared_with_user_id": body.shared_with_user_id,
+        "portal_url": portal_url,
+        "token": share_token,
+        "expires_at": expiry.isoformat(),
+    }
+
+
+@router.get("/{review_id}/shares")
+async def list_shares(
+    review_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """List all active shares for a review."""
+    result = await db.execute(select(Review).where(Review.id == review_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    shares_result = await db.execute(
+        select(ManualReviewShare).where(
+            ManualReviewShare.review_id == review_id,
+            ManualReviewShare.revoked_at == None,
+        )
+    )
+    shares = shares_result.scalars().all()
+    now = datetime.utcnow()
+
+    return {
+        "review_id": review_id,
+        "shares": [
+            {
+                "share_id": s.id,
+                "shared_with_email": s.shared_with_email,
+                "shared_with_user_id": s.shared_with_user_id,
+                "role": s.role,
+                "portal_url": f"{settings.APP_BASE_URL.rstrip('/')}/manual-review/{review_id}?token={s.token}",
+                "expires_at": s.token_expires_at.isoformat() if s.token_expires_at else None,
+                "is_expired": bool(s.token_expires_at and s.token_expires_at < now),
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in shares
+        ],
+    }
+
+
+@router.delete("/{review_id}/shares/{share_id}")
+async def revoke_share(
+    review_id: int,
+    share_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Revoke a share link."""
+    share_result = await db.execute(
+        select(ManualReviewShare).where(
+            ManualReviewShare.id == share_id,
+            ManualReviewShare.review_id == review_id,
+        )
+    )
+    share = share_result.scalar_one_or_none()
+    if not share:
+        raise HTTPException(status_code=404, detail="Share not found")
+
+    share.revoked_at = datetime.utcnow()
+    await db.commit()
+
+    return {"message": "Share revoked", "share_id": share_id}
