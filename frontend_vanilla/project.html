@@ -251,12 +251,12 @@
   <!-- Checklist panel — always visible when a project is selected -->
   <div id="checklist-panel" class="checklist-panel hidden">
 
-    <!-- Unified tabs toolbar: checklist tabs + separator + review nav tabs -->
+    <!-- Unified tabs toolbar: review nav tabs + separator + checklist tabs -->
     <div class="tabs-toolbar">
-      <div id="checklist-tabs" style="display:flex;gap:4px;"></div>
-      <div class="tabs-sep"></div>
       <div class="tab review-nav-tab" onclick="switchReviewTab('manual')">Manual Review</div>
       <div class="tab review-nav-tab" onclick="switchReviewTab('autonomous')">Autonomous</div>
+      <div class="tabs-sep"></div>
+      <div id="checklist-tabs" style="display:flex;gap:4px;"></div>
       <div class="tabs-spacer"></div>
       <button class="btn btn-ghost btn-sm btn-add-checklist" onclick="openAddModal()">+ Add Checklist</button>
     </div>
@@ -1336,8 +1336,9 @@
       if (isOnline) {
         actions += `<a href="/ui?review_id=${r.id}" class="btn btn-ghost btn-sm" style="padding:3px 8px;">Open</a>`;
       } else {
+        const isManual = r._display_type === 'manual';
         const token = r.upload_token ? escapeHtml(r.upload_token) : '';
-        const reviewUrl = token ? `/offline-review?token=${token}` : '';
+        const reviewUrl = token ? (isManual ? `/manual-review/${r.id}?token=${token}` : `/offline-review?token=${token}`) : '';
         if (reviewUrl) {
           actions += `<a href="${reviewUrl}" target="_blank" class="btn btn-ghost btn-sm" title="Open review page" style="padding:3px 8px;">🔗 Open</a>`;
           actions += `<button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${reviewUrl}')" title="Copy link" style="padding:3px 8px;">📋 Copy</button>`;
@@ -1348,7 +1349,7 @@
         if (r.report_id && r.approval_status === 'pending') {
           actions += `<button class="btn btn-ghost btn-sm" onclick="requestOfflineRevision(${r.report_id})" style="padding:3px 8px;">Revise</button>`;
         }
-        if (r.status !== 'completed' && r.assigned_reviewer_email) {
+        if (!isManual && r.status !== 'completed' && r.assigned_reviewer_email) {
           actions += `<button class="btn btn-ghost btn-sm" onclick="resendOfflineEmail(${r.id})" style="padding:3px 8px;">✉ Resend</button>`;
         }
       }
@@ -1479,6 +1480,8 @@
           </div>
         </div>` : ''}`;
       succEl.style.display = 'block';
+      btn.disabled = false;
+      btn.onclick = closeCreateOfflineModal;
       btn.textContent = 'Done';
 
       await loadManualReviews(projectId);
@@ -1558,6 +1561,8 @@
           </div>
         </div>` : ''}`;
       succEl.style.display = 'block';
+      btn.disabled = false;
+      btn.onclick = closeNewManualReviewModal;
       btn.textContent = 'Done';
 
       await loadManualReviews(projectId);

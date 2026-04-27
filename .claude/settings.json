@@ -4,7 +4,12 @@
       "Bash(xargs grep:*)",
       "Bash(grep -n \"reports/history\\\\|snapshot_id\\\\|source_path\" c:/projects/reviewbot/app/api/routes/*.py)",
       "Bash(grep -n \"snapshot_id\\\\|CodebaseSnapshot\\\\|SnapshotFile\" c:/projects/reviewbot/app/api/routes/*.py c:/projects/reviewbot/app/models.py)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python -m json.tool)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); routes=[k for k in d['paths'] if 'manual' in k]; print\\('Routes with manual:', routes\\)\")"
+    ],
+    "additionalDirectories": [
+      "c:\\projects\\nexus-ai\\reviewbot\\.claude"
     ]
   }
 }

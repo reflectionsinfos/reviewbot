@@ -152,6 +152,12 @@ async def serve_offline_review():
     return FileResponse(os.path.join(_frontend_dir, "offline-review.html"))
 
 
+@app.get("/manual-review/{review_id}", include_in_schema=False)
+async def serve_manual_review(review_id: int):
+    """Serve the token-gated self-review portal"""
+    return FileResponse(os.path.join(_frontend_dir, "manual-review.html"))
+
+
 # ── Health / root ─────────────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 async def serve_home():

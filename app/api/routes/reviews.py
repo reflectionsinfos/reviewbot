@@ -1,7 +1,7 @@
 """
 Reviews API Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +37,13 @@ async def _get_email_integration(db: AsyncSession):
         ).order_by(IntegrationConfig.type)  # "resend" < "smtp" alphabetically
     )
     return result.scalars().first()
+
+
+def _get_base_url(http_request: Request) -> str:
+    """Derive the public base URL from the incoming request, respecting proxy headers set by GCP/nginx."""
+    scheme = http_request.headers.get("x-forwarded-proto", http_request.url.scheme)
+    host = http_request.headers.get("host", http_request.url.netloc)
+    return f"{scheme}://{host}"
 
 
 async def _send_offline_review_email(integration: IntegrationConfig, **kwargs):
@@ -663,6 +670,7 @@ async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSes
 @router.post("/offline")
 async def create_offline_review(
     request: OfflineReviewCreate,
+    http_request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """Create an offline review and optionally send an invitation email to the reviewer."""
@@ -724,7 +732,7 @@ async def create_offline_review(
                 reviewer_name=request.assigned_reviewer_name,
                 project_name=project.name,
                 checklist_name=checklist.name,
-                app_url=settings.APP_BASE_URL,
+                app_url=_get_base_url(http_request),
                 upload_token=token,
                 due_date=due_dt,
                 admin_message=request.offline_message,
@@ -739,7 +747,7 @@ async def create_offline_review(
         except Exception as exc:
             email_error = str(exc)
 
-    review_url = f"{settings.APP_BASE_URL.rstrip('/')}/offline-review?token={token}"
+    review_url = f"{_get_base_url(http_request)}/offline-review?token={token}"
 
     return {
         "message": "Offline review created",
@@ -758,6 +766,7 @@ async def create_offline_review(
 
 @router.get("/offline/pending")
 async def get_pending_offline_reviews(
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
@@ -783,7 +792,7 @@ async def get_pending_offline_reviews(
                 "checklist_name": r.checklist.name if r.checklist else "Unknown",
                 "due_date": r.due_date.isoformat() if r.due_date else None,
                 "sent_at": r.excel_sent_at.isoformat() if r.excel_sent_at else None,
-                "review_url": f"{settings.APP_BASE_URL.rstrip('/')}/offline-review?token={r.upload_token}",
+                "review_url": f"{_get_base_url(http_request)}/offline-review?token={r.upload_token}",
             }
             for r in reviews
         ]
@@ -944,6 +953,7 @@ async def upload_response_by_id(
 @router.post("/{review_id}/resend-email")
 async def resend_offline_invitation(
     review_id: int,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
@@ -984,7 +994,7 @@ async def resend_offline_invitation(
         reviewer_name=review.assigned_reviewer_name or "Reviewer",
         project_name=project_name,
         checklist_name=checklist_name,
-        app_url=settings.APP_BASE_URL,
+        app_url=_get_base_url(http_request),
         upload_token=review.upload_token,
         due_date=review.due_date,
         admin_message=review.offline_message,
@@ -1217,6 +1227,7 @@ class ManualReviewCreate(BaseModel):
 @router.post("/manual")
 async def create_manual_review(
     request: ManualReviewCreate,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -1268,7 +1279,7 @@ async def create_manual_review(
     await db.commit()
     await db.refresh(review)
 
-    portal_url = f"{settings.APP_BASE_URL.rstrip('/')}/manual-review/{review.id}?token={token}"
+    portal_url = f"{_get_base_url(http_request)}/manual-review/{review.id}?token={token}"
 
     return {
         "message": "Manual review created",
@@ -1375,6 +1386,7 @@ class ShareRequest(BaseModel):
 async def share_review(
     review_id: int,
     body: ShareRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -1405,9 +1417,7 @@ async def share_review(
     db.add(share)
     await db.commit()
 
-    portal_url = (
-        f"{settings.APP_BASE_URL.rstrip('/')}/manual-review/{review_id}?token={share_token}"
-    )
+    portal_url = f"{_get_base_url(http_request)}/manual-review/{review_id}?token={share_token}"
 
     return {
         "share_id": share.id,
@@ -1424,6 +1434,7 @@ async def share_review(
 @router.get("/{review_id}/shares")
 async def list_shares(
     review_id: int,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -1449,7 +1460,7 @@ async def list_shares(
                 "shared_with_email": s.shared_with_email,
                 "shared_with_user_id": s.shared_with_user_id,
                 "role": s.role,
-                "portal_url": f"{settings.APP_BASE_URL.rstrip('/')}/manual-review/{review_id}?token={s.token}",
+                "portal_url": f"{_get_base_url(http_request)}/manual-review/{review_id}?token={s.token}",
                 "expires_at": s.token_expires_at.isoformat() if s.token_expires_at else None,
                 "is_expired": bool(s.token_expires_at and s.token_expires_at < now),
                 "created_at": s.created_at.isoformat() if s.created_at else None,

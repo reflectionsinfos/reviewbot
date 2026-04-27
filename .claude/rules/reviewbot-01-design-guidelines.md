@@ -1,23 +1,23 @@
-# Architecture & Design Guidelines
+# ReviewBot — Architecture & Design Guidelines
+
+> CRITICAL: Follow these guidelines in all code you write for this project.
+> Last updated: 2026-04-27
+
+---
 
 ## 1. Service Layer Pattern for Database Operations
 
-**Guideline:** 
-Do not execute raw database queries (`db.execute()`, `db.add()`, etc.) directly inside FastAPI router endpoint functions. Instead, delegate these operations to a dedicated Service layer.
+**Guideline:**
+Do not execute raw database queries (`db.execute()`, `db.add()`, etc.) directly inside FastAPI router endpoint functions. Delegate to a dedicated Service layer.
 
 **Rationale:**
-- **Separation of Concerns:** Routers should only handle HTTP concerns (request parsing, path/query validation, response formatting, authentication, and HTTP status codes). Business logic and data access belong in a dedicated Service or Repository layer.
-- **Reusability:** Database queries and data retrieval logic can be reused across different endpoints, background tasks, or CLI scripts without duplicating SQLAlchemy code.
-- **Testability:** Service methods can be unit-tested directly by passing a database session mock, without the need for an HTTP client or testing the entire FastAPI dependency tree.
+- Routers handle only HTTP concerns (request parsing, auth, response formatting, status codes).
+- Business logic and data access belong in `app/services/`.
+- Service methods can be unit-tested by passing a DB session mock.
 
-**Implementation Pattern:**
-1. Create a service class/module in the `app/services/` directory (e.g., `app/services/checklist_service.py`).
-2. Encapsulate the database queries in static methods or class methods within the service.
-3. Inject the `AsyncSession` into the FastAPI router via `Depends(get_db)` and pass it down to the service layer.
-
-**Example:**
+**Pattern:**
 ```python
-# Route implementation
+# Route — delegates to service
 @router.get("/")
 async def list_items(db: AsyncSession = Depends(get_db)):
     return await ItemService.list_all(db)
@@ -30,7 +30,7 @@ async def list_items(db: AsyncSession = Depends(get_db)):
 **Guideline:**
 Pass `current_user.organization_id` into service methods whenever the result set must respect org visibility. Apply the org filter inside the service, not in the route handler.
 
-**Rule:** `organization_id = NULL` → platform-wide (visible to all users). `organization_id = X` → visible only to users with matching `organization_id`.
+**Rule:** `organization_id = NULL` → platform-wide (visible to all). `organization_id = X` → visible only to users in that org.
 
 ```python
 # Service — apply org filter
@@ -73,10 +73,10 @@ migrations = [
 
 ---
 
-## 4. Checklist Item Metadata
+## 4. ChecklistItem Metadata Fields
 
 **Guideline:**
-`ChecklistItem` carries three optional metadata fields for the external review workflow. Always expose them in item create/update/list APIs and the `/globals` UI:
+`ChecklistItem` carries three optional metadata fields. Always expose them in item create/update/list APIs and the `/globals` UI:
 
 | Field | Type | Purpose |
 |-------|------|---------|
@@ -117,7 +117,7 @@ checklist = result.scalar_one_or_none()
 Never use `settings.APP_BASE_URL` (which defaults to `http://localhost:8000`) when generating portal links, review URLs, or email links inside a request-scoped route handler. Always derive the base URL from the live HTTP request so the correct public domain is used in every environment (local, GCP Cloud Run, custom domain).
 
 **Why this matters:**
-`APP_BASE_URL` is a static config value. In GCP Cloud Run (or any reverse-proxy deployment) the app receives requests at `http://localhost:8000` internally, but the public-facing URL is entirely different. Hardcoding the default produces links like `http://localhost:8000/manual-review/…` in emails and the UI even in production.
+`APP_BASE_URL` is a static config value. In GCP Cloud Run the app receives requests internally at `http://localhost:8000`, but the public-facing URL is entirely different. Hardcoding the default produces links like `http://localhost:8000/manual-review/…` in emails and the UI even in production.
 
 **Implementation:**
 

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReviewBot — Self Review</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 80px;
+    }
+
+    /* ── Logo Bar ─────────────────────────────────────────────────────────── */
+    .logo-bar {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 40px;
+      animation: fadeDown 0.5s ease both;
+    }
+    .logo-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: linear-gradient(135deg, #1E3A5F, #0ea5e9);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+    }
+    .logo-text { font-size: 22px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.5px; }
+    .logo-sub  { font-size: 12px; color: #64748b; letter-spacing: 1px; text-transform: uppercase; }
+
+    /* ── States ───────────────────────────────────────────────────────────── */
+    #state-loading, #state-error, #state-done, #state-main, #state-success {
+      display: none; width: 100%; max-width: 760px;
+    }
+    #state-loading { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: 40px; }
+
+    /* ── Spinner ──────────────────────────────────────────────────────────── */
+    .spinner {
+      width: 48px; height: 48px; border: 4px solid #1e293b;
+      border-top-color: #38bdf8; border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* ── Card ─────────────────────────────────────────────────────────────── */
+    .card {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 16px; overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      animation: fadeUp 0.55s ease both;
+      margin-bottom: 16px;
+    }
+    .card-header {
+      background: linear-gradient(135deg, #1E3A5F 0%, #0c2a4a 100%);
+      padding: 28px 32px;
+    }
+    .card-header-label {
+      font-size: 11px; color: #90CAF9; text-transform: uppercase;
+      letter-spacing: 1.5px; margin-bottom: 8px;
+    }
+    .card-header-project { font-size: 26px; font-weight: 800; color: #fff; line-height: 1.2; letter-spacing: -0.5px; }
+    .card-header-checklist { font-size: 14px; color: #90CAF9; margin-top: 6px; }
+    .card-body { padding: 28px 32px; }
+
+    /* ── Progress Bar ─────────────────────────────────────────────────────── */
+    .progress-wrap { margin-bottom: 24px; }
+    .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .progress-label { font-size: 13px; color: #94a3b8; }
+    .progress-count { font-size: 13px; font-weight: 700; color: #38bdf8; }
+    .progress-bar-bg { background: #0f172a; border-radius: 99px; height: 8px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #0ea5e9, #38bdf8); border-radius: 99px; transition: width 0.4s ease; }
+
+    /* ── Msg Card ─────────────────────────────────────────────────────────── */
+    .msg-card {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 16px; padding: 40px 32px; text-align: center;
+      animation: fadeUp 0.5s ease both;
+    }
+    .msg-icon { font-size: 52px; margin-bottom: 16px; }
+    .msg-title { font-size: 22px; font-weight: 800; color: #f1f5f9; margin-bottom: 10px; }
+    .msg-body { font-size: 14px; color: #94a3b8; line-height: 1.6; }
+
+    /* ── Review Item Card ─────────────────────────────────────────────────── */
+    .item-card {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; padding: 20px 24px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    .item-card.answered-green  { border-left: 4px solid #22c55e; }
+    .item-card.answered-amber  { border-left: 4px solid #f59e0b; }
+    .item-card.answered-red    { border-left: 4px solid #ef4444; }
+    .item-card.answered-na     { border-left: 4px solid #475569; }
+
+    .item-meta {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 10px; flex-wrap: wrap;
+    }
+    .item-code { font-size: 11px; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.6px; }
+    .item-area { font-size: 11px; color: #64748b; }
+    .item-area::before { content: '·'; margin-right: 8px; }
+    .item-mandatory { font-size: 10px; font-weight: 700; color: #f87171; background: rgba(239,68,68,0.12); padding: 2px 7px; border-radius: 4px; }
+    .save-indicator {
+      margin-left: auto; font-size: 11px; color: #22c55e; opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .save-indicator.visible { opacity: 1; }
+
+    .item-question { font-size: 15px; font-weight: 600; color: #f1f5f9; line-height: 1.5; margin-bottom: 10px; }
+    .item-evidence {
+      font-size: 12px; color: #64748b; background: #0f172a;
+      border: 1px solid #1e3a5f; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 14px; line-height: 1.5;
+    }
+    .item-evidence-label { font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
+    .item-guidance {
+      font-size: 12px; color: #94a3b8; font-style: italic;
+      margin-bottom: 14px; line-height: 1.5;
+    }
+
+    /* ── Answer Selector ──────────────────────────────────────────────────── */
+    .answer-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .answer-btn {
+      flex: 1; min-width: 70px;
+      padding: 8px 4px; border-radius: 8px; border: 1.5px solid #334155;
+      background: #0f172a; color: #94a3b8;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      text-align: center; transition: all 0.15s;
+      user-select: none;
+    }
+    .answer-btn:hover { border-color: #64748b; color: #e2e8f0; }
+    .answer-btn.sel-yes     { background: rgba(34,197,94,0.15); border-color: #22c55e; color: #4ade80; }
+    .answer-btn.sel-partial { background: rgba(245,158,11,0.15); border-color: #f59e0b; color: #fbbf24; }
+    .answer-btn.sel-no      { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #f87171; }
+    .answer-btn.sel-na      { background: rgba(71,85,105,0.2);  border-color: #475569; color: #94a3b8; }
+
+    /* ── Comments ─────────────────────────────────────────────────────────── */
+    textarea.comments {
+      width: 100%; background: #0f172a; border: 1px solid #334155;
+      border-radius: 8px; color: #e2e8f0; font-size: 13px;
+      padding: 10px 14px; resize: vertical; min-height: 60px;
+      font-family: inherit; outline: none; transition: border-color 0.15s;
+    }
+    textarea.comments:focus { border-color: #38bdf8; }
+    textarea.comments::placeholder { color: #475569; }
+
+    /* ── Bottom action bar ────────────────────────────────────────────────── */
+    .action-bar {
+      position: sticky; bottom: 0; left: 0; right: 0;
+      background: rgba(15,23,42,0.9); backdrop-filter: blur(12px);
+      border-top: 1px solid #1e293b;
+      padding: 16px 0; margin-top: 24px;
+    }
+    .action-inner {
+      max-width: 760px; margin: 0 auto; padding: 0 16px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .action-status { font-size: 13px; color: #64748b; flex: 1; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 28px; border-radius: 10px; font-size: 15px;
+      font-weight: 700; cursor: pointer; border: none;
+      transition: all 0.15s; text-decoration: none;
+    }
+    .btn-primary { background: #0ea5e9; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #38bdf8; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-success { background: #22c55e; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #4ade80; transform: translateY(-1px); }
+    .btn-success:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ── Score circle ─────────────────────────────────────────────────────── */
+    .score-circle {
+      width: 120px; height: 120px; border-radius: 50%;
+      border: 8px solid #1e293b;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; margin: 0 auto 20px;
+    }
+    .score-value { font-size: 28px; font-weight: 900; }
+    .score-label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+    .rag-bar { display: flex; gap: 6px; margin: 16px 0; border-radius: 8px; overflow: hidden; }
+    .rag-seg { height: 10px; border-radius: 3px; }
+    .rag-legend { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+    .rag-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+    /* ── Animations ───────────────────────────────────────────────────────── */
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes fadeUp  { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeDown{ from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body>
+
+  <!-- Logo Bar -->
+  <div class="logo-bar">
+    <div class="logo-icon">📋</div>
+    <div>
+      <div class="logo-text">ReviewBot</div>
+      <div class="logo-sub">Self Review Portal</div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="state-loading">
+    <div class="spinner"></div>
+    <p style="color:#64748b;font-size:14px">Loading your review…</p>
+  </div>
+
+  <!-- Error State -->
+  <div id="state-error">
+    <div class="msg-card">
+      <div class="msg-icon">🔗</div>
+      <div class="msg-title">Review not found</div>
+      <div class="msg-body" id="error-text">
+        This review link is invalid or has expired.<br/>
+        Please contact your ReviewBot administrator.
+      </div>
+    </div>
+  </div>
+
+  <!-- Already completed state -->
+  <div id="state-done">
+    <div class="msg-card">
+      <div class="msg-icon">✅</div>
+      <div class="msg-title">Review completed</div>
+      <div class="msg-body">
+        This review has already been submitted and is awaiting approval.
+      </div>
+    </div>
+  </div>
+
+  <!-- Main State -->
+  <div id="state-main">
+
+    <!-- Header card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-header-label">Self Review</div>
+        <div class="card-header-project" id="project-name">Loading…</div>
+        <div class="card-header-checklist" id="checklist-name"></div>
+      </div>
+      <div class="card-body">
+        <div class="progress-wrap">
+          <div class="progress-header">
+            <span class="progress-label">Answers completed</span>
+            <span class="progress-count" id="progress-count">0 / 0</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+          </div>
+        </div>
+        <p style="font-size:13px;color:#64748b;line-height:1.6">
+          Answer each checklist item below. Your responses auto-save as you type.
+          Click <strong style="color:#f1f5f9;">Complete Review</strong> when finished.
+        </p>
+      </div>
+    </div>
+
+    <!-- Items list -->
+    <div id="items-list"></div>
+
+    <!-- Spacer for sticky bar -->
+    <div style="height:80px"></div>
+  </div>
+
+  <!-- Success State -->
+  <div id="state-success" style="max-width:520px">
+    <div class="msg-card">
+      <div class="msg-icon">🎉</div>
+      <div class="msg-title">Review submitted!</div>
+
+      <div id="score-block" style="margin:20px 0">
+        <div class="score-circle" id="score-circle">
+          <div class="score-value" id="score-value">—</div>
+          <div class="score-label">score</div>
+        </div>
+        <div class="rag-bar" id="rag-bar"></div>
+        <div class="rag-legend" id="rag-legend"></div>
+      </div>
+
+      <div class="msg-body">
+        Thank you! Your review has been recorded and is now awaiting approval.<br/>
+        You may close this tab.
+      </div>
+    </div>
+  </div>
+
+  <!-- Sticky action bar (shown while in main state) -->
+  <div class="action-bar" id="action-bar" style="display:none">
+    <div class="action-inner">
+      <span class="action-status" id="action-status">Answer items above to continue</span>
+      <button class="btn btn-success" id="btn-complete" onclick="completeReview()">
+        ✓ Complete Review
+      </button>
+    </div>
+  </div>
+
+<script>
+  const API = '';
+  const pathParts = window.location.pathname.split('/');
+  const REVIEW_ID = parseInt(pathParts[pathParts.length - 1], 10);
+  const TOKEN = new URLSearchParams(window.location.search).get('token');
+
+  let allItems = [];
+  const saveTimers = {};
+  const itemState = {};   // reviewItemId → { answer, comments }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function show(stateId) {
+    ['state-loading','state-error','state-done','state-main','state-success']
+      .forEach(id => { document.getElementById(id).style.display = 'none'; });
+    document.getElementById(stateId).style.display = 'block';
+    document.getElementById('action-bar').style.display = stateId === 'state-main' ? 'block' : 'none';
+  }
+
+  function showError(msg) {
+    document.getElementById('error-text').textContent = msg;
+    show('state-error');
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  async function boot() {
+    if (!TOKEN || isNaN(REVIEW_ID)) {
+      showError('Invalid review link. Please check the URL and try again.');
+      return;
+    }
+    show('state-loading');
+    await new Promise(r => setTimeout(r, 500));
+
+    try {
+      const res = await fetch(`${API}/api/reviews/${REVIEW_ID}/portal-items?token=${encodeURIComponent(TOKEN)}`);
+      if (res.status === 401 || res.status === 403) { showError('This review link is invalid or has expired.'); return; }
+      if (res.status === 404) { showError('Review not found.'); return; }
+      if (!res.ok) { showError('Unable to load review. Please try again.'); return; }
+
+      const data = await res.json();
+
+      if (data.review_status === 'completed') { show('state-done'); return; }
+
+      document.title = `ReviewBot — ${data.project_name || 'Self Review'}`;
+      document.getElementById('project-name').textContent = data.project_name || 'Review';
+      document.getElementById('checklist-name').textContent = data.checklist_name || '';
+
+      allItems = (data.items || []).sort((a, b) => (a.order || 0) - (b.order || 0));
+
+      // Pre-populate state from existing responses
+      allItems.forEach(item => {
+        itemState[item.review_item_id] = {
+          answer: item.answer || null,
+          comments: item.comments || '',
+        };
+      });
+
+      renderItems();
+      updateProgress();
+      show('state-main');
+
+    } catch(e) {
+      showError('Unable to connect to ReviewBot. Please try again later.');
+    }
+  }
+
+  // ── Render items ──────────────────────────────────────────────────────────
+  const RAG_COLORS = { green: '#22c55e', amber: '#f59e0b', red: '#ef4444', na: '#475569' };
+  const ANSWER_TO_RAG = { 'Yes': 'green', 'Partial': 'amber', 'No': 'red', 'N/A': 'na' };
+  const ANSWER_CLASS  = { 'Yes': 'sel-yes', 'Partial': 'sel-partial', 'No': 'sel-no', 'N/A': 'sel-na' };
+
+  function renderItems() {
+    const list = document.getElementById('items-list');
+    list.innerHTML = allItems.map(item => {
+      const st = itemState[item.review_item_id];
+      const rag = ANSWER_TO_RAG[st.answer] || 'none';
+      const cardCls = st.answer ? `answered-${rag}` : '';
+
+      return `<div class="item-card ${cardCls}" id="card-${item.review_item_id}">
+        <div class="item-meta">
+          ${item.item_code ? `<span class="item-code">${escHtml(item.item_code)}</span>` : ''}
+          ${item.area ? `<span class="item-area">${escHtml(item.area)}</span>` : ''}
+          ${item.is_review_mandatory ? `<span class="item-mandatory">Mandatory</span>` : ''}
+          <span class="save-indicator" id="saved-${item.review_item_id}">✓ Saved</span>
+        </div>
+
+        <div class="item-question">${escHtml(item.question)}</div>
+
+        ${item.expected_evidence ? `
+          <div class="item-evidence">
+            <div class="item-evidence-label">Expected Evidence</div>
+            ${escHtml(item.expected_evidence)}
+          </div>` : ''}
+
+        ${item.guidance ? `<div class="item-guidance">💡 ${escHtml(item.guidance)}</div>` : ''}
+
+        <div class="answer-row" id="answers-${item.review_item_id}">
+          ${['Yes','Partial','No','N/A'].map(opt => {
+            const cls = st.answer === opt ? ANSWER_CLASS[opt] : '';
+            return `<button class="answer-btn ${cls}"
+              onclick="selectAnswer(${item.review_item_id}, '${opt}')">${opt}</button>`;
+          }).join('')}
+        </div>
+
+        <textarea class="comments" id="comments-${item.review_item_id}"
+          placeholder="Add comments, evidence, or notes…"
+          oninput="onCommentsChange(${item.review_item_id})"
+        >${escHtml(st.comments)}</textarea>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Answer selection ──────────────────────────────────────────────────────
+  function selectAnswer(reviewItemId, answer) {
+    const prev = itemState[reviewItemId].answer;
+    itemState[reviewItemId].answer = answer;
+
+    // Update button classes
+    const row = document.getElementById(`answers-${reviewItemId}`);
+    row.querySelectorAll('.answer-btn').forEach(btn => {
+      btn.className = 'answer-btn';
+      if (btn.textContent === answer) btn.classList.add(ANSWER_CLASS[answer]);
+    });
+
+    // Update card border
+    const rag = ANSWER_TO_RAG[answer] || 'none';
+    const card = document.getElementById(`card-${reviewItemId}`);
+    card.className = `item-card answered-${rag}`;
+
+    updateProgress();
+    scheduleSave(reviewItemId);
+  }
+
+  function onCommentsChange(reviewItemId) {
+    itemState[reviewItemId].comments = document.getElementById(`comments-${reviewItemId}`).value;
+    scheduleSave(reviewItemId);
+  }
+
+  // ── Progress ──────────────────────────────────────────────────────────────
+  function updateProgress() {
+    const answered = Object.values(itemState).filter(s => s.answer).length;
+    const total = allItems.length;
+    document.getElementById('progress-count').textContent = `${answered} / ${total}`;
+    document.getElementById('progress-bar').style.width = total ? `${(answered/total*100).toFixed(1)}%` : '0%';
+
+    const statusEl = document.getElementById('action-status');
+    if (answered === 0) {
+      statusEl.textContent = 'Answer items above to continue';
+    } else if (answered < total) {
+      statusEl.textContent = `${total - answered} item${total - answered !== 1 ? 's' : ''} remaining`;
+    } else {
+      statusEl.textContent = 'All items answered — ready to submit';
+    }
+  }
+
+  // ── Auto-save ─────────────────────────────────────────────────────────────
+  function scheduleSave(reviewItemId) {
+    clearTimeout(saveTimers[reviewItemId]);
+    saveTimers[reviewItemId] = setTimeout(() => saveItem(reviewItemId), 800);
+  }
+
+  async function saveItem(reviewItemId) {
+    const st = itemState[reviewItemId];
+    try {
+      const res = await fetch(
+        `${API}/api/reviews/${REVIEW_ID}/items/${reviewItemId}?token=${encodeURIComponent(TOKEN)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answer: st.answer || '', comments: st.comments || '' }),
+        }
+      );
+      if (res.ok) {
+        const ind = document.getElementById(`saved-${reviewItemId}`);
+        if (ind) {
+          ind.classList.add('visible');
+          setTimeout(() => ind.classList.remove('visible'), 2000);
+        }
+      }
+    } catch(_) { /* silent fail — will retry on next change */ }
+  }
+
+  // ── Complete review ───────────────────────────────────────────────────────
+  async function completeReview() {
+    const answered = Object.values(itemState).filter(s => s.answer).length;
+    if (answered === 0) {
+      alert('Please answer at least one checklist item before completing the review.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-complete');
+    btn.disabled = true;
+    btn.textContent = '⏳ Completing…';
+
+    // Flush any pending saves
+    const pending = Object.keys(saveTimers).filter(id => saveTimers[id]);
+    await Promise.all(pending.map(id => {
+      clearTimeout(saveTimers[id]);
+      return saveItem(parseInt(id, 10));
+    }));
+
+    try {
+      const res = await fetch(`${API}/api/reviews/${REVIEW_ID}/complete`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+
+      renderSuccess();
+    } catch(e) {
+      alert('Could not complete the review: ' + e.message);
+      btn.disabled = false;
+      btn.textContent = '✓ Complete Review';
+    }
+  }
+
+  // ── Success ───────────────────────────────────────────────────────────────
+  function renderSuccess() {
+    // Tally RAG from local state
+    const rag = { green: 0, amber: 0, red: 0, na: 0 };
+    allItems.forEach(item => {
+      const ans = itemState[item.review_item_id].answer;
+      const ragKey = ANSWER_TO_RAG[ans];
+      if (ragKey) rag[ragKey]++;
+    });
+
+    const nonNA = rag.green + rag.amber + rag.red;
+    const totalWeight = nonNA;
+    const score = totalWeight > 0
+      ? ((rag.green * 1.0 + rag.amber * 0.5) / totalWeight * 100).toFixed(1)
+      : '0.0';
+
+    const scoreColor = parseFloat(score) >= 70 ? '#22c55e' : parseFloat(score) >= 40 ? '#f59e0b' : '#ef4444';
+    const circle = document.getElementById('score-circle');
+    circle.style.borderColor = scoreColor;
+    document.getElementById('score-value').style.color = scoreColor;
+    document.getElementById('score-value').textContent = score + '%';
+
+    const total = rag.green + rag.amber + rag.red + rag.na;
+    if (total > 0) {
+      const segs = [
+        { key: 'green', color: '#22c55e' },
+        { key: 'amber', color: '#f59e0b' },
+        { key: 'red',   color: '#ef4444' },
+        { key: 'na',    color: '#475569' },
+      ];
+      document.getElementById('rag-bar').innerHTML = segs.map(s => {
+        if (!rag[s.key]) return '';
+        return `<div class="rag-seg" style="background:${s.color};flex:${rag[s.key]}"></div>`;
+      }).join('');
+      document.getElementById('rag-legend').innerHTML = segs.map(s => {
+        if (!rag[s.key]) return '';
+        return `<span><span class="rag-dot" style="background:${s.color}"></span>${rag[s.key]} ${s.key}</span>`;
+      }).join('');
+    }
+
+    show('state-success');
+  }
+
+  boot();
+</script>
+</body>
+</html>
