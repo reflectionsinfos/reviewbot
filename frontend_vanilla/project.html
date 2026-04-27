@@ -160,10 +160,23 @@
 
     .hidden { display: none !important; }
 
-    /* ── Reviews Panel ───────────────────────────────────────────────────────── */
-    #reviews-panel { display: none; margin-top: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 16px; overflow: hidden; }
-    .reviews-panel-tabs { display: flex; align-items: center; gap: 0; border-bottom: 1px solid #334155; padding: 0 16px; background: #0f172a; }
-    .reviews-panel-tabs .tab { font-size: 13px; padding: 12px 18px; }
+    /* ── Unified tab toolbar: review nav tabs ────────────────────────────────── */
+    .tabs-sep { width: 1px; height: 20px; background: #334155; margin: 0 10px; flex-shrink: 0; align-self: center; }
+    .review-nav-tab { color: #64748b !important; }
+    .review-nav-tab.active { color: #a78bfa !important; border-bottom-color: #a78bfa !important; }
+
+    /* ── Filter bar ───────────────────────────────────────────────────────────── */
+    .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 14px 24px 0; }
+    .filter-bar input[type="search"], .filter-bar select { width: auto; flex: 1; min-width: 150px; max-width: 240px; font-size: 12px; padding: 7px 10px; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; border-radius: 7px; margin: 0; }
+    .filter-count { font-size: 12px; color: #64748b; margin-left: auto; white-space: nowrap; }
+
+    /* ── Pagination ───────────────────────────────────────────────────────────── */
+    .pagination-bar { display: flex; align-items: center; gap: 6px; padding: 12px 24px 20px; justify-content: flex-end; flex-wrap: wrap; }
+    .pagination-bar .page-btn { padding: 5px 11px; font-size: 12px; min-width: 32px; }
+    .pagination-bar .page-btn.active { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
+    .pagination-info { font-size: 12px; color: #64748b; margin-right: auto; }
+
+    /* ── Reviews content (inside unified panel) ──────────────────────────────── */
     .review-tab-content { display: none; padding: 20px; }
     .review-tab-content.active { display: block; }
     .review-tab-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -228,21 +241,16 @@
     <p>Choose a project from the dropdown above to view and manage its checklists.</p>
   </div>
 
-  <!-- Empty: project selected but no checklists -->
-  <div id="state-no-checklists" class="empty-state hidden">
-    <div class="empty-state-icon">📭</div>
-    <h3>No checklists yet</h3>
-    <p>This project has no checklists. Add one from a global template to get started.<br>
-    Items will be copied so you can customise them freely for this project.</p>
-    <button class="btn btn-primary" onclick="openAddModal()">+ Add Checklist from Template</button>
-  </div>
-
-  <!-- Checklist panel -->
+  <!-- Checklist panel — always visible when a project is selected -->
   <div id="checklist-panel" class="checklist-panel hidden">
 
-    <!-- Tabs toolbar -->
+    <!-- Unified tabs toolbar: checklist tabs + separator + review nav tabs -->
     <div class="tabs-toolbar">
       <div id="checklist-tabs" style="display:flex;gap:4px;"></div>
+      <div class="tabs-sep"></div>
+      <div class="tab review-nav-tab" onclick="switchReviewTab('online')">Online Review</div>
+      <div class="tab review-nav-tab" onclick="switchReviewTab('offline')">Offline Review</div>
+      <div class="tab review-nav-tab" onclick="switchReviewTab('autonomous')">Autonomous</div>
       <div class="tabs-spacer"></div>
       <button class="btn btn-ghost btn-sm btn-add-checklist" onclick="openAddModal()">+ Add Checklist</button>
     </div>
@@ -250,149 +258,171 @@
     <!-- Callout area -->
     <div id="callout-area"></div>
 
-    <!-- Checklist header -->
-    <div class="checklist-header">
-      <div>
-        <div class="checklist-title" id="c-name"></div>
-        <div class="checklist-meta">
-          <span id="c-type" class="badge badge-gray"></span>
-          <span id="c-items-count" style="font-size:13px;color:#94a3b8;"></span>
-          <span id="c-id-badge" style="font-size:11px;color:#475569;background:#0f172a;border:1px solid #334155;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
+    <!-- No-checklists inline state (shown when project has no checklists) -->
+    <div id="state-no-checklists" class="empty-state hidden" style="border:none;border-radius:0;border-top:1px solid #334155;">
+      <div class="empty-state-icon">📭</div>
+      <h3>No checklists yet</h3>
+      <p>This project has no checklists. Add one from a global template to get started.<br>
+      Items will be copied so you can customise them freely for this project.</p>
+      <button class="btn btn-primary" onclick="openAddModal()">+ Add Checklist from Template</button>
+    </div>
+
+    <!-- Checklist content (visible when a checklist tab is active) -->
+    <div id="checklist-content" class="hidden">
+
+      <!-- Checklist header -->
+      <div class="checklist-header">
+        <div>
+          <div class="checklist-title" id="c-name"></div>
+          <div class="checklist-meta">
+            <span id="c-type" class="badge badge-gray"></span>
+            <span id="c-items-count" style="font-size:13px;color:#94a3b8;"></span>
+            <span id="c-id-badge" style="font-size:11px;color:#475569;background:#0f172a;border:1px solid #334155;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
+          </div>
+        </div>
+        <div>
+          <button id="btn-sync-global" class="btn btn-ghost btn-sm hidden" onclick="openSyncModal()">
+            ↻ Sync from Global Template
+          </button>
         </div>
       </div>
-      <div>
-        <button id="btn-sync-global" class="btn btn-ghost btn-sm hidden" onclick="openSyncModal()">
-          ↻ Sync from Global Template
-        </button>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <input type="search" id="filter-search" placeholder="Search question, code…" oninput="applyFilters()" />
+        <select id="filter-area" onchange="applyFilters()"><option value="">All Areas</option></select>
+        <select id="filter-team" onchange="applyFilters()"><option value="">All Teams</option></select>
+        <span class="filter-count" id="filter-count"></span>
       </div>
-    </div>
 
-    <!-- Items table -->
-    <div class="table-wrap">
-      <div class="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:30px;"></th>
-              <th style="width:90px;">Code</th>
-              <th style="width:130px;">Area</th>
-              <th style="width:130px;">Team</th>
-              <th>Question</th>
-              <th style="width:100px;">Evidence<button class="col-info-btn" onclick="showColInfo('evidence',this)" title="What is Evidence?">ⓘ</button></th>
-              <th style="width:70px;">Weight<button class="col-info-btn" onclick="showColInfo('weight',this)" title="What is Weight?">ⓘ</button></th>
-              <th style="width:80px;">Review?<span class="col-info-icon">ⓘ<span class="col-tooltip">IS REVIEW MANDATORY?</span></span></th>
-              <th style="width:90px;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="items-tbody"></tbody>
-          <tbody>
-            <tr class="add-row">
-              <td></td>
-              <td><input id="add-code" class="inline-edit-input" placeholder="SEC-001" title="Leave blank for auto-generated code" /></td>
-              <td><input id="add-area" class="inline-edit-input" placeholder="General" /></td>
-              <td><select id="add-team" class="inline-edit-input"></select></td>
-              <td><div class="cell-stack"><input id="add-q" class="inline-edit-input" placeholder="Question?" /><textarea id="add-guidance" class="inline-edit-input" rows="2" placeholder="Guidance for reviewers or external teams"></textarea><input id="add-tags" class="inline-edit-input" placeholder="Applicability tags, comma separated" /></div></td>
-              <td><input id="add-ev" class="inline-edit-input" placeholder="Expected evidence..." /></td>
-              <td><input id="add-weight" type="number" step="0.5" class="inline-edit-input" value="1.0" /></td>
-              <td><select id="add-req" class="inline-edit-input" style="width:68px;"><option value="true">Yes</option><option value="false">No</option></select></td>
-              <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Reviews Panel (Online / Offline / Autonomous tabs) ───────────────── -->
-  <div id="reviews-panel">
-    <div class="reviews-panel-tabs tabs-toolbar">
-      <div class="tab active" onclick="switchReviewTab('online')">Online Review</div>
-      <div class="tab" onclick="switchReviewTab('offline')">Offline Review</div>
-      <div class="tab" onclick="switchReviewTab('autonomous')">Autonomous</div>
-    </div>
-
-    <!-- Online Reviews Tab -->
-    <div id="tab-online" class="review-tab-content active">
-      <div class="review-tab-header">
-        <div class="review-tab-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-          Online Reviews
+      <!-- Items table -->
+      <div class="table-wrap">
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:30px;"></th>
+                <th style="width:90px;">Code</th>
+                <th style="width:130px;">Area</th>
+                <th style="width:130px;">Team</th>
+                <th>Question</th>
+                <th style="width:100px;">Evidence<button class="col-info-btn" onclick="showColInfo('evidence',this)" title="What is Evidence?">ⓘ</button></th>
+                <th style="width:70px;">Weight<button class="col-info-btn" onclick="showColInfo('weight',this)" title="What is Weight?">ⓘ</button></th>
+                <th style="width:80px;">Review?<span class="col-info-icon">ⓘ<span class="col-tooltip">IS REVIEW MANDATORY?</span></span></th>
+                <th style="width:90px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="items-tbody"></tbody>
+            <tbody>
+              <tr class="add-row">
+                <td></td>
+                <td><input id="add-code" class="inline-edit-input" placeholder="SEC-001" title="Leave blank for auto-generated code" /></td>
+                <td><input id="add-area" class="inline-edit-input" placeholder="General" /></td>
+                <td><select id="add-team" class="inline-edit-input"></select></td>
+                <td><div class="cell-stack"><input id="add-q" class="inline-edit-input" placeholder="Question?" /><textarea id="add-guidance" class="inline-edit-input" rows="2" placeholder="Guidance for reviewers or external teams"></textarea><input id="add-tags" class="inline-edit-input" placeholder="Applicability tags, comma separated" /></div></td>
+                <td><input id="add-ev" class="inline-edit-input" placeholder="Expected evidence..." /></td>
+                <td><input id="add-weight" type="number" step="0.5" class="inline-edit-input" value="1.0" /></td>
+                <td><select id="add-req" class="inline-edit-input" style="width:68px;"><option value="true">Yes</option><option value="false">No</option></select></td>
+                <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="openCreateReviewModal()">+ Start New Review</button>
       </div>
-      <div class="or-table-wrap">
-        <table class="or-table">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Checklist</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th style="width:100px;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="online-reviews-tbody">
-            <tr><td colspan="5" class="or-empty">Select a project to view online reviews.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
 
-    <!-- Offline Reviews Tab -->
-    <div id="tab-offline" class="review-tab-content">
-      <div class="review-tab-header">
-        <div class="review-tab-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          Offline Reviews
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="openCreateOfflineModal()">+ Send for Review</button>
-      </div>
-      <div class="or-table-wrap">
-        <table class="or-table">
-          <thead>
-            <tr>
-              <th>Reviewer</th>
-              <th>Checklist</th>
-              <th>Sent</th>
-              <th>Due Date</th>
-              <th>Status</th>
-              <th style="width:120px;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="offline-reviews-tbody">
-            <tr><td colspan="6" class="or-empty">Select a project to view offline reviews.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+      <!-- Pagination bar -->
+      <div class="pagination-bar" id="pagination-bar"></div>
 
-    <!-- Autonomous Reviews Tab -->
-    <div id="tab-autonomous" class="review-tab-content">
-      <div class="review-tab-header">
-        <div class="review-tab-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 6a6 6 0 0 1 6 6"/><circle cx="12" cy="12" r="2"/></svg>
-          Autonomous Reviews
+    </div><!-- /#checklist-content -->
+
+    <!-- Reviews content (visible when a review nav tab is active) -->
+    <div id="reviews-content" class="hidden">
+
+      <!-- Online Reviews Tab -->
+      <div id="tab-online" class="review-tab-content active">
+        <div class="review-tab-header">
+          <div class="review-tab-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            Online Reviews
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateReviewModal()">+ Start New Review</button>
         </div>
-        <a href="/ui" class="btn btn-primary btn-sm">+ Run Autonomous Review</a>
+        <div class="or-table-wrap">
+          <table class="or-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Checklist</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th style="width:100px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="online-reviews-tbody">
+              <tr><td colspan="5" class="or-empty">Select a project to view online reviews.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="or-table-wrap">
-        <table class="or-table">
-          <thead>
-            <tr>
-              <th>Checklist</th>
-              <th>Status</th>
-              <th>Score</th>
-              <th>Started</th>
-              <th style="width:100px;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="autonomous-reviews-tbody">
-            <tr><td colspan="5" class="or-empty">Select a project to view autonomous reviews.</td></tr>
-          </tbody>
-        </table>
+
+      <!-- Offline Reviews Tab -->
+      <div id="tab-offline" class="review-tab-content">
+        <div class="review-tab-header">
+          <div class="review-tab-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Offline Reviews
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateOfflineModal()">+ Send for Review</button>
+        </div>
+        <div class="or-table-wrap">
+          <table class="or-table">
+            <thead>
+              <tr>
+                <th>Reviewer</th>
+                <th>Checklist</th>
+                <th>Sent</th>
+                <th>Due Date</th>
+                <th>Status</th>
+                <th style="width:120px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="offline-reviews-tbody">
+              <tr><td colspan="6" class="or-empty">Select a project to view offline reviews.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-  </div>
+
+      <!-- Autonomous Reviews Tab -->
+      <div id="tab-autonomous" class="review-tab-content">
+        <div class="review-tab-header">
+          <div class="review-tab-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10"/><path d="M12 6a6 6 0 0 1 6 6"/><circle cx="12" cy="12" r="2"/></svg>
+            Autonomous Reviews
+          </div>
+          <a href="/ui" class="btn btn-primary btn-sm">+ Run Autonomous Review</a>
+        </div>
+        <div class="or-table-wrap">
+          <table class="or-table">
+            <thead>
+              <tr>
+                <th>Checklist</th>
+                <th>Status</th>
+                <th>Score</th>
+                <th>Started</th>
+                <th style="width:100px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="autonomous-reviews-tbody">
+              <tr><td colspan="5" class="or-empty">Select a project to view autonomous reviews.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /#reviews-content -->
+
+  </div><!-- /#checklist-panel -->
 
 </main>
 
@@ -716,23 +746,28 @@
   async function onProjectChange() {
     const projectId = document.getElementById('project-select').value;
     showState('no-project');
+    currentReviewTab = null;
     if (!projectId) return;
     try {
       const data = await api(`/api/projects/${projectId}/checklists`);
       currentProjectChecklists = data.checklists || [];
       document.getElementById('project-meta').textContent = `${currentProjectChecklists.length} checklist${currentProjectChecklists.length !== 1 ? 's' : ''}`;
-      if (currentProjectChecklists.length === 0) showState('no-checklists');
-      else { showState('panel'); renderTabs(); selectTab(currentProjectChecklists[0].id); }
-      switchReviewTab(currentReviewTab || 'online');
+      if (currentProjectChecklists.length === 0) {
+        showState('no-checklists');
+      } else {
+        showState('panel');
+        renderTabs();
+        selectTab(currentProjectChecklists[0].id);
+      }
     } catch(e) { toast('Failed to load project: ' + e.message, 'error'); }
   }
 
   function showState(state) {
     document.getElementById('state-no-project').classList.toggle('hidden', state !== 'no-project');
+    document.getElementById('checklist-panel').classList.toggle('hidden', state === 'no-project');
     document.getElementById('state-no-checklists').classList.toggle('hidden', state !== 'no-checklists');
-    document.getElementById('checklist-panel').classList.toggle('hidden', state !== 'panel');
-    const reviewsPanel = document.getElementById('reviews-panel');
-    if (reviewsPanel) reviewsPanel.style.display = state !== 'no-project' ? 'block' : 'none';
+    document.getElementById('checklist-content').classList.toggle('hidden', state !== 'panel');
+    if (state !== 'panel') document.getElementById('reviews-content').classList.add('hidden');
   }
 
   function renderTabs() {
@@ -746,8 +781,14 @@
 
   async function selectTab(checklistId) {
     currentChecklistId = checklistId;
+    currentReviewTab = null;
     renderTabs();
     clearCallout();
+    // Show checklist content, hide reviews content
+    document.getElementById('checklist-content').classList.remove('hidden');
+    document.getElementById('reviews-content').classList.add('hidden');
+    document.getElementById('state-no-checklists').classList.add('hidden');
+    document.querySelectorAll('.review-nav-tab').forEach(t => t.classList.remove('active'));
     try {
       const d = await api(`/api/checklists/${checklistId}?include_items=true`);
       document.getElementById('c-name').textContent = d.name;
@@ -761,15 +802,75 @@
     } catch(e) { toast('Failed to load: ' + e.message, 'error'); }
   }
 
+  const ITEMS_PER_PAGE = 25;
+  let allChecklistItems = [];
+  let filteredItems = [];
+  let currentPage = 1;
+
   function renderItemsTable(items) {
-    activeChecklistItems = items.sort((a, b) => a.order - b.order);
+    allChecklistItems = items.sort((a, b) => a.order - b.order);
+    activeChecklistItems = allChecklistItems;
+
+    // Populate filter dropdowns
+    const areas = [...new Set(allChecklistItems.map(i => i.area).filter(Boolean))].sort();
+    const teams = [...new Set(allChecklistItems.map(i => i.team_category).filter(Boolean))].sort();
+
+    const areaSel = document.getElementById('filter-area');
+    const prevArea = areaSel ? areaSel.value : '';
+    if (areaSel) {
+      areaSel.innerHTML = '<option value="">All Areas</option>' + areas.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+      if (areas.includes(prevArea)) areaSel.value = prevArea;
+    }
+
+    const teamSel = document.getElementById('filter-team');
+    const prevTeam = teamSel ? teamSel.value : '';
+    if (teamSel) {
+      teamSel.innerHTML = '<option value="">All Teams</option>' + teams.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+      if (teams.includes(prevTeam)) teamSel.value = prevTeam;
+    }
+
+    document.getElementById('add-team').innerHTML = teamCategoryOptions('');
+    currentPage = 1;
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const search = (document.getElementById('filter-search')?.value || '').toLowerCase().trim();
+    const area = document.getElementById('filter-area')?.value || '';
+    const team = document.getElementById('filter-team')?.value || '';
+
+    filteredItems = allChecklistItems.filter(item => {
+      if (area && item.area !== area) return false;
+      if (team && item.team_category !== team) return false;
+      if (search) {
+        const haystack = `${item.question} ${item.item_code || ''} ${item.area || ''}`.toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    });
+
+    const countEl = document.getElementById('filter-count');
+    if (countEl) {
+      countEl.textContent = (search || area || team)
+        ? `${filteredItems.length} of ${allChecklistItems.length} items`
+        : `${allChecklistItems.length} items`;
+    }
+
+    currentPage = 1;
+    renderCurrentPage();
+  }
+
+  function renderCurrentPage() {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const pageItems = filteredItems.slice(start, start + ITEMS_PER_PAGE);
     const tbody = document.getElementById('items-tbody');
     tbody.innerHTML = '';
-    document.getElementById('add-team').innerHTML = teamCategoryOptions('');
-    activeChecklistItems.forEach((item, index) => {
+
+    pageItems.forEach(item => {
+      const globalIdx = activeChecklistItems.indexOf(item);
       const tr = document.createElement('tr');
       tr.draggable = true;
-      tr.dataset.index = index;
+      tr.dataset.index = globalIdx;
       tr.addEventListener('dragstart', handleDragStart);
       tr.addEventListener('dragover', handleDragOver);
       tr.addEventListener('drop', handleDrop);
@@ -798,10 +899,41 @@
       }
       tbody.appendChild(tr);
     });
+
+    renderPagination();
   }
 
-  function startEdit(id) { editingItemId = id; renderItemsTable(activeChecklistItems); }
-  function cancelEdit() { editingItemId = null; renderItemsTable(activeChecklistItems); }
+  function renderPagination() {
+    const bar = document.getElementById('pagination-bar');
+    if (!bar) return;
+    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+    if (totalPages <= 1) { bar.innerHTML = ''; return; }
+
+    const start = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+    const end = Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length);
+
+    let html = `<span class="pagination-info">Showing ${start}–${end} of ${filteredItems.length}</span>`;
+    html += `<button class="btn btn-ghost btn-sm page-btn" onclick="goToPage(1)" ${currentPage===1?'disabled':''}>«</button>`;
+    html += `<button class="btn btn-ghost btn-sm page-btn" onclick="goToPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+
+    for (let p = Math.max(1, currentPage-2); p <= Math.min(totalPages, currentPage+2); p++) {
+      html += `<button class="btn btn-ghost btn-sm page-btn${p===currentPage?' active':''}" onclick="goToPage(${p})">${p}</button>`;
+    }
+
+    html += `<button class="btn btn-ghost btn-sm page-btn" onclick="goToPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>`;
+    html += `<button class="btn btn-ghost btn-sm page-btn" onclick="goToPage(${totalPages})" ${currentPage===totalPages?'disabled':''}>»</button>`;
+
+    bar.innerHTML = html;
+  }
+
+  function goToPage(p) {
+    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+    currentPage = Math.max(1, Math.min(p, totalPages));
+    renderCurrentPage();
+  }
+
+  function startEdit(id) { editingItemId = id; renderCurrentPage(); }
+  function cancelEdit() { editingItemId = null; renderCurrentPage(); }
   async function saveItem(id) {
     const payload = {
       item_code: document.getElementById(`edit-code-${id}`).value,
@@ -1025,18 +1157,26 @@
   // ── Offline Reviews ──────────────────────────────────────────────────────────
 
   let offlineReviews = [];
-  let currentReviewTab = 'online';
+  let currentReviewTab = null;
 
   function switchReviewTab(tabName) {
     currentReviewTab = tabName;
-    document.querySelectorAll('.reviews-panel-tabs .tab').forEach(t => t.classList.remove('active'));
+    // Deactivate all checklist tabs
+    document.querySelectorAll('#checklist-tabs .tab').forEach(t => t.classList.remove('active'));
+    // Activate the matching review nav tab
+    const reviewNavNames = ['online', 'offline', 'autonomous'];
+    document.querySelectorAll('.review-nav-tab').forEach((t, i) => {
+      t.classList.toggle('active', reviewNavNames[i] === tabName);
+    });
+    // Switch content areas
+    document.getElementById('checklist-content').classList.add('hidden');
+    document.getElementById('state-no-checklists').classList.add('hidden');
+    document.getElementById('reviews-content').classList.remove('hidden');
+    // Activate the correct review tab pane
     document.querySelectorAll('.review-tab-content').forEach(c => c.classList.remove('active'));
-    const tabMap = { online: 0, offline: 1, autonomous: 2 };
-    const tabIdx = tabMap[tabName] ?? 0;
-    const tabs = document.querySelectorAll('.reviews-panel-tabs .tab');
-    if (tabs[tabIdx]) tabs[tabIdx].classList.add('active');
     const pane = document.getElementById(`tab-${tabName}`);
     if (pane) pane.classList.add('active');
+    // Load data
     const projectId = document.getElementById('project-select').value;
     if (!projectId) return;
     if (tabName === 'online') loadOnlineReviews(projectId);
