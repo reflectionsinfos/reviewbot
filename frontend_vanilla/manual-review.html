@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ReviewBot — Self Review</title>
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       font-family: 'Segoe UI', system-ui, sans-serif;
       background: #0f172a;
@@ -13,67 +15,80 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: 40px 16px 80px;
     }
 
-    /* ── Logo Bar ─────────────────────────────────────────────────────────── */
-    .logo-bar {
-      display: flex; align-items: center; gap: 12px;
-      margin-bottom: 40px;
-      animation: fadeDown 0.5s ease both;
+    /* ── Portal Header ─────────────────────────────────────────────────── */
+    .portal-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(15,23,42,0.96);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #1e293b;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.3);
     }
-    .logo-icon {
-      width: 44px; height: 44px; border-radius: 10px;
+    .portal-header-inner {
+      max-width: 920px; margin: 0 auto; padding: 0 24px;
+      height: 60px; display: flex; align-items: center; justify-content: space-between;
+    }
+    .portal-brand { display: flex; align-items: center; gap: 12px; }
+    .portal-logo-icon {
+      width: 38px; height: 38px; border-radius: 9px;
       background: linear-gradient(135deg, #1E3A5F, #0ea5e9);
       display: flex; align-items: center; justify-content: center;
-      font-size: 22px;
+      font-size: 18px; flex-shrink: 0;
     }
-    .logo-text { font-size: 22px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.5px; }
-    .logo-sub  { font-size: 12px; color: #64748b; letter-spacing: 1px; text-transform: uppercase; }
-
-    /* ── States ───────────────────────────────────────────────────────────── */
-    #state-loading, #state-error, #state-done, #state-main, #state-success {
-      display: none; width: 100%; max-width: 760px;
+    .portal-logo-text-group { display: flex; flex-direction: column; }
+    .portal-logo-text { font-size: 17px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.3px; line-height: 1.2; }
+    .portal-logo-sub  { font-size: 10px; color: #64748b; letter-spacing: 1px; text-transform: uppercase; }
+    .portal-project-chip {
+      background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2);
+      color: #38bdf8; font-size: 12px; font-weight: 600;
+      padding: 4px 12px; border-radius: 20px;
+      max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    #state-loading { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: 40px; }
 
-    /* ── Spinner ──────────────────────────────────────────────────────────── */
+    /* ── Page Content ──────────────────────────────────────────────────── */
+    .page-content {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 28px 16px 0;
+    }
+
+    /* ── States ────────────────────────────────────────────────────────── */
+    .state { display: none; width: 100%; max-width: 860px; }
+    #state-loading { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-top: 48px; }
+    #state-success { max-width: 520px; }
+
+    /* ── Spinner ───────────────────────────────────────────────────────── */
     .spinner {
       width: 48px; height: 48px; border: 4px solid #1e293b;
       border-top-color: #38bdf8; border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
 
-    /* ── Card ─────────────────────────────────────────────────────────────── */
+    /* ── Card ──────────────────────────────────────────────────────────── */
     .card {
       background: #1e293b; border: 1px solid #334155;
       border-radius: 16px; overflow: hidden;
       box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-      animation: fadeUp 0.55s ease both;
       margin-bottom: 16px;
     }
     .card-header {
       background: linear-gradient(135deg, #1E3A5F 0%, #0c2a4a 100%);
-      padding: 28px 32px;
+      padding: 22px 28px;
     }
-    .card-header-label {
-      font-size: 11px; color: #90CAF9; text-transform: uppercase;
-      letter-spacing: 1.5px; margin-bottom: 8px;
-    }
-    .card-header-project { font-size: 26px; font-weight: 800; color: #fff; line-height: 1.2; letter-spacing: -0.5px; }
-    .card-header-checklist { font-size: 14px; color: #90CAF9; margin-top: 6px; }
-    .card-body { padding: 28px 32px; }
+    .card-header-label { font-size: 11px; color: #90CAF9; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .card-header-project { font-size: 24px; font-weight: 800; color: #fff; line-height: 1.2; letter-spacing: -0.5px; }
+    .card-header-checklist { font-size: 13px; color: #90CAF9; margin-top: 4px; }
+    .card-body { padding: 22px 28px; }
 
-    /* ── Progress Bar ─────────────────────────────────────────────────────── */
-    .progress-wrap { margin-bottom: 24px; }
+    /* ── Progress Bar ──────────────────────────────────────────────────── */
+    .progress-wrap { margin-bottom: 16px; }
     .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .progress-label { font-size: 13px; color: #94a3b8; }
     .progress-count { font-size: 13px; font-weight: 700; color: #38bdf8; }
     .progress-bar-bg { background: #0f172a; border-radius: 99px; height: 8px; overflow: hidden; }
     .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #0ea5e9, #38bdf8); border-radius: 99px; transition: width 0.4s ease; }
 
-    /* ── Msg Card ─────────────────────────────────────────────────────────── */
+    /* ── Msg Card ──────────────────────────────────────────────────────── */
     .msg-card {
       background: #1e293b; border: 1px solid #334155;
       border-radius: 16px; padding: 40px 32px; text-align: center;
@@ -83,61 +98,143 @@
     .msg-title { font-size: 22px; font-weight: 800; color: #f1f5f9; margin-bottom: 10px; }
     .msg-body { font-size: 14px; color: #94a3b8; line-height: 1.6; }
 
-    /* ── Review Item Card ─────────────────────────────────────────────────── */
+    /* ── Filter + Excel Panel ──────────────────────────────────────────── */
+    .tools-panel {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; padding: 12px 16px;
+      margin-bottom: 16px;
+    }
+    .tools-row {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 3px; min-width: 110px; }
+    .filter-label { font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.6px; }
+    .filter-select {
+      background: #0f172a; border: 1px solid #334155; color: #e2e8f0;
+      border-radius: 7px; padding: 6px 10px; font-size: 13px;
+      font-family: inherit; cursor: pointer; outline: none; transition: border-color 0.15s;
+    }
+    .filter-select:focus { border-color: #38bdf8; }
+    .filter-check-wrap { display: flex; align-items: flex-end; padding-bottom: 1px; }
+    .filter-check-wrap label {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 13px; color: #94a3b8; cursor: pointer; white-space: nowrap;
+    }
+    .filter-check-wrap input[type=checkbox] { accent-color: #38bdf8; cursor: pointer; }
+    .filter-count-badge {
+      font-size: 12px; color: #64748b; white-space: nowrap;
+      background: #0f172a; border: 1px solid #1e293b;
+      border-radius: 6px; padding: 6px 10px; align-self: flex-end;
+    }
+    .filter-reset-btn {
+      background: none; border: 1px solid #334155; color: #64748b;
+      border-radius: 7px; padding: 6px 12px; font-size: 12px;
+      cursor: pointer; font-family: inherit; transition: all 0.15s; align-self: flex-end;
+    }
+    .filter-reset-btn:hover { border-color: #64748b; color: #94a3b8; }
+
+    /* ── Excel Buttons ─────────────────────────────────────────────────── */
+    .excel-btns { display: flex; gap: 8px; align-items: flex-end; margin-left: auto; flex-shrink: 0; }
+    .btn-xl {
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 7px 13px; border-radius: 7px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1px solid; transition: all 0.15s; font-family: inherit;
+      white-space: nowrap; text-decoration: none;
+    }
+    .btn-xl-dl { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #4ade80; }
+    .btn-xl-dl:hover { background: rgba(34,197,94,0.18); border-color: #22c55e; }
+    .btn-xl-ul { background: rgba(56,189,248,0.1); border-color: rgba(56,189,248,0.3); color: #38bdf8; cursor: pointer; }
+    .btn-xl-ul:hover { background: rgba(56,189,248,0.18); border-color: #38bdf8; }
+
+    /* ── Pagination ────────────────────────────────────────────────────── */
+    .pagination-bar {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 10px; padding: 10px 14px; margin-bottom: 14px;
+    }
+    .pag-left  { display: flex; align-items: center; gap: 5px; }
+    .pag-right { display: flex; align-items: center; gap: 8px; }
+    .page-btn {
+      background: #0f172a; border: 1px solid #334155; color: #94a3b8;
+      border-radius: 6px; padding: 5px 11px; font-size: 13px;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .page-btn:hover:not(:disabled) { border-color: #64748b; color: #e2e8f0; }
+    .page-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+    .page-num {
+      background: #0f172a; border: 1px solid #334155; color: #94a3b8;
+      border-radius: 6px; padding: 5px 10px; font-size: 13px;
+      cursor: pointer; min-width: 34px; text-align: center;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .page-num:hover { border-color: #64748b; color: #e2e8f0; }
+    .page-num.active { background: rgba(56,189,248,0.15); border-color: #38bdf8; color: #38bdf8; font-weight: 700; }
+    .page-ellipsis { color: #475569; font-size: 13px; padding: 0 3px; }
+    .page-info { font-size: 12px; color: #64748b; white-space: nowrap; }
+    .page-size-sel {
+      background: #0f172a; border: 1px solid #334155; color: #e2e8f0;
+      border-radius: 6px; padding: 5px 8px; font-size: 12px;
+      font-family: inherit; cursor: pointer; outline: none;
+    }
+
+    /* ── Empty filter state ────────────────────────────────────────────── */
+    .empty-filter {
+      text-align: center; padding: 48px 24px;
+      background: #1e293b; border: 1px dashed #334155;
+      border-radius: 12px; margin-bottom: 16px; color: #64748b; font-size: 14px;
+    }
+    .empty-filter button {
+      background: none; border: none; color: #38bdf8;
+      cursor: pointer; font-size: 14px; text-decoration: underline; font-family: inherit;
+    }
+
+    /* ── Review Item Card ──────────────────────────────────────────────── */
     .item-card {
       background: #1e293b; border: 1px solid #334155;
-      border-radius: 12px; padding: 20px 24px;
-      margin-bottom: 12px;
+      border-radius: 12px; padding: 20px 24px; margin-bottom: 12px;
       transition: border-color 0.2s;
     }
-    .item-card.answered-green  { border-left: 4px solid #22c55e; }
-    .item-card.answered-amber  { border-left: 4px solid #f59e0b; }
-    .item-card.answered-red    { border-left: 4px solid #ef4444; }
-    .item-card.answered-na     { border-left: 4px solid #475569; }
+    .item-card.answered-green { border-left: 4px solid #22c55e; }
+    .item-card.answered-amber { border-left: 4px solid #f59e0b; }
+    .item-card.answered-red   { border-left: 4px solid #ef4444; }
+    .item-card.answered-na    { border-left: 4px solid #475569; }
 
-    .item-meta {
-      display: flex; align-items: center; gap: 8px;
-      margin-bottom: 10px; flex-wrap: wrap;
-    }
+    .item-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
     .item-code { font-size: 11px; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.6px; }
     .item-area { font-size: 11px; color: #64748b; }
     .item-area::before { content: '·'; margin-right: 8px; }
-    .item-mandatory { font-size: 10px; font-weight: 700; color: #f87171; background: rgba(239,68,68,0.12); padding: 2px 7px; border-radius: 4px; }
-    .save-indicator {
-      margin-left: auto; font-size: 11px; color: #22c55e; opacity: 0;
-      transition: opacity 0.3s;
+    .item-team {
+      font-size: 10px; font-weight: 600; color: #a78bfa;
+      background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2);
+      padding: 1px 6px; border-radius: 4px;
     }
+    .item-mandatory { font-size: 10px; font-weight: 700; color: #f87171; background: rgba(239,68,68,0.12); padding: 2px 7px; border-radius: 4px; }
+    .save-indicator { margin-left: auto; font-size: 11px; color: #22c55e; opacity: 0; transition: opacity 0.3s; }
     .save-indicator.visible { opacity: 1; }
 
     .item-question { font-size: 15px; font-weight: 600; color: #f1f5f9; line-height: 1.5; margin-bottom: 10px; }
     .item-evidence {
       font-size: 12px; color: #64748b; background: #0f172a;
-      border: 1px solid #1e3a5f; border-radius: 8px;
-      padding: 10px 14px; margin-bottom: 14px; line-height: 1.5;
+      border: 1px solid #1e3a5f; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; line-height: 1.5;
     }
     .item-evidence-label { font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
-    .item-guidance {
-      font-size: 12px; color: #94a3b8; font-style: italic;
-      margin-bottom: 14px; line-height: 1.5;
-    }
+    .item-guidance { font-size: 12px; color: #94a3b8; font-style: italic; margin-bottom: 14px; line-height: 1.5; }
 
-    /* ── Answer Selector ──────────────────────────────────────────────────── */
+    /* ── Answer Selector ───────────────────────────────────────────────── */
     .answer-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
     .answer-btn {
-      flex: 1; min-width: 70px;
-      padding: 8px 4px; border-radius: 8px; border: 1.5px solid #334155;
-      background: #0f172a; color: #94a3b8;
-      font-size: 13px; font-weight: 600; cursor: pointer;
-      text-align: center; transition: all 0.15s;
-      user-select: none;
+      flex: 1; min-width: 70px; padding: 8px 4px; border-radius: 8px;
+      border: 1.5px solid #334155; background: #0f172a; color: #94a3b8;
+      font-size: 13px; font-weight: 600; cursor: pointer; text-align: center;
+      transition: all 0.15s; user-select: none;
     }
     .answer-btn:hover { border-color: #64748b; color: #e2e8f0; }
-    .answer-btn.sel-yes     { background: rgba(34,197,94,0.15); border-color: #22c55e; color: #4ade80; }
+    .answer-btn.sel-yes     { background: rgba(34,197,94,0.15);  border-color: #22c55e; color: #4ade80; }
     .answer-btn.sel-partial { background: rgba(245,158,11,0.15); border-color: #f59e0b; color: #fbbf24; }
-    .answer-btn.sel-no      { background: rgba(239,68,68,0.15); border-color: #ef4444; color: #f87171; }
-    .answer-btn.sel-na      { background: rgba(71,85,105,0.2);  border-color: #475569; color: #94a3b8; }
+    .answer-btn.sel-no      { background: rgba(239,68,68,0.15);  border-color: #ef4444; color: #f87171; }
+    .answer-btn.sel-na      { background: rgba(71,85,105,0.2);   border-color: #475569; color: #94a3b8; }
 
-    /* ── Comments ─────────────────────────────────────────────────────────── */
+    /* ── Comments ──────────────────────────────────────────────────────── */
     textarea.comments {
       width: 100%; background: #0f172a; border: 1px solid #334155;
       border-radius: 8px; color: #e2e8f0; font-size: 13px;
@@ -147,36 +244,32 @@
     textarea.comments:focus { border-color: #38bdf8; }
     textarea.comments::placeholder { color: #475569; }
 
-    /* ── Bottom action bar ────────────────────────────────────────────────── */
+    /* ── Sticky Action Bar ─────────────────────────────────────────────── */
     .action-bar {
-      position: sticky; bottom: 0; left: 0; right: 0;
-      background: rgba(15,23,42,0.9); backdrop-filter: blur(12px);
-      border-top: 1px solid #1e293b;
-      padding: 16px 0; margin-top: 24px;
+      position: sticky; bottom: 0; z-index: 90;
+      background: rgba(15,23,42,0.96); backdrop-filter: blur(12px);
+      border-top: 1px solid #1e293b; padding: 13px 0;
     }
     .action-inner {
-      max-width: 760px; margin: 0 auto; padding: 0 16px;
+      max-width: 860px; margin: 0 auto; padding: 0 16px;
       display: flex; align-items: center; gap: 12px;
     }
     .action-status { font-size: 13px; color: #64748b; flex: 1; }
 
+    /* ── Buttons ───────────────────────────────────────────────────────── */
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 12px 28px; border-radius: 10px; font-size: 15px;
+      padding: 11px 24px; border-radius: 10px; font-size: 14px;
       font-weight: 700; cursor: pointer; border: none;
-      transition: all 0.15s; text-decoration: none;
+      transition: all 0.15s; font-family: inherit;
     }
-    .btn-primary { background: #0ea5e9; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #38bdf8; transform: translateY(-1px); }
-    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
     .btn-success { background: #22c55e; color: #fff; }
     .btn-success:hover:not(:disabled) { background: #4ade80; transform: translateY(-1px); }
     .btn-success:disabled { opacity: 0.55; cursor: not-allowed; }
 
-    /* ── Score circle ─────────────────────────────────────────────────────── */
+    /* ── Score / RAG ───────────────────────────────────────────────────── */
     .score-circle {
-      width: 120px; height: 120px; border-radius: 50%;
-      border: 8px solid #1e293b;
+      width: 120px; height: 120px; border-radius: 50%; border: 8px solid #1e293b;
       display: flex; align-items: center; justify-content: center;
       flex-direction: column; margin: 0 auto 20px;
     }
@@ -187,117 +280,238 @@
     .rag-legend { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
     .rag-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
 
-    /* ── Animations ───────────────────────────────────────────────────────── */
+    /* ── Portal Footer ─────────────────────────────────────────────────── */
+    .portal-footer {
+      background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
+      border-top: 1px solid #334155;
+      color: #cbd5e1; font-size: 12px;
+      padding: 18px 28px; margin-top: 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+    }
+    .portal-footer__powered { display: flex; align-items: center; gap: 8px; color: #e2e8f0; }
+    .portal-footer__logo { height: 18px; width: auto; border-radius: 3px; }
+    .portal-footer__links { display: flex; align-items: center; gap: 18px; }
+    .portal-footer__link { color: #93c5fd; text-decoration: none; transition: color 0.15s; }
+    .portal-footer__link:hover { color: #e0f2fe; }
+
+    /* ── Toast ─────────────────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+      background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+      padding: 11px 20px; font-size: 13px; color: #e2e8f0;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 300;
+      animation: fadeUp 0.25s ease both; white-space: nowrap; pointer-events: none;
+    }
+    .toast.ok  { border-color: #22c55e; color: #4ade80; }
+    .toast.err { border-color: #ef4444; color: #f87171; }
+
+    /* ── Animations ────────────────────────────────────────────────────── */
     @keyframes spin    { to { transform: rotate(360deg); } }
-    @keyframes fadeUp  { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-    @keyframes fadeDown{ from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeUp  { from { opacity: 0; transform: translateY(20px) translateX(-50%); } to { opacity: 1; transform: translateY(0) translateX(-50%); } }
+
+    @media (max-width: 600px) {
+      .portal-header-inner { padding: 0 14px; }
+      .page-content { padding: 18px 12px 0; }
+      .card-header { padding: 18px 20px; }
+      .card-body { padding: 18px 20px; }
+      .excel-btns { margin-left: 0; }
+      .portal-footer { flex-direction: column; align-items: flex-start; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- Logo Bar -->
-  <div class="logo-bar">
-    <div class="logo-icon">📋</div>
-    <div>
-      <div class="logo-text">ReviewBot</div>
-      <div class="logo-sub">Self Review Portal</div>
-    </div>
-  </div>
-
-  <!-- Loading State -->
-  <div id="state-loading">
-    <div class="spinner"></div>
-    <p style="color:#64748b;font-size:14px">Loading your review…</p>
-  </div>
-
-  <!-- Error State -->
-  <div id="state-error">
-    <div class="msg-card">
-      <div class="msg-icon">🔗</div>
-      <div class="msg-title">Review not found</div>
-      <div class="msg-body" id="error-text">
-        This review link is invalid or has expired.<br/>
-        Please contact your ReviewBot administrator.
-      </div>
-    </div>
-  </div>
-
-  <!-- Already completed state -->
-  <div id="state-done">
-    <div class="msg-card">
-      <div class="msg-icon">✅</div>
-      <div class="msg-title">Review completed</div>
-      <div class="msg-body">
-        This review has already been submitted and is awaiting approval.
-      </div>
-    </div>
-  </div>
-
-  <!-- Main State -->
-  <div id="state-main">
-
-    <!-- Header card -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-header-label">Self Review</div>
-        <div class="card-header-project" id="project-name">Loading…</div>
-        <div class="card-header-checklist" id="checklist-name"></div>
-      </div>
-      <div class="card-body">
-        <div class="progress-wrap">
-          <div class="progress-header">
-            <span class="progress-label">Answers completed</span>
-            <span class="progress-count" id="progress-count">0 / 0</span>
-          </div>
-          <div class="progress-bar-bg">
-            <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
-          </div>
+  <!-- Portal Header -->
+  <header class="portal-header">
+    <div class="portal-header-inner">
+      <div class="portal-brand">
+        <div class="portal-logo-icon">📋</div>
+        <div class="portal-logo-text-group">
+          <span class="portal-logo-text">ReviewBot</span>
+          <span class="portal-logo-sub">Self Review Portal</span>
         </div>
-        <p style="font-size:13px;color:#64748b;line-height:1.6">
-          Answer each checklist item below. Your responses auto-save as you type.
-          Click <strong style="color:#f1f5f9;">Complete Review</strong> when finished.
-        </p>
       </div>
+      <div class="portal-project-chip" id="portal-project-chip" style="display:none"></div>
+    </div>
+  </header>
+
+  <!-- Page Content -->
+  <div class="page-content">
+
+    <!-- Loading -->
+    <div id="state-loading" class="state">
+      <div class="spinner"></div>
+      <p style="color:#64748b;font-size:14px">Loading your review…</p>
     </div>
 
-    <!-- Items list -->
-    <div id="items-list"></div>
-
-    <!-- Spacer for sticky bar -->
-    <div style="height:80px"></div>
-  </div>
-
-  <!-- Success State -->
-  <div id="state-success" style="max-width:520px">
-    <div class="msg-card">
-      <div class="msg-icon">🎉</div>
-      <div class="msg-title">Review submitted!</div>
-
-      <div id="score-block" style="margin:20px 0">
-        <div class="score-circle" id="score-circle">
-          <div class="score-value" id="score-value">—</div>
-          <div class="score-label">score</div>
+    <!-- Error -->
+    <div id="state-error" class="state">
+      <div class="msg-card">
+        <div class="msg-icon">🔗</div>
+        <div class="msg-title">Review not found</div>
+        <div class="msg-body" id="error-text">
+          This review link is invalid or has expired.<br/>Please contact your ReviewBot administrator.
         </div>
-        <div class="rag-bar" id="rag-bar"></div>
-        <div class="rag-legend" id="rag-legend"></div>
-      </div>
-
-      <div class="msg-body">
-        Thank you! Your review has been recorded and is now awaiting approval.<br/>
-        You may close this tab.
       </div>
     </div>
-  </div>
 
-  <!-- Sticky action bar (shown while in main state) -->
+    <!-- Already submitted -->
+    <div id="state-done" class="state">
+      <div class="msg-card">
+        <div class="msg-icon">✅</div>
+        <div class="msg-title">Review completed</div>
+        <div class="msg-body">This review has already been submitted and is awaiting approval.</div>
+      </div>
+    </div>
+
+    <!-- Main Review State -->
+    <div id="state-main" class="state">
+
+      <!-- Info card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-label">Self Review</div>
+          <div class="card-header-project" id="project-name">Loading…</div>
+          <div class="card-header-checklist" id="checklist-name"></div>
+        </div>
+        <div class="card-body">
+          <div class="progress-wrap">
+            <div class="progress-header">
+              <span class="progress-label">Answers completed</span>
+              <span class="progress-count" id="progress-count">0 / 0</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+            </div>
+          </div>
+          <p style="font-size:13px;color:#64748b;line-height:1.6">
+            Answer each checklist item below — responses auto-save as you go.
+            You can also <strong style="color:#4ade80">download an Excel</strong> to fill offline,
+            then <strong style="color:#38bdf8">upload it back</strong> to import all answers at once.
+            Click <strong style="color:#f1f5f9">Complete Review</strong> when done.
+          </p>
+        </div>
+      </div>
+
+      <!-- Tools panel: Filters + Excel -->
+      <div class="tools-panel">
+        <div class="tools-row">
+
+          <!-- Area filter (shown if items have area values) -->
+          <div class="filter-group" id="fg-area" style="display:none">
+            <label class="filter-label">Area</label>
+            <select class="filter-select" id="filter-area" onchange="applyFilters()">
+              <option value="">All Areas</option>
+            </select>
+          </div>
+
+          <!-- Team filter (shown if items have team_category values) -->
+          <div class="filter-group" id="fg-team" style="display:none">
+            <label class="filter-label">Team</label>
+            <select class="filter-select" id="filter-team" onchange="applyFilters()">
+              <option value="">All Teams</option>
+            </select>
+          </div>
+
+          <!-- Status filter (always shown) -->
+          <div class="filter-group">
+            <label class="filter-label">Status</label>
+            <select class="filter-select" id="filter-status" onchange="applyFilters()">
+              <option value="">All</option>
+              <option value="answered">Answered</option>
+              <option value="unanswered">Unanswered</option>
+              <option value="Yes">Yes</option>
+              <option value="Partial">Partial</option>
+              <option value="No">No</option>
+              <option value="N/A">N/A</option>
+            </select>
+          </div>
+
+          <!-- Mandatory checkbox -->
+          <div class="filter-check-wrap">
+            <label>
+              <input type="checkbox" id="filter-mandatory" onchange="applyFilters()" />
+              <span>Mandatory only</span>
+            </label>
+          </div>
+
+          <!-- Reset + count -->
+          <button class="filter-reset-btn" onclick="resetFilters()">Reset</button>
+          <span class="filter-count-badge" id="filter-count">—</span>
+
+          <!-- Excel actions -->
+          <div class="excel-btns">
+            <button class="btn-xl btn-xl-dl" onclick="downloadExcel()">⬇ Download Excel</button>
+            <label class="btn-xl btn-xl-ul">
+              ⬆ Upload Excel
+              <input type="file" id="excel-file" accept=".xlsx,.xls" style="display:none" onchange="handleExcelUpload(event)" />
+            </label>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Pagination (top) -->
+      <div class="pagination-bar" id="pag-top" style="display:none"></div>
+
+      <!-- Empty filter result -->
+      <div class="empty-filter" id="empty-filter" style="display:none">
+        No items match the current filters.
+        <button onclick="resetFilters()">Clear filters</button>
+      </div>
+
+      <!-- Items list -->
+      <div id="items-list"></div>
+
+      <!-- Pagination (bottom) -->
+      <div class="pagination-bar" id="pag-bot" style="display:none"></div>
+
+      <!-- Spacer for action bar -->
+      <div style="height:80px"></div>
+    </div>
+
+    <!-- Success State -->
+    <div id="state-success" class="state" style="margin:0 auto">
+      <div class="msg-card">
+        <div class="msg-icon">🎉</div>
+        <div class="msg-title">Review submitted!</div>
+        <div id="score-block" style="margin:20px 0">
+          <div class="score-circle" id="score-circle">
+            <div class="score-value" id="score-value">—</div>
+            <div class="score-label">score</div>
+          </div>
+          <div class="rag-bar" id="rag-bar"></div>
+          <div class="rag-legend" id="rag-legend"></div>
+        </div>
+        <div class="msg-body">
+          Thank you! Your review has been recorded and is now awaiting approval.<br/>You may close this tab.
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end page-content -->
+
+  <!-- Sticky action bar -->
   <div class="action-bar" id="action-bar" style="display:none">
     <div class="action-inner">
       <span class="action-status" id="action-status">Answer items above to continue</span>
-      <button class="btn btn-success" id="btn-complete" onclick="completeReview()">
-        ✓ Complete Review
-      </button>
+      <button class="btn btn-success" id="btn-complete" onclick="completeReview()">✓ Complete Review</button>
     </div>
   </div>
+
+  <!-- Portal Footer -->
+  <footer class="portal-footer">
+    <div class="portal-footer__powered">
+      <span style="color:#94a3b8">Powered by</span>
+      <img class="portal-footer__logo" src="/frontend_vanilla/images/reflectionsit_logo.jpg" alt="Reflections Global" onerror="this.style.display='none'" />
+      <span>Reflections Global</span>
+    </div>
+    <div class="portal-footer__links">
+      <a class="portal-footer__link" href="https://www.reflectionsglobal.com/contact-us" target="_blank" rel="noopener noreferrer">Contact Us</a>
+      <a class="portal-footer__link" href="/docs" target="_blank" rel="noopener noreferrer">API Docs</a>
+    </div>
+  </footer>
 
 <script>
   const API = '';
@@ -305,108 +519,229 @@
   const REVIEW_ID = parseInt(pathParts[pathParts.length - 1], 10);
   const TOKEN = new URLSearchParams(window.location.search).get('token');
 
-  let allItems = [];
-  const saveTimers = {};
-  const itemState = {};   // reviewItemId → { answer, comments }
+  let allItems      = [];
+  let filteredItems = [];
+  let currentPage   = 1;
+  let pageSize      = 20;
+  const saveTimers  = {};
+  const itemState   = {};   // reviewItemId → { answer, comments }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  function show(stateId) {
+  const RAG_COLORS  = { green: '#22c55e', amber: '#f59e0b', red: '#ef4444', na: '#475569' };
+  const ANSWER_RAG  = { 'Yes': 'green', 'Partial': 'amber', 'No': 'red', 'N/A': 'na' };
+  const ANSWER_CLS  = { 'Yes': 'sel-yes', 'Partial': 'sel-partial', 'No': 'sel-no', 'N/A': 'sel-na' };
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function show(id) {
     ['state-loading','state-error','state-done','state-main','state-success']
-      .forEach(id => { document.getElementById(id).style.display = 'none'; });
-    document.getElementById(stateId).style.display = 'block';
-    document.getElementById('action-bar').style.display = stateId === 'state-main' ? 'block' : 'none';
+      .forEach(s => { document.getElementById(s).style.display = 'none'; });
+    document.getElementById(id).style.display = (id === 'state-loading') ? 'flex' : 'block';
+    document.getElementById('action-bar').style.display = (id === 'state-main') ? 'block' : 'none';
   }
-
-  function showError(msg) {
-    document.getElementById('error-text').textContent = msg;
-    show('state-error');
-  }
-
+  function showError(msg) { document.getElementById('error-text').textContent = msg; show('state-error'); }
   function escHtml(s) {
     if (!s) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+  function toast(msg, type = '') {
+    const old = document.querySelector('.toast');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el && el.remove(), 3200);
+  }
 
-  // ── Boot ──────────────────────────────────────────────────────────────────
+  // ── Boot ─────────────────────────────────────────────────────────────────────
   async function boot() {
-    if (!TOKEN || isNaN(REVIEW_ID)) {
-      showError('Invalid review link. Please check the URL and try again.');
-      return;
-    }
+    if (!TOKEN || isNaN(REVIEW_ID)) { showError('Invalid review link. Please check the URL.'); return; }
     show('state-loading');
-    await new Promise(r => setTimeout(r, 500));
-
+    await new Promise(r => setTimeout(r, 400));
     try {
       const res = await fetch(`${API}/api/reviews/${REVIEW_ID}/portal-items?token=${encodeURIComponent(TOKEN)}`);
-      if (res.status === 401 || res.status === 403) { showError('This review link is invalid or has expired.'); return; }
+      if (res.status === 401 || res.status === 403) { showError('This link is invalid or has expired.'); return; }
       if (res.status === 404) { showError('Review not found.'); return; }
       if (!res.ok) { showError('Unable to load review. Please try again.'); return; }
 
       const data = await res.json();
-
       if (data.review_status === 'completed') { show('state-done'); return; }
 
-      document.title = `ReviewBot — ${data.project_name || 'Self Review'}`;
-      document.getElementById('project-name').textContent = data.project_name || 'Review';
+      const projName = data.project_name || 'Review';
+      document.title = `ReviewBot — ${projName}`;
+      document.getElementById('project-name').textContent = projName;
       document.getElementById('checklist-name').textContent = data.checklist_name || '';
 
-      allItems = (data.items || []).sort((a, b) => (a.order || 0) - (b.order || 0));
+      const chip = document.getElementById('portal-project-chip');
+      chip.textContent = projName;
+      chip.style.display = 'block';
 
-      // Pre-populate state from existing responses
+      allItems = (data.items || []).sort((a, b) => (a.order || 0) - (b.order || 0));
       allItems.forEach(item => {
-        itemState[item.review_item_id] = {
-          answer: item.answer || null,
-          comments: item.comments || '',
-        };
+        itemState[item.review_item_id] = { answer: item.answer || null, comments: item.comments || '' };
       });
 
-      renderItems();
+      buildFilterOptions();
+      filteredItems = [...allItems];
+      updateFilterCount();
+      renderCurrentPage();
+      renderPagination();
       updateProgress();
       show('state-main');
-
     } catch(e) {
       showError('Unable to connect to ReviewBot. Please try again later.');
     }
   }
 
-  // ── Render items ──────────────────────────────────────────────────────────
-  const RAG_COLORS = { green: '#22c55e', amber: '#f59e0b', red: '#ef4444', na: '#475569' };
-  const ANSWER_TO_RAG = { 'Yes': 'green', 'Partial': 'amber', 'No': 'red', 'N/A': 'na' };
-  const ANSWER_CLASS  = { 'Yes': 'sel-yes', 'Partial': 'sel-partial', 'No': 'sel-no', 'N/A': 'sel-na' };
+  // ── Filters ──────────────────────────────────────────────────────────────────
+  function buildFilterOptions() {
+    const areas = [...new Set(allItems.map(i => i.area).filter(Boolean))].sort();
+    const teams = [...new Set(allItems.map(i => i.team_category).filter(Boolean))].sort();
+    if (areas.length) {
+      const sel = document.getElementById('filter-area');
+      areas.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o); });
+      document.getElementById('fg-area').style.display = '';
+    }
+    if (teams.length) {
+      const sel = document.getElementById('filter-team');
+      teams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
+      document.getElementById('fg-team').style.display = '';
+    }
+  }
 
-  function renderItems() {
-    const list = document.getElementById('items-list');
-    list.innerHTML = allItems.map(item => {
+  function applyFilters() {
+    const area      = document.getElementById('filter-area').value;
+    const team      = document.getElementById('filter-team').value;
+    const status    = document.getElementById('filter-status').value;
+    const mandatory = document.getElementById('filter-mandatory').checked;
+
+    filteredItems = allItems.filter(item => {
       const st = itemState[item.review_item_id];
-      const rag = ANSWER_TO_RAG[st.answer] || 'none';
-      const cardCls = st.answer ? `answered-${rag}` : '';
+      if (area && item.area !== area) return false;
+      if (team && (item.team_category || '') !== team) return false;
+      if (status === 'answered'   && !st.answer) return false;
+      if (status === 'unanswered' &&  st.answer) return false;
+      if (status && status !== 'answered' && status !== 'unanswered' && st.answer !== status) return false;
+      if (mandatory && !item.is_review_mandatory) return false;
+      return true;
+    });
+    currentPage = 1;
+    updateFilterCount();
+    renderCurrentPage();
+    renderPagination();
+  }
 
-      return `<div class="item-card ${cardCls}" id="card-${item.review_item_id}">
+  function resetFilters() {
+    document.getElementById('filter-area').value = '';
+    document.getElementById('filter-team').value = '';
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-mandatory').checked = false;
+    filteredItems = [...allItems];
+    currentPage = 1;
+    updateFilterCount();
+    renderCurrentPage();
+    renderPagination();
+  }
+
+  function updateFilterCount() {
+    document.getElementById('filter-count').textContent =
+      `${filteredItems.length} of ${allItems.length} items`;
+  }
+
+  // ── Pagination ────────────────────────────────────────────────────────────────
+  function totalPages() { return Math.max(1, Math.ceil(filteredItems.length / pageSize)); }
+
+  function renderCurrentPage() {
+    const start = (currentPage - 1) * pageSize;
+    renderItems(filteredItems.slice(start, start + pageSize));
+    document.getElementById('empty-filter').style.display = filteredItems.length === 0 ? 'block' : 'none';
+  }
+
+  function renderPagination() {
+    const tp   = totalPages();
+    const s    = filteredItems.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const e    = Math.min(currentPage * pageSize, filteredItems.length);
+    const info = filteredItems.length === 0 ? 'No items' : `Showing ${s}–${e} of ${filteredItems.length}`;
+    const show_ = filteredItems.length > pageSize;
+
+    ['pag-top','pag-bot'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!show_) { el.style.display = 'none'; return; }
+      el.style.display = 'flex';
+      el.innerHTML = buildPagHtml(tp, info);
+    });
+  }
+
+  function buildPagHtml(tp, info) {
+    const prev = `<button class="page-btn" onclick="goToPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹ Prev</button>`;
+    const next = `<button class="page-btn" onclick="goToPage(${currentPage+1})" ${currentPage===tp?'disabled':''}>Next ›</button>`;
+    const nums = pageNums(tp).map(p =>
+      p === '…'
+        ? `<span class="page-ellipsis">…</span>`
+        : `<button class="page-num${p===currentPage?' active':''}" onclick="goToPage(${p})">${p}</button>`
+    ).join('');
+    const sizeOpts = [10,20,50,100].map(n =>
+      `<option value="${n}"${n===pageSize?' selected':''}>${n} / page</option>`
+    ).join('');
+    return `
+      <div class="pag-left">${prev}${nums}${next}</div>
+      <div class="pag-right">
+        <span class="page-info">${info}</span>
+        <select class="page-size-sel" onchange="onPageSizeChange(this.value)">${sizeOpts}</select>
+      </div>`;
+  }
+
+  function pageNums(tp) {
+    if (tp <= 7) return Array.from({length: tp}, (_, i) => i + 1);
+    if (currentPage <= 4) return [1,2,3,4,5,'…',tp];
+    if (currentPage >= tp - 3) return [1,'…',tp-4,tp-3,tp-2,tp-1,tp];
+    return [1,'…',currentPage-1,currentPage,currentPage+1,'…',tp];
+  }
+
+  function goToPage(n) {
+    const tp = totalPages();
+    if (n < 1 || n > tp) return;
+    currentPage = n;
+    renderCurrentPage();
+    renderPagination();
+    document.getElementById('items-list').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function onPageSizeChange(val) {
+    pageSize = parseInt(val, 10);
+    currentPage = 1;
+    renderCurrentPage();
+    renderPagination();
+  }
+
+  // ── Render items ──────────────────────────────────────────────────────────────
+  function renderItems(items) {
+    const list = document.getElementById('items-list');
+    if (!items.length) { list.innerHTML = ''; return; }
+    list.innerHTML = items.map(item => {
+      const st  = itemState[item.review_item_id];
+      const rag = ANSWER_RAG[st.answer] || 'none';
+      const cls = st.answer ? `answered-${rag}` : '';
+      return `<div class="item-card ${cls}" id="card-${item.review_item_id}">
         <div class="item-meta">
           ${item.item_code ? `<span class="item-code">${escHtml(item.item_code)}</span>` : ''}
           ${item.area ? `<span class="item-area">${escHtml(item.area)}</span>` : ''}
+          ${item.team_category ? `<span class="item-team">${escHtml(item.team_category)}</span>` : ''}
           ${item.is_review_mandatory ? `<span class="item-mandatory">Mandatory</span>` : ''}
           <span class="save-indicator" id="saved-${item.review_item_id}">✓ Saved</span>
         </div>
-
         <div class="item-question">${escHtml(item.question)}</div>
-
         ${item.expected_evidence ? `
           <div class="item-evidence">
             <div class="item-evidence-label">Expected Evidence</div>
             ${escHtml(item.expected_evidence)}
           </div>` : ''}
-
         ${item.guidance ? `<div class="item-guidance">💡 ${escHtml(item.guidance)}</div>` : ''}
-
         <div class="answer-row" id="answers-${item.review_item_id}">
           ${['Yes','Partial','No','N/A'].map(opt => {
-            const cls = st.answer === opt ? ANSWER_CLASS[opt] : '';
-            return `<button class="answer-btn ${cls}"
-              onclick="selectAnswer(${item.review_item_id}, '${opt}')">${opt}</button>`;
+            const c = st.answer === opt ? ANSWER_CLS[opt] : '';
+            return `<button class="answer-btn ${c}" onclick="selectAnswer(${item.review_item_id},'${opt}')">${opt}</button>`;
           }).join('')}
         </div>
-
         <textarea class="comments" id="comments-${item.review_item_id}"
           placeholder="Add comments, evidence, or notes…"
           oninput="onCommentsChange(${item.review_item_id})"
@@ -415,99 +750,198 @@
     }).join('');
   }
 
-  // ── Answer selection ──────────────────────────────────────────────────────
-  function selectAnswer(reviewItemId, answer) {
-    const prev = itemState[reviewItemId].answer;
-    itemState[reviewItemId].answer = answer;
-
-    // Update button classes
-    const row = document.getElementById(`answers-${reviewItemId}`);
-    row.querySelectorAll('.answer-btn').forEach(btn => {
+  // ── Answer selection ──────────────────────────────────────────────────────────
+  function selectAnswer(id, answer) {
+    itemState[id].answer = answer;
+    const row = document.getElementById(`answers-${id}`);
+    if (row) row.querySelectorAll('.answer-btn').forEach(btn => {
       btn.className = 'answer-btn';
-      if (btn.textContent === answer) btn.classList.add(ANSWER_CLASS[answer]);
+      if (btn.textContent.trim() === answer) btn.classList.add(ANSWER_CLS[answer]);
     });
-
-    // Update card border
-    const rag = ANSWER_TO_RAG[answer] || 'none';
-    const card = document.getElementById(`card-${reviewItemId}`);
-    card.className = `item-card answered-${rag}`;
-
+    const card = document.getElementById(`card-${id}`);
+    if (card) card.className = `item-card answered-${ANSWER_RAG[answer] || 'none'}`;
     updateProgress();
-    scheduleSave(reviewItemId);
+    scheduleSave(id);
   }
 
-  function onCommentsChange(reviewItemId) {
-    itemState[reviewItemId].comments = document.getElementById(`comments-${reviewItemId}`).value;
-    scheduleSave(reviewItemId);
+  function onCommentsChange(id) {
+    const el = document.getElementById(`comments-${id}`);
+    if (el) itemState[id].comments = el.value;
+    scheduleSave(id);
   }
 
-  // ── Progress ──────────────────────────────────────────────────────────────
+  // ── Progress ──────────────────────────────────────────────────────────────────
   function updateProgress() {
     const answered = Object.values(itemState).filter(s => s.answer).length;
-    const total = allItems.length;
+    const total    = allItems.length;
     document.getElementById('progress-count').textContent = `${answered} / ${total}`;
     document.getElementById('progress-bar').style.width = total ? `${(answered/total*100).toFixed(1)}%` : '0%';
-
-    const statusEl = document.getElementById('action-status');
-    if (answered === 0) {
-      statusEl.textContent = 'Answer items above to continue';
-    } else if (answered < total) {
-      statusEl.textContent = `${total - answered} item${total - answered !== 1 ? 's' : ''} remaining`;
-    } else {
-      statusEl.textContent = 'All items answered — ready to submit';
-    }
+    const st = document.getElementById('action-status');
+    if (answered === 0)           st.textContent = 'Answer items above to continue';
+    else if (answered < total)    st.textContent = `${total - answered} item${total - answered !== 1 ? 's' : ''} remaining`;
+    else                          st.textContent = 'All items answered — ready to submit';
   }
 
-  // ── Auto-save ─────────────────────────────────────────────────────────────
-  function scheduleSave(reviewItemId) {
-    clearTimeout(saveTimers[reviewItemId]);
-    saveTimers[reviewItemId] = setTimeout(() => saveItem(reviewItemId), 800);
+  // ── Auto-save ─────────────────────────────────────────────────────────────────
+  function scheduleSave(id) {
+    clearTimeout(saveTimers[id]);
+    saveTimers[id] = setTimeout(() => saveItem(id), 800);
   }
 
-  async function saveItem(reviewItemId) {
-    const st = itemState[reviewItemId];
+  async function saveItem(id) {
+    const st = itemState[id];
     try {
       const res = await fetch(
-        `${API}/api/reviews/${REVIEW_ID}/items/${reviewItemId}?token=${encodeURIComponent(TOKEN)}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ answer: st.answer || '', comments: st.comments || '' }),
-        }
+        `${API}/api/reviews/${REVIEW_ID}/items/${id}?token=${encodeURIComponent(TOKEN)}`,
+        { method:'PATCH', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ answer: st.answer || '', comments: st.comments || '' }) }
       );
       if (res.ok) {
-        const ind = document.getElementById(`saved-${reviewItemId}`);
-        if (ind) {
-          ind.classList.add('visible');
-          setTimeout(() => ind.classList.remove('visible'), 2000);
-        }
+        const ind = document.getElementById(`saved-${id}`);
+        if (ind) { ind.classList.add('visible'); setTimeout(() => ind.classList.remove('visible'), 2000); }
       }
-    } catch(_) { /* silent fail — will retry on next change */ }
+    } catch(_) {}
   }
 
-  // ── Complete review ───────────────────────────────────────────────────────
+  // ── Excel Download ────────────────────────────────────────────────────────────
+  function downloadExcel() {
+    if (!allItems.length) { toast('No items to download', 'err'); return; }
+    if (typeof XLSX === 'undefined') { toast('Excel library not loaded. Check internet connection.', 'err'); return; }
+
+    const headers = ['#', 'Code', 'Area', 'Team / Category', 'Mandatory', 'Question', 'Expected Evidence', 'Answer', 'Comments'];
+    const rows = allItems.map((item, i) => {
+      const st = itemState[item.review_item_id];
+      return [
+        i + 1,
+        item.item_code || '',
+        item.area || '',
+        item.team_category || '',
+        item.is_review_mandatory ? 'Yes' : 'No',
+        item.question || '',
+        item.expected_evidence || '',
+        st.answer || '',
+        st.comments || '',
+      ];
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [{wch:4},{wch:10},{wch:18},{wch:16},{wch:10},{wch:52},{wch:40},{wch:10},{wch:32}];
+
+    // Lock all columns except Answer (col H=7) and Comments (col I=8)
+    // Add a note sheet with instructions
+    const noteWs = XLSX.utils.aoa_to_sheet([
+      ['Instructions'],
+      [''],
+      ['1. Fill the "Answer" column with one of: Yes, Partial, No, N/A'],
+      ['2. Optionally add notes in the "Comments" column.'],
+      ['3. Do NOT change any other columns (Code, Question, etc.)'],
+      ['4. Save the file, then upload it using the "Upload Excel" button on the portal.'],
+    ]);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Review Checklist');
+    XLSX.utils.book_append_sheet(wb, noteWs, 'Instructions');
+
+    const fname = `review-${REVIEW_ID}-checklist.xlsx`;
+    XLSX.writeFile(wb, fname);
+    toast(`Downloaded ${fname}`, 'ok');
+  }
+
+  // ── Excel Upload ──────────────────────────────────────────────────────────────
+  function handleExcelUpload(event) {
+    const file = event.target.files[0];
+    event.target.value = '';   // reset so same file can be re-selected
+    if (!file) return;
+    if (typeof XLSX === 'undefined') { toast('Excel library not loaded.', 'err'); return; }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const wb   = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const name = wb.SheetNames.find(n => /checklist|review/i.test(n)) || wb.SheetNames[0];
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: '' });
+        if (rows.length < 2) { toast('File appears empty', 'err'); return; }
+
+        const hdr       = rows[0].map(h => String(h).toLowerCase().trim());
+        const colAnswer   = hdr.indexOf('answer');
+        const colComments = hdr.indexOf('comments');
+        const colCode     = hdr.indexOf('code');
+        const colNum      = hdr.indexOf('#');
+
+        if (colAnswer === -1) { toast('No "Answer" column found in Excel', 'err'); return; }
+
+        // Build lookup maps
+        const byCode = {};
+        allItems.forEach((item, idx) => {
+          if (item.item_code) byCode[String(item.item_code).toLowerCase().trim()] = item;
+        });
+
+        const VALID = ['Yes','Partial','No','N/A'];
+        let updated = 0;
+        const saves = [];
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r];
+          if (!row || row.every(c => c === '')) continue;
+
+          const rawAns  = String(row[colAnswer]   || '').trim();
+          const rawCom  = colComments >= 0 ? String(row[colComments] || '').trim() : '';
+          const rawCode = colCode >= 0     ? String(row[colCode]     || '').toLowerCase().trim() : '';
+          const rawNum  = colNum  >= 0     ? parseInt(row[colNum], 10) : NaN;
+
+          // Match item: by code → by # → by row order
+          let item = byCode[rawCode]
+            || (!isNaN(rawNum) && rawNum >= 1 ? allItems[rawNum - 1] : null)
+            || allItems[r - 1];
+          if (!item) continue;
+
+          const answer = VALID.find(a => a.toLowerCase() === rawAns.toLowerCase()) || null;
+          const st     = itemState[item.review_item_id];
+          let changed  = false;
+          if (answer && st.answer !== answer)     { st.answer   = answer; changed = true; }
+          if (rawCom  && st.comments !== rawCom)  { st.comments = rawCom; changed = true; }
+          if (changed) { updated++; saves.push(saveItem(item.review_item_id)); }
+        }
+
+        await Promise.all(saves);
+        applyFilters();   // re-filter + re-render current page with updated state
+        updateProgress();
+
+        toast(
+          updated > 0
+            ? `✓ Imported ${updated} response${updated !== 1 ? 's' : ''} from Excel`
+            : 'No new responses found in Excel'
+          , updated > 0 ? 'ok' : ''
+        );
+      } catch(err) {
+        console.error('Excel upload error:', err);
+        toast('Failed to read Excel: ' + err.message, 'err');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ── Complete review ───────────────────────────────────────────────────────────
   async function completeReview() {
     const answered = Object.values(itemState).filter(s => s.answer).length;
     if (answered === 0) {
       alert('Please answer at least one checklist item before completing the review.');
       return;
     }
-
     const btn = document.getElementById('btn-complete');
     btn.disabled = true;
     btn.textContent = '⏳ Completing…';
 
-    // Flush any pending saves
-    const pending = Object.keys(saveTimers).filter(id => saveTimers[id]);
-    await Promise.all(pending.map(id => {
-      clearTimeout(saveTimers[id]);
-      return saveItem(parseInt(id, 10));
-    }));
+    // Flush pending saves
+    await Promise.all(
+      Object.keys(saveTimers)
+        .filter(id => saveTimers[id])
+        .map(id => { clearTimeout(saveTimers[id]); return saveItem(parseInt(id, 10)); })
+    );
 
     try {
       const res = await fetch(`${API}/api/reviews/${REVIEW_ID}/complete`, { method: 'POST' });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
-
       renderSuccess();
     } catch(e) {
       alert('Could not complete the review: ' + e.message);
@@ -516,46 +950,24 @@
     }
   }
 
-  // ── Success ───────────────────────────────────────────────────────────────
+  // ── Success screen ────────────────────────────────────────────────────────────
   function renderSuccess() {
-    // Tally RAG from local state
     const rag = { green: 0, amber: 0, red: 0, na: 0 };
-    allItems.forEach(item => {
-      const ans = itemState[item.review_item_id].answer;
-      const ragKey = ANSWER_TO_RAG[ans];
-      if (ragKey) rag[ragKey]++;
-    });
-
+    allItems.forEach(item => { const k = ANSWER_RAG[itemState[item.review_item_id].answer]; if (k) rag[k]++; });
     const nonNA = rag.green + rag.amber + rag.red;
-    const totalWeight = nonNA;
-    const score = totalWeight > 0
-      ? ((rag.green * 1.0 + rag.amber * 0.5) / totalWeight * 100).toFixed(1)
-      : '0.0';
-
-    const scoreColor = parseFloat(score) >= 70 ? '#22c55e' : parseFloat(score) >= 40 ? '#f59e0b' : '#ef4444';
-    const circle = document.getElementById('score-circle');
-    circle.style.borderColor = scoreColor;
-    document.getElementById('score-value').style.color = scoreColor;
+    const score = nonNA > 0 ? ((rag.green + rag.amber * 0.5) / nonNA * 100).toFixed(1) : '0.0';
+    const col   = parseFloat(score) >= 70 ? '#22c55e' : parseFloat(score) >= 40 ? '#f59e0b' : '#ef4444';
+    document.getElementById('score-circle').style.borderColor = col;
+    document.getElementById('score-value').style.color = col;
     document.getElementById('score-value').textContent = score + '%';
 
-    const total = rag.green + rag.amber + rag.red + rag.na;
-    if (total > 0) {
-      const segs = [
-        { key: 'green', color: '#22c55e' },
-        { key: 'amber', color: '#f59e0b' },
-        { key: 'red',   color: '#ef4444' },
-        { key: 'na',    color: '#475569' },
-      ];
-      document.getElementById('rag-bar').innerHTML = segs.map(s => {
-        if (!rag[s.key]) return '';
-        return `<div class="rag-seg" style="background:${s.color};flex:${rag[s.key]}"></div>`;
-      }).join('');
-      document.getElementById('rag-legend').innerHTML = segs.map(s => {
-        if (!rag[s.key]) return '';
-        return `<span><span class="rag-dot" style="background:${s.color}"></span>${rag[s.key]} ${s.key}</span>`;
-      }).join('');
-    }
-
+    const segs = [{key:'green',color:'#22c55e'},{key:'amber',color:'#f59e0b'},{key:'red',color:'#ef4444'},{key:'na',color:'#475569'}];
+    document.getElementById('rag-bar').innerHTML = segs.map(s =>
+      rag[s.key] ? `<div class="rag-seg" style="background:${s.color};flex:${rag[s.key]}"></div>` : ''
+    ).join('');
+    document.getElementById('rag-legend').innerHTML = segs.map(s =>
+      rag[s.key] ? `<span><span class="rag-dot" style="background:${s.color}"></span>${rag[s.key]} ${s.key}</span>` : ''
+    ).join('');
     show('state-success');
   }
 
