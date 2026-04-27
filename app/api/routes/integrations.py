@@ -24,7 +24,7 @@ from app.services.integrations.base import mask_secret
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_SUPPORTED_TYPES = {"jira", "smtp", "linear", "github_issues", "webhook"}
+_SUPPORTED_TYPES = {"jira", "smtp", "resend", "linear", "github_issues", "webhook"}
 _TRIGGER_OPTIONS = {"always", "red_only", "manual"}
 
 # Keys that contain secrets and must be masked in responses
@@ -231,6 +231,9 @@ async def test_integration(
         ok, message = await test_connection(cfg)
     elif row.type == "smtp":
         from app.services.integrations.email_smtp import test_connection
+        ok, message = await test_connection(cfg)
+    elif row.type == "resend":
+        from app.services.integrations.email_resend import test_connection
         ok, message = await test_connection(cfg)
     else:
         message = f"Connection test not yet implemented for type '{row.type}'."

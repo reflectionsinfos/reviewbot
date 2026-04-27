@@ -116,3 +116,6 @@ id_ed25519.pub
 # Keep LLM context files
 llms.txt
 llms-public.txt
+
+!.agent/codebase.md
+!.agent/architecture/design_guidelines.md

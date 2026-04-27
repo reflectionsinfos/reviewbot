@@ -145,6 +145,13 @@ async def serve_system_config_ui():
     return FileResponse(os.path.join(_frontend_dir, "system_config.html"))
 
 
+@app.get("/offline-review", include_in_schema=False)
+@app.get("/offline-review.html", include_in_schema=False)
+async def serve_offline_review():
+    """Serve the token-gated offline reviewer portal"""
+    return FileResponse(os.path.join(_frontend_dir, "offline-review.html"))
+
+
 # ── Health / root ─────────────────────────────────────────────────────────────
 @app.get("/", include_in_schema=False)
 async def serve_home():

@@ -19,11 +19,35 @@ from sqlalchemy.orm import selectinload
 from app.services.voice_interface import get_voice_interface
 from app.services.excel_offline_exporter import generate_offline_excel
 from app.services.excel_response_parser import parse_response_excel
-from app.services.integrations.email_smtp import send_offline_review_email
+from app.services.integrations import email_smtp as _smtp_svc
+from app.services.integrations import email_resend as _resend_svc
 from app.api.routes.auth import get_current_user
 from app.core.config import settings
 
 router = APIRouter()
+
+
+async def _get_email_integration(db: AsyncSession):
+    """Return the first enabled smtp or resend integration (resend preferred)."""
+    from sqlalchemy import or_
+    result = await db.execute(
+        select(IntegrationConfig).where(
+            or_(IntegrationConfig.type == "resend", IntegrationConfig.type == "smtp"),
+            IntegrationConfig.is_enabled == True,
+        ).order_by(IntegrationConfig.type)  # "resend" < "smtp" alphabetically
+    )
+    return result.scalars().first()
+
+
+async def _send_offline_review_email(integration: IntegrationConfig, **kwargs):
+    """Dispatch offline review email via the configured provider."""
+    if integration.type == "resend":
+        return await _resend_svc.send_offline_review_email(
+            cfg=integration.config_json, **kwargs
+        )
+    return await _smtp_svc.send_offline_review_email(
+        cfg=integration.config_json, **kwargs
+    )
 
 
 @router.get("/")
@@ -626,21 +650,15 @@ async def create_offline_review(
     await db.commit()
     await db.refresh(review)
 
-    # Send invitation email if SMTP is configured
+    # Send invitation email if an email integration (smtp or resend) is configured
     email_sent = False
     email_error = None
-    smtp_result = await db.execute(
-        select(IntegrationConfig).where(
-            IntegrationConfig.type == "smtp",
-            IntegrationConfig.is_enabled == True
-        )
-    )
-    smtp_cfg = smtp_result.scalar_one_or_none()
+    email_cfg_row = await _get_email_integration(db)
 
-    if smtp_cfg:
+    if email_cfg_row:
         try:
-            dispatch = await send_offline_review_email(
-                cfg=smtp_cfg.config_json,
+            dispatch = await _send_offline_review_email(
+                integration=email_cfg_row,
                 reviewer_email=request.assigned_reviewer_email,
                 reviewer_name=request.assigned_reviewer_name,
                 project_name=project.name,
@@ -660,7 +678,7 @@ async def create_offline_review(
         except Exception as exc:
             email_error = str(exc)
 
-    review_url = f"{settings.APP_BASE_URL.rstrip('/')}/offline-review.html?token={token}"
+    review_url = f"{settings.APP_BASE_URL.rstrip('/')}/offline-review?token={token}"
 
     return {
         "message": "Offline review created",
@@ -704,7 +722,7 @@ async def get_pending_offline_reviews(
                 "checklist_name": r.checklist.name if r.checklist else "Unknown",
                 "due_date": r.due_date.isoformat() if r.due_date else None,
                 "sent_at": r.excel_sent_at.isoformat() if r.excel_sent_at else None,
-                "review_url": f"{settings.APP_BASE_URL.rstrip('/')}/offline-review.html?token={r.upload_token}",
+                "review_url": f"{settings.APP_BASE_URL.rstrip('/')}/offline-review?token={r.upload_token}",
             }
             for r in reviews
         ]
@@ -883,25 +901,19 @@ async def resend_offline_invitation(
     if not review.assigned_reviewer_email:
         raise HTTPException(status_code=400, detail="No reviewer email assigned to this review.")
 
-    smtp_result = await db.execute(
-        select(IntegrationConfig).where(
-            IntegrationConfig.type == "smtp",
-            IntegrationConfig.is_enabled == True
-        )
-    )
-    smtp_cfg = smtp_result.scalar_one_or_none()
+    email_cfg_row = await _get_email_integration(db)
 
-    if not smtp_cfg:
+    if not email_cfg_row:
         raise HTTPException(
             status_code=503,
-            detail="No active SMTP integration configured. Set one up in Settings > Integrations."
+            detail="No active email integration (SMTP or Resend) configured. Set one up in Settings > Integrations."
         )
 
     project_name = review.project.name if review.project else "Project"
     checklist_name = review.checklist.name if review.checklist else "Checklist"
 
-    dispatch = await send_offline_review_email(
-        cfg=smtp_cfg.config_json,
+    dispatch = await _send_offline_review_email(
+        integration=email_cfg_row,
         reviewer_email=review.assigned_reviewer_email,
         reviewer_name=review.assigned_reviewer_name or "Reviewer",
         project_name=project_name,

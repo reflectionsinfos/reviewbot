@@ -1,5 +1,7 @@
 # ReviewBot — Claude Code Reference
 
+> **Before exploring the codebase**, read [`.agent/codebase.md`](.agent/codebase.md) for a pre-built map of key files, models, API routes, integration patterns, and common gotchas. This avoids redundant file reads.
+
 ## Project Overview
 
 AI-powered project review platform that conducts structured technical and delivery reviews via a conversational agent. Features LangGraph workflows, voice interaction, RAG compliance scoring, and a mandatory human approval workflow.

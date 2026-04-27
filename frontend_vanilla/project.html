@@ -994,8 +994,6 @@
     } catch(e) { toast('Failed: ' + e.message, 'error'); }
   }
 
-  function openAddModal() { renderAddModalTemplates(); document.getElementById('add-modal').classList.remove('hidden'); }
-  function closeAddModal() { document.getElementById('add-modal').classList.add('hidden'); }
   function _renderAddModalTemplatesLegacy() {
     const container = document.getElementById('add-modal-templates');
     container.innerHTML = globalTemplates.map(t => `
@@ -1009,11 +1007,15 @@
   }
   function renderAddModalTemplates() {
     const container = document.getElementById('add-modal-templates');
+    if (!globalTemplates || globalTemplates.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:24px;color:#64748b;font-size:13px;">No global templates available. Use a blank checklist below.</div>';
+      return;
+    }
     container.innerHTML = globalTemplates.map(t => `
       <div class="template-row">
         <div class="template-row-info">
-          <div class="template-row-name">${escapeHtml(t.name)}</div>
-          <div class="template-row-meta"><span class="badge ${typeBadgeClass(t.type)}">${escapeHtml(formatChecklistType(t.type).toUpperCase())}</span> - ${t.items_count} items</div>
+          <div class="template-row-name">${escapeHtml(t.name || '')}</div>
+          <div class="template-row-meta"><span class="badge ${typeBadgeClass(t.type)}">${escapeHtml((formatChecklistType(t.type) || t.type || 'unknown').toUpperCase())}</span> - ${t.items_count || 0} items</div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="cloneTemplate(${t.id})">Add</button>
       </div>`).join('');
@@ -1285,11 +1287,12 @@
       const sentAt = r.excel_sent_at ? formatDate(r.excel_sent_at) : '<span style="color:#475569">Not sent</span>';
       const dueDate = r.due_date ? `<span style="color:#fb923c;">${formatDate(r.due_date)}</span>` : '—';
       const token = r.upload_token ? escapeHtml(r.upload_token) : '';
-      const reviewUrl = token ? `/offline-review.html?token=${token}` : '';
+      const reviewUrl = token ? `/offline-review?token=${token}` : '';
 
       let actions = '';
       if (reviewUrl) {
         actions += `<a href="${reviewUrl}" target="_blank" class="btn btn-ghost btn-sm" title="Open review page" style="padding:3px 8px;">🔗 Open</a>`;
+        actions += `<button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${reviewUrl}')" title="Copy magic link" style="padding:3px 8px;">📋 Copy Link</button>`;
       }
       if (r.status !== 'completed') {
         actions += `<button class="btn btn-ghost btn-sm" onclick="resendOfflineEmail(${r.id})" title="Resend invitation email" style="padding:3px 8px;">✉ Resend</button>`;
@@ -1376,20 +1379,27 @@
         body: JSON.stringify(body),
       });
 
-      let succMsg = `Review created for <strong>${escapeHtml(result.reviewer_email)}</strong>.`;
-      if (result.email_sent) {
-        succMsg += ' Invitation email sent successfully.';
-      } else {
-        const errNote = result.email_error ? ` (${escapeHtml(result.email_error)})` : ' (SMTP not configured)';
-        succMsg += ` Email not sent${errNote}. <a href="${escapeHtml(result.review_url)}" target="_blank" style="color:#38bdf8;text-decoration:underline;">Copy review link</a>`;
-      }
+      const reviewUrl = result.review_url || '';
+      const emailStatus = result.email_sent
+        ? '✉ Invitation email sent.'
+        : `✉ Email not sent${result.email_error ? ` — ${escapeHtml(result.email_error)}` : ' (no email integration configured)'}.`;
 
-      succEl.innerHTML = '✓ ' + succMsg;
+      succEl.innerHTML = `
+        <div style="margin-bottom:10px;">✓ Review created for <strong>${escapeHtml(result.reviewer_email)}</strong>. ${emailStatus}</div>
+        ${reviewUrl ? `
+        <div style="margin-top:10px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">🔗 Magic Link — share directly with reviewer</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="magic-link-input" readonly value="${escapeHtml(reviewUrl)}"
+              style="flex:1;background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:12px;font-family:monospace;cursor:text;" />
+            <button onclick="copyMagicLink()" style="white-space:nowrap;padding:8px 14px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;" id="copy-link-btn">Copy</button>
+            <a href="${escapeHtml(reviewUrl)}" target="_blank" style="padding:8px 14px;background:rgba(255,255,255,0.07);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">Open ↗</a>
+          </div>
+        </div>` : ''}`;
       succEl.style.display = 'block';
       btn.textContent = 'Done';
 
       await loadOfflineReviews(projectId);
-      setTimeout(() => closeCreateOfflineModal(), 4000);
     } catch (e) {
       errEl.textContent = e.message;
       errEl.style.display = 'block';
@@ -1398,17 +1408,103 @@
     }
   }
 
+  function copyMagicLink() {
+    const input = document.getElementById('magic-link-input');
+    if (!input) return;
+    navigator.clipboard.writeText(input.value).then(() => {
+      const btn = document.getElementById('copy-link-btn');
+      btn.textContent = 'Copied!';
+      btn.style.background = '#22c55e';
+      setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = '#0ea5e9'; }, 2000);
+    }).catch(() => {
+      input.select();
+      document.execCommand('copy');
+    });
+  }
+
+  function copyReviewLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+      toast('Link copied to clipboard', 'success');
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  }
+
   async function resendOfflineEmail(reviewId) {
     try {
       const result = await api(`/api/reviews/${reviewId}/resend-email`, { method: 'POST' });
       if (result.email_sent) {
         toast('Invitation email resent.', 'success');
       } else {
-        toast(`Email not sent: ${result.email_error || 'SMTP not configured'}`, 'error');
+        toast(`Email not sent: ${result.email_error || 'Email not configured'}`, 'error');
       }
     } catch (e) {
       toast('Failed to resend: ' + e.message, 'error');
     }
+  }
+
+  // ── Checklist Tab Delete ───────────────────────────────────────────────────
+  let pendingDeleteChecklistId = null;
+
+  function confirmDeleteChecklist(id, name) {
+    pendingDeleteChecklistId = id;
+    document.getElementById('delete-modal-msg').textContent =
+      `Are you sure you want to delete the checklist "${name}"?`;
+    document.getElementById('btn-confirm-delete').disabled = false;
+    document.getElementById('btn-confirm-delete').textContent = 'Delete';
+    document.getElementById('delete-modal').classList.remove('hidden');
+  }
+
+  function closeDeleteModal() {
+    document.getElementById('delete-modal').classList.add('hidden');
+    pendingDeleteChecklistId = null;
+  }
+
+  async function executeDeleteChecklist() {
+    if (!pendingDeleteChecklistId) return;
+    const btn = document.getElementById('btn-confirm-delete');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+      await api(`/api/checklists/${pendingDeleteChecklistId}`, { method: 'DELETE' });
+      toast('Checklist deleted successfully', 'success');
+      closeDeleteModal();
+      // If we deleted the active tab, reset state before reloading
+      if (currentChecklistId === pendingDeleteChecklistId) {
+        currentChecklistId = null;
+      }
+      await onProjectChange();
+    } catch(e) {
+      toast('Delete failed: ' + e.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+    }
+  }
+
+  // ── Add Checklist Modal ────────────────────────────────────────────────────
+  async function openAddModal() {
+    const modal = document.getElementById('add-modal');
+    modal.classList.remove('hidden');
+    const container = document.getElementById('add-modal-templates');
+
+    if (globalTemplates.length > 0) {
+      renderAddModalTemplates();
+      return;
+    }
+
+    // Templates not loaded yet — fetch them now
+    container.innerHTML = '<div style="text-align:center;padding:24px;color:#64748b;font-size:13px;">⌛ Loading templates…</div>';
+    try {
+      const data = await api('/api/checklists/templates/global');
+      globalTemplates = (data && data.templates) || [];
+      renderAddModalTemplates();
+    } catch(e) {
+      container.innerHTML = `<div style="text-align:center;padding:24px;color:#f87171;font-size:13px;">⚠ Failed to load templates: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function closeAddModal() {
+    document.getElementById('add-modal').classList.add('hidden');
   }
 </script>
 </body>

@@ -258,7 +258,7 @@ async def send_offline_review_email(
     Returns:
         DispatchResult indicating success or failure.
     """
-    review_url = f"{app_url.rstrip('/')}/offline-review.html?token={upload_token}"
+    review_url = f"{app_url.rstrip('/')}/offline-review?token={upload_token}"
     due_str = due_date.strftime("%A, %d %b %Y") if due_date else None
 
     # ── Plain text ────────────────────────────────────────────────────────────

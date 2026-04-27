@@ -133,6 +133,7 @@
   <div class="tabs">
     <button class="tab-btn active" onclick="showTab('llm-models')">AI Models</button>
     <button class="tab-btn" onclick="showTab('system-settings')">System Settings</button>
+    <button class="tab-btn" onclick="showTab('email-config')">Email / SMTP</button>
   </div>
 
   <div id="llm-models" class="tab-content active">
@@ -158,6 +159,22 @@
       <div class="empty-state">
         <div class="empty-state-icon">⌛</div>
         <h3>Loading system settings...</h3>
+      </div>
+    </div>
+  </div>
+
+  <div id="email-config" class="tab-content">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; gap:12px; flex-wrap:wrap;">
+      <p style="color:#94a3b8; font-size:13px; max-width:640px;">Configure email delivery for review notifications and offline review invitations. Supports Resend.com (API-based) and internal SMTP servers.</p>
+      <button class="btn btn-primary" onclick="openEmailModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Add Email Integration
+      </button>
+    </div>
+    <div id="email-list" class="config-grid">
+      <div class="empty-state">
+        <div class="empty-state-icon">⌛</div>
+        <h3>Loading email integrations...</h3>
       </div>
     </div>
   </div>
@@ -266,6 +283,115 @@
         <div style="flex:1"></div>
         <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
         <button type="submit" class="btn btn-primary" id="btn-save">Save Configuration</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Email Integration Modal ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="email-modal">
+  <div class="modal-card" style="max-width:600px;">
+    <div class="modal-header">
+      <h2 id="email-modal-title">New Email Integration</h2>
+      <p id="email-modal-subtitle">Configure an email provider for review notifications.</p>
+    </div>
+    <form id="email-form">
+      <input type="hidden" id="ef-id">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="ef-name">Friendly Name</label>
+          <input type="text" id="ef-name" placeholder="e.g. Company SMTP" required>
+        </div>
+        <div class="form-group">
+          <label for="ef-type">Provider Type</label>
+          <select id="ef-type" required onchange="handleEmailTypeChange()">
+            <option value="resend">Resend.com (API)</option>
+            <option value="smtp">SMTP Server</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- ── Resend fields ──────────────────────────────── -->
+      <div id="ef-resend-fields">
+        <div class="form-group">
+          <label for="ef-api-key">Resend API Key <span class="mandatory-badge">Required</span></label>
+          <input type="password" id="ef-api-key" placeholder="re_xxxxxxxxxxxxxxxx">
+        </div>
+      </div>
+
+      <!-- ── SMTP fields ────────────────────────────────── -->
+      <div id="ef-smtp-fields" style="display:none;">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ef-host">SMTP Host <span class="mandatory-badge">Required</span></label>
+            <input type="text" id="ef-host" placeholder="smtp.example.com">
+          </div>
+          <div class="form-group">
+            <label for="ef-port">Port</label>
+            <input type="number" id="ef-port" placeholder="587" value="587" min="1" max="65535">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ef-username">Username</label>
+            <input type="text" id="ef-username" placeholder="you@example.com">
+          </div>
+          <div class="form-group">
+            <label for="ef-password">Password</label>
+            <input type="password" id="ef-password" placeholder="••••••••">
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; font-size:13px;">
+            <input type="checkbox" id="ef-use-tls" style="width:auto;" checked>
+            Use TLS / STARTTLS
+          </label>
+        </div>
+      </div>
+
+      <!-- ── Common fields ──────────────────────────────── -->
+      <div class="form-group">
+        <label for="ef-from">From Address <span class="mandatory-badge">Required</span></label>
+        <input type="text" id="ef-from" placeholder='ReviewBot &lt;noreply@yourdomain.com&gt;' required>
+      </div>
+
+      <div class="form-group">
+        <label for="ef-recipients">Default Recipients <span class="optional-badge">Optional</span></label>
+        <input type="text" id="ef-recipients" placeholder="team@company.com, lead@company.com">
+        <div class="field-hint">Comma-separated email addresses for summary notifications.</div>
+      </div>
+
+      <div class="form-group" style="display:flex; gap:24px; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; font-size:13px;">
+          <input type="checkbox" id="ef-enabled" style="width:auto;" checked>
+          Enabled
+        </label>
+        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; text-transform:none; font-size:13px;">
+          <input type="checkbox" id="ef-stakeholders" style="width:auto;">
+          Include project stakeholders in summary emails
+        </label>
+      </div>
+
+      <div class="form-group">
+        <label for="ef-trigger">Trigger On</label>
+        <select id="ef-trigger">
+          <option value="red_only">Red findings only</option>
+          <option value="always">Always (every review)</option>
+          <option value="manual">Manual only</option>
+        </select>
+      </div>
+
+      <div id="email-test-result" style="display:none; margin-top:16px; padding:12px; border-radius:8px; font-size:13px; border:1px solid rgba(255,255,255,0.1);">
+        <div id="email-test-status" style="font-weight:700; margin-bottom:4px;"></div>
+        <div id="email-test-message" style="color:#94a3b8; font-family:monospace; word-break:break-all;"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn-email-test" onclick="testEmailIntegration()">Test Connection</button>
+        <div style="flex:1"></div>
+        <button type="button" class="btn btn-secondary" onclick="closeEmailModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-email-save">Save</button>
       </div>
     </form>
   </div>
@@ -707,6 +833,7 @@
 
     if (id === 'system-settings') loadSettings();
     if (id === 'llm-models') loadConfigs();
+    if (id === 'email-config') loadEmailIntegrations();
   }
 
   // --- System Settings logic ---
@@ -785,6 +912,243 @@
     } catch (err) {
       renderAuditToggle();
     }
+  }
+
+  // ── Email / SMTP Tab ────────────────────────────────────────────────────────
+
+  let emailIntegrations = [];
+
+  async function loadEmailIntegrations() {
+    const container = document.getElementById('email-list');
+    try {
+      const all = await apiFetch('/api/integrations/');
+      emailIntegrations = (all || []).filter(i => i.type === 'smtp' || i.type === 'resend');
+      renderEmailIntegrations();
+    } catch (err) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Failed to load</h3><p>${err.message}</p><button class="btn btn-secondary btn-sm" onclick="loadEmailIntegrations()">Retry</button></div>`;
+    }
+  }
+
+  function renderEmailIntegrations() {
+    const container = document.getElementById('email-list');
+    if (!emailIntegrations.length) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📧</div>
+          <h3>No email integrations configured</h3>
+          <p>Add a Resend.com or SMTP integration to send review notifications and offline review invitations.</p>
+          <button class="btn btn-primary btn-sm" onclick="openEmailModal()">Add Integration</button>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = emailIntegrations.map(i => {
+      const cfg = i.config_json || {};
+      const typeLabel = i.type === 'resend' ? 'Resend.com' : 'SMTP';
+      const typeColor = i.type === 'resend' ? '#a78bfa' : '#38bdf8';
+      const statusBadge = i.is_enabled
+        ? '<span class="card-badge active-badge" style="position:static;">Enabled</span>'
+        : '<span class="card-badge disabled-badge" style="position:static;">Disabled</span>';
+      const fromAddr = cfg.from_address || '—';
+      const host = cfg.host ? `${cfg.host}:${cfg.port || 587}` : null;
+      const recipients = Array.isArray(cfg.recipients) ? cfg.recipients.join(', ') : (cfg.recipients || '—');
+      const trigger = i.trigger_on === 'always' ? 'Always' : i.trigger_on === 'manual' ? 'Manual' : 'Red findings only';
+
+      return `
+      <div class="config-card">
+        <div style="display:flex; gap:6px; position:absolute; top:16px; right:16px; flex-wrap:wrap; justify-content:flex-end;">
+          ${statusBadge}
+          <span class="card-badge" style="position:static; background:rgba(167,139,250,0.1); color:${typeColor}; border:1px solid rgba(167,139,250,0.2);">${typeLabel}</span>
+        </div>
+        <div class="card-provider">${typeLabel}</div>
+        <div class="card-name">${escHtml(i.name)}</div>
+        <div class="card-details">
+          <div class="detail-item"><strong>From:</strong> ${escHtml(fromAddr)}</div>
+          ${host ? `<div class="detail-item"><strong>Host:</strong> ${escHtml(host)}</div>` : ''}
+          <div class="detail-item"><strong>Recipients:</strong> ${escHtml(recipients)}</div>
+          <div class="detail-item"><strong>Trigger:</strong> ${trigger}</div>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openEmailModal(${i.id})">Edit</button>
+          <button class="btn btn-secondary btn-sm" onclick="testSavedEmailIntegration(${i.id})">Test</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteEmailIntegration(${i.id})">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function handleEmailTypeChange() {
+    const t = document.getElementById('ef-type').value;
+    document.getElementById('ef-resend-fields').style.display = t === 'resend' ? '' : 'none';
+    document.getElementById('ef-smtp-fields').style.display  = t === 'smtp'   ? '' : 'none';
+  }
+
+  function openEmailModal(id) {
+    const form = document.getElementById('email-form');
+    form.reset();
+    document.getElementById('ef-id').value = '';
+    document.getElementById('email-test-result').style.display = 'none';
+    document.getElementById('ef-enabled').checked = true;
+    document.getElementById('ef-port').value = '587';
+    document.getElementById('ef-use-tls').checked = true;
+    document.getElementById('ef-trigger').value = 'red_only';
+
+    if (id) {
+      const integ = emailIntegrations.find(i => i.id === id);
+      if (!integ) return;
+      const cfg = integ.config_json || {};
+      document.getElementById('email-modal-title').textContent = 'Edit Email Integration';
+      document.getElementById('email-modal-subtitle').textContent = 'Update email provider settings.';
+      document.getElementById('ef-id').value = integ.id;
+      document.getElementById('ef-name').value = integ.name;
+      document.getElementById('ef-type').value = integ.type;
+      document.getElementById('ef-enabled').checked = integ.is_enabled;
+      document.getElementById('ef-trigger').value = integ.trigger_on || 'red_only';
+      document.getElementById('ef-stakeholders').checked = !!integ.include_advisories;
+      document.getElementById('ef-from').value = cfg.from_address || '';
+      document.getElementById('ef-recipients').value = Array.isArray(cfg.recipients) ? cfg.recipients.join(', ') : (cfg.recipients || '');
+      // Resend
+      document.getElementById('ef-api-key').value = cfg.api_key || '';
+      // SMTP
+      document.getElementById('ef-host').value = cfg.host || '';
+      document.getElementById('ef-port').value = cfg.port || '587';
+      document.getElementById('ef-username').value = cfg.username || '';
+      document.getElementById('ef-password').value = cfg.password || '';
+      document.getElementById('ef-use-tls').checked = cfg.use_tls !== false;
+    } else {
+      document.getElementById('email-modal-title').textContent = 'New Email Integration';
+      document.getElementById('email-modal-subtitle').textContent = 'Configure a Resend.com or SMTP email provider.';
+    }
+
+    handleEmailTypeChange();
+    document.getElementById('email-modal').classList.add('active');
+  }
+
+  function closeEmailModal() {
+    document.getElementById('email-modal').classList.remove('active');
+  }
+
+  document.getElementById('email-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('ef-id').value;
+    const type = document.getElementById('ef-type').value;
+
+    const recipientsRaw = document.getElementById('ef-recipients').value.trim();
+    const recipients = recipientsRaw ? recipientsRaw.split(',').map(r => r.trim()).filter(Boolean) : [];
+
+    let config_json = {
+      from_address: document.getElementById('ef-from').value.trim(),
+      recipients,
+      include_project_stakeholders: document.getElementById('ef-stakeholders').checked,
+    };
+
+    if (type === 'resend') {
+      config_json.api_key = document.getElementById('ef-api-key').value.trim();
+    } else {
+      config_json.host     = document.getElementById('ef-host').value.trim();
+      config_json.port     = parseInt(document.getElementById('ef-port').value) || 587;
+      config_json.username = document.getElementById('ef-username').value.trim();
+      config_json.password = document.getElementById('ef-password').value;
+      config_json.use_tls  = document.getElementById('ef-use-tls').checked;
+    }
+
+    const payload = {
+      name:              document.getElementById('ef-name').value.trim(),
+      type,
+      is_enabled:        document.getElementById('ef-enabled').checked,
+      trigger_on:        document.getElementById('ef-trigger').value,
+      include_advisories: document.getElementById('ef-stakeholders').checked,
+      config_json,
+    };
+
+    const btn = document.getElementById('btn-email-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      if (id) {
+        await apiFetch(`/api/integrations/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+        showNotif('Email integration updated');
+      } else {
+        await apiFetch('/api/integrations/', { method: 'POST', body: JSON.stringify(payload) });
+        showNotif('Email integration created');
+      }
+      closeEmailModal();
+      loadEmailIntegrations();
+    } catch (err) {
+      // notification handled in apiFetch
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save';
+    }
+  };
+
+  async function testEmailIntegration() {
+    const id = document.getElementById('ef-id').value;
+    const btn = document.getElementById('btn-email-test');
+    const result = document.getElementById('email-test-result');
+    const statusEl = document.getElementById('email-test-status');
+    const msgEl = document.getElementById('email-test-message');
+
+    if (!id) {
+      showNotif('Save the integration first, then test it.', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Testing…';
+    result.style.display = 'block';
+    result.style.background = 'rgba(255,255,255,0.05)';
+    result.style.borderColor = 'rgba(255,255,255,0.1)';
+    statusEl.textContent = '⏳ Verifying connectivity…';
+    statusEl.style.color = '#94a3b8';
+    msgEl.textContent = '';
+
+    try {
+      const res = await apiFetch(`/api/integrations/${id}/test`, { method: 'POST' });
+      if (res.ok) {
+        statusEl.textContent = '✅ Success';
+        statusEl.style.color = '#4ade80';
+        result.style.background = 'rgba(34, 197, 94, 0.1)';
+        result.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+      } else {
+        statusEl.textContent = '❌ Failed';
+        statusEl.style.color = '#f87171';
+        result.style.background = 'rgba(239, 68, 68, 0.1)';
+        result.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+      }
+      msgEl.textContent = res.message || '';
+    } catch (err) {
+      statusEl.textContent = '❌ Error';
+      statusEl.style.color = '#f87171';
+      msgEl.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Test Connection';
+    }
+  }
+
+  async function testSavedEmailIntegration(id) {
+    showNotif('Testing connection…');
+    try {
+      const res = await apiFetch(`/api/integrations/${id}/test`, { method: 'POST' });
+      showNotif(res.ok ? `✅ ${res.message}` : `❌ ${res.message}`, res.ok ? 'success' : 'error');
+    } catch (err) {}
+  }
+
+  async function deleteEmailIntegration(id) {
+    if (!confirm('Delete this email integration?')) return;
+    try {
+      await apiFetch(`/api/integrations/${id}`, { method: 'DELETE' });
+      showNotif('Email integration deleted');
+      loadEmailIntegrations();
+    } catch (err) {}
   }
 
   // Init
