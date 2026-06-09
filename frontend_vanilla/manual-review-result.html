@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReviewBot — Manual Review Results</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
+    header { display: none; }
+
+    main { max-width: 1400px; margin: 0 auto; padding: 28px 24px; width: 100%; flex: 1; }
+
+    .back-btn { display: inline-flex; align-items: center; gap: 6px; color: #94a3b8; cursor: pointer; font-size: 13px; margin-bottom: 20px; background: transparent; border: none; padding: 0; }
+    .back-btn:hover { color: #38bdf8; }
+
+    .details-header { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .details-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .details-meta { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+    .details-stats { display: flex; gap: 12px; flex-wrap: wrap; }
+    .stat-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 20px; text-align: center; min-width: 90px; cursor: pointer; transition: border-color 0.15s; }
+    .stat-box:hover { border-color: #475569; }
+    .stat-box.active-filter { border-color: #38bdf8 !important; }
+    .stat-box .val { font-size: 26px; font-weight: 700; }
+    .stat-box .lbl { font-size: 11px; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-box.green .val { color: #4ade80; }
+    .stat-box.amber .val { color: #fb923c; }
+    .stat-box.red   .val { color: #f87171; }
+    .stat-box.blue  .val { color: #60a5fa; }
+    .stat-box.gray  .val { color: #94a3b8; }
+
+    .details-filter-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-pills { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+    .pill { padding: 5px 14px; border-radius: 99px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #334155; background: transparent; color: #94a3b8; transition: all 0.15s; white-space: nowrap; }
+    .pill:hover { border-color: #475569; color: #e2e8f0; }
+    .pill.active { color: #fff; }
+    .pill.pill-all.active   { background: #334155; border-color: #475569; }
+    .pill.pill-red.active   { background: #7f1d1d55; border-color: #ef4444; color: #f87171; }
+    .pill.pill-amber.active { background: #78350f55; border-color: #f97316; color: #fb923c; }
+    .pill.pill-green.active { background: #14532d55; border-color: #22c55e; color: #4ade80; }
+    .pill.pill-na.active    { background: #1e293b; border-color: #475569; color: #94a3b8; }
+
+    .search-items { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 13px; width: 220px; }
+    .search-items:focus { outline: none; border-color: #38bdf8; }
+    .area-filter { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 12px; }
+    .sort-btn { background: transparent; border: 1px solid #334155; color: #94a3b8; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .sort-btn:hover { border-color: #475569; color: #e2e8f0; }
+    .results-summary { font-size: 12px; color: #475569; white-space: nowrap; align-self: center; }
+
+    .items-container { display: flex; flex-direction: column; gap: 8px; }
+
+    .item-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 16px; border-left: 3px solid #334155; transition: border-color 0.1s; }
+    .item-card:hover { border-color: #475569; }
+    .item-card.red-card    { border-left-color: #ef4444; }
+    .item-card.amber-card  { border-left-color: #f97316; }
+    .item-card.green-card  { border-left-color: #22c55e; }
+    .item-card.na-card     { border-left-color: #475569; }
+
+    .item-meta-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .item-code { font-size: 11px; font-family: monospace; color: #64748b; white-space: nowrap; background: #0f172a; padding: 1px 6px; border-radius: 4px; border: 1px solid #334155; }
+    .item-area { font-size: 11px; color: #475569; }
+    .item-question { font-size: 13px; font-weight: 500; line-height: 1.45; color: #e2e8f0; margin-bottom: 6px; }
+
+    .item-body { margin-top: 6px; }
+    .item-evidence { font-size: 12px; color: #94a3b8; line-height: 1.55; margin-left: 4px; padding-left: 8px; border-left: 2px solid #334155; }
+    .item-response { font-size: 12px; color: #e2e8f0; margin-top: 4px; }
+    .item-comments { font-size: 12px; color: #94a3b8; margin-top: 4px; font-style: italic; }
+    .item-links { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .link-chip { font-size: 11px; font-family: monospace; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 2px 7px; color: #64748b; }
+
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .badge-green  { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
+    .badge-amber  { background: #78350f44; color: #fb923c; border: 1px solid #92400e; }
+    .badge-red    { background: #7f1d1d44; color: #f87171; border: 1px solid #991b1b; }
+    .badge-na     { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+
+    .gap-section { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; }
+    .gap-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .gap-list { list-style: none; padding: 0; }
+    .gap-list li { padding: 6px 0; border-bottom: 1px solid #1e293b; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .gap-list li:last-child { border-bottom: none; }
+    .gap-code { font-family: monospace; font-size: 11px; color: #64748b; background: #0f172a; padding: 1px 5px; border-radius: 3px; }
+
+    .no-results { text-align: center; padding: 48px 20px; color: #475569; font-size: 14px; }
+    .empty-state { text-align: center; padding: 60px 20px; color: #475569; }
+    .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 15px; }
+
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #22c55e; color: #4ade80; padding: 12px 20px; border-radius: 8px; font-size: 13px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); z-index: 1000; animation: slideIn 0.2s ease-out; }
+    .toast.error { border-color: #ef4444; color: #f87171; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    @media (max-width: 700px) {
+      .details-stats { gap: 8px; }
+      .stat-box { min-width: 70px; padding: 10px 14px; }
+      .stat-box .val { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="shared-header-root"></div>
+
+  <main>
+    <button class="back-btn" onclick="history.back()">← Back</button>
+
+    <div id="loading" class="empty-state">
+      <div class="spinner"></div>
+      <p>Loading review results…</p>
+    </div>
+
+    <div id="content" style="display:none;">
+      <div class="details-header">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:0;">
+            <h2 id="det-title">Manual Review Results</h2>
+            <div class="details-meta" id="det-meta"></div>
+          </div>
+        </div>
+        <div class="details-stats" id="det-stats"></div>
+      </div>
+
+      <div id="gaps-section" style="display:none; margin-bottom: 16px;"></div>
+
+      <div class="details-filter-bar">
+        <div class="filter-pills" id="filter-pills"></div>
+        <select class="area-filter" id="area-filter" onchange="applyDetailFilter()">
+          <option value="">All Areas</option>
+        </select>
+        <input class="search-items" id="item-search" type="text" placeholder="Search items…" oninput="applyDetailFilter()" />
+        <button class="sort-btn" onclick="toggleSort()" id="sort-btn">↓ Code</button>
+        <span class="results-summary" id="results-summary"></span>
+      </div>
+
+      <div class="items-container" id="det-items"></div>
+    </div>
+
+    <div id="error" class="empty-state" style="display:none;">
+      <div class="icon">⚠️</div>
+      <p id="error-msg"></p>
+    </div>
+  </main>
+
+  <div id="shared-footer-root"></div>
+
+  <div id="toast" class="toast" style="display:none;"></div>
+
+  <script src="/frontend_vanilla/components/header_loader.js"></script>
+  <script src="/frontend_vanilla/components/footer-loader.js"></script>
+
+  <script>
+    let TOKEN = localStorage.getItem('rb_token') || '';
+    let allItems = [];
+    let activeStatusFilter = 'all';
+    let currentArea = '';
+    let currentSearch = '';
+    let sortAsc = true;
+
+    function apiFetch(path, opts = {}) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000);
+      return fetch(path, {
+        ...opts,
+        headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+        signal: controller.signal,
+      }).then(res => {
+        clearTimeout(timer);
+        if (res.status === 401) { localStorage.removeItem('rb_token'); window.location.href = '/frontend_vanilla/project.html'; return null; }
+        if (!res.ok) { return res.json().then(d => { throw new Error(d.detail || res.statusText); }); }
+        return res.json();
+      }).catch(e => {
+        clearTimeout(timer);
+        throw e;
+      });
+    }
+
+    function esc(str) {
+      return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;');
+    }
+
+    function toast(msg, type) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'toast ' + (type || '');
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 3500);
+    }
+
+    function getRagColor(rag) {
+      return rag === 'green' ? '#4ade80' : rag === 'amber' ? '#fb923c' : rag === 'red' ? '#ef4444' : '#64748b';
+    }
+
+    function ragBadge(rag) {
+      const cls = rag === 'green' ? 'badge-green' : rag === 'amber' ? 'badge-amber' : rag === 'red' ? 'badge-red' : 'badge-na';
+      return `<span class="badge ${cls}">${rag.toUpperCase()}</span>`;
+    }
+
+    function statBox(val, lbl, cls, filterKey) {
+      return `<div class="stat-box ${cls} ${activeStatusFilter === filterKey ? 'active-filter' : ''}"
+                   onclick="setStatusFilter('${filterKey}')"
+                   title="Click to filter by ${lbl}">
+        <div class="val">${val}</div><div class="lbl">${lbl}</div>
+      </div>`;
+    }
+
+    function scoreClass(score) {
+      if (score == null) return 'gray';
+      return score >= 75 ? 'green' : score >= 50 ? 'amber' : 'red';
+    }
+
+    async function loadResults() {
+      const params = new URLSearchParams(window.location.search);
+      const reviewId = params.get('id');
+      if (!reviewId) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error-msg').textContent = 'No review ID provided.';
+        return;
+      }
+
+      try {
+        const data = await apiFetch(`/api/reviews/${reviewId}/results`);
+        if (!data) return;
+        renderResults(data);
+      } catch (e) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').style.display = 'block';
+        document.getElementById('error-msg').textContent = 'Failed to load: ' + e.message;
+        toast(e.message, 'error');
+      }
+    }
+
+    function renderResults(data) {
+      const review = data.review || {};
+      const report = data.report;
+      const summary = data.summary || {};
+      allItems = data.items || [];
+
+      // Title
+      document.getElementById('det-title').textContent = review.title || 'Manual Review Results';
+
+      // Meta
+      const metaParts = [];
+      if (review.project_name) metaParts.push(esc(review.project_name));
+      if (review.checklist_name) metaParts.push(esc(review.checklist_name));
+      if (review.assigned_reviewer_name) metaParts.push('Reviewer: ' + esc(review.assigned_reviewer_name));
+      if (review.completed_at) metaParts.push('Completed: ' + new Date(review.completed_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
+      metaParts.push('Type: ' + (review.review_type || 'Online'));
+      document.getElementById('det-meta').textContent = metaParts.join(' · ');
+
+      // Stat boxes
+      const complianceScore = report ? report.compliance_score : null;
+      const total = (summary.green || 0) + (summary.amber || 0) + (summary.red || 0) + (summary.na || 0);
+      document.getElementById('det-stats').innerHTML = [
+        statBox(complianceScore != null ? complianceScore.toFixed(1) + '%' : '—', 'Score', scoreClass(complianceScore), 'all'),
+        statBox(summary.red   || 0, 'Critical',  'red',   'red'),
+        statBox(summary.amber || 0, 'Amber',     'amber', 'amber'),
+        statBox(summary.green || 0, 'Compliant', 'green', 'green'),
+        statBox(summary.na    || 0, 'N/A',       'gray',  'na'),
+      ].join('');
+
+      // Gaps section
+      const gapSection = document.getElementById('gaps-section');
+      let gapHtml = '';
+      if (report && report.gaps_identified && report.gaps_identified.length > 0) {
+        gapHtml += `
+          <div class="gap-section">
+            <h3>⚠️ Gaps Identified (${report.gaps_identified.length})</h3>
+            <ul class="gap-list">
+              ${report.gaps_identified.map(g => `<li>${ragBadge(g.rag_status)} <span class="gap-code">${esc(g.item_code || '')}</span> ${esc(g.answer || '')}${g.comments ? ' — ' + esc(g.comments) : ''}</li>`).join('')}
+            </ul>
+          </div>
+        `;
+      }
+      if (report && report.areas_followed && report.areas_followed.length > 0) {
+        gapHtml += `
+          <div class="gap-section" style="border-left-color:#22c55e;">
+            <h3>✅ Areas Followed (${report.areas_followed.length})</h3>
+            <ul class="gap-list">
+              ${report.areas_followed.map(a => `<li><span class="gap-code">${esc(a || '')}</span></li>`).join('')}
+            </ul>
+          </div>
+        `;
+      }
+      if (gapHtml) {
+        gapSection.style.display = 'block';
+        gapSection.innerHTML = gapHtml;
+      }
+
+      // Populate area dropdown
+      const areas = [...new Set(allItems.map(i => i.area).filter(Boolean))].sort();
+      const areaSelect = document.getElementById('area-filter');
+      areaSelect.innerHTML = '<option value="">All Areas</option>' +
+        areas.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+
+      // Reset filters
+      activeStatusFilter = 'all';
+      sortAsc = true;
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      document.querySelector('.pill-all')?.classList.add('active');
+      document.getElementById('item-search').value = '';
+      document.getElementById('sort-btn').textContent = '↓ Code';
+
+      // Filter pills
+      const pillContainer = document.getElementById('filter-pills');
+      pillContainer.innerHTML = `
+        <button class="pill pill-all active"  onclick="setStatusFilter('all', this)">All</button>
+        <button class="pill pill-red"         onclick="setStatusFilter('red', this)">🔴 Critical</button>
+        <button class="pill pill-amber"       onclick="setStatusFilter('amber', this)">🟠 Amber</button>
+        <button class="pill pill-green"       onclick="setStatusFilter('green', this)">🟢 Compliant</button>
+        <button class="pill pill-na"          onclick="setStatusFilter('na', this)">⚪ N/A</button>
+      `;
+
+      // Show content
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+
+      applyDetailFilter();
+    }
+
+    function setStatusFilter(status, pillEl) {
+      activeStatusFilter = status;
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      if (pillEl) {
+        pillEl.classList.add('active');
+      } else {
+        const pill = document.querySelector(`.pill-${status}`);
+        if (pill) pill.classList.add('active');
+        else document.querySelector('.pill-all')?.classList.add('active');
+      }
+      applyDetailFilter();
+    }
+
+    function toggleSort() {
+      sortAsc = !sortAsc;
+      document.getElementById('sort-btn').textContent = sortAsc ? '↓ Code' : '↑ Code';
+      applyDetailFilter();
+    }
+
+    function applyDetailFilter() {
+      const search = (document.getElementById('item-search')?.value || '').toLowerCase();
+      const area   = document.getElementById('area-filter')?.value || '';
+
+      let filtered = allItems.filter(item => {
+        if (activeStatusFilter !== 'all') {
+          const rag = (item.rag_status || 'na').toLowerCase();
+          if (rag !== activeStatusFilter) return false;
+        }
+        if (area && item.area !== area) return false;
+        if (search) {
+          const haystack = `${item.item_code} ${item.question} ${item.area} ${item.answer} ${item.comments}`.toLowerCase();
+          if (!haystack.includes(search)) return false;
+        }
+        return true;
+      });
+
+      // Sort by item_code
+      filtered.sort((a, b) => {
+        const parse = code => {
+          const parts = (code || '').split('.').map(Number);
+          return parts[0] * 1000 + (parts[1] || 0);
+        };
+        return sortAsc ? parse(a.item_code) - parse(b.item_code)
+                       : parse(b.item_code) - parse(a.item_code);
+      });
+
+      const container = document.getElementById('det-items');
+      if (!filtered.length) {
+        container.innerHTML = `<div class="no-results">No items match the current filters.</div>`;
+      } else {
+        container.innerHTML = filtered.map(item => renderItemCard(item)).join('');
+      }
+
+      const total = allItems.length;
+      document.getElementById('results-summary').textContent =
+        filtered.length === total ? `${total} items` : `${filtered.length} of ${total} items`;
+    }
+
+    function renderItemCard(item) {
+      const rag = (item.rag_status || 'na').toLowerCase();
+      const colorClass = rag === 'green' ? 'green-card'
+                       : rag === 'amber' ? 'amber-card'
+                       : rag === 'red'   ? 'red-card'
+                       : 'na-card';
+
+      const evidenceHtml = item.expected_evidence
+        ? `<div class="item-evidence">Expected: ${esc(item.expected_evidence)}</div>` : '';
+
+      const answerHtml = item.answer
+        ? `<div class="item-response">Answer: <strong>${esc(item.answer)}</strong></div>` : '';
+
+      const commentsHtml = item.comments
+        ? `<div class="item-comments">Comment: ${esc(item.comments)}</div>` : '';
+
+      const linksHtml = item.evidence_links && item.evidence_links.length
+        ? `<div class="item-links">${item.evidence_links.slice(0, 6).map(l =>
+            `<span class="link-chip">${esc(l)}</span>`).join('')}</div>` : '';
+
+      return `<div class="item-card ${colorClass}">
+        <div class="item-meta-row">
+          <span class="item-code">${esc(item.item_code || '')}</span>
+          <span class="item-area">${esc(item.area || '')}</span>
+          ${ragBadge(rag)}
+        </div>
+        <div class="item-question">${esc(item.question || '')}</div>
+        ${evidenceHtml}
+        <div class="item-body">
+          ${answerHtml}
+          ${commentsHtml}
+          ${linksHtml}
+        </div>
+      </div>`;
+    }
+
+    // ── Boot ──────────────────────────────────────────────────────────
+    const interval = setInterval(() => {
+      TOKEN = localStorage.getItem('rb_token') || '';
+      if (TOKEN) {
+        clearInterval(interval);
+        loadResults();
+      } else {
+        document.getElementById('loading').innerHTML = '<p>Please sign in to view results.</p>';
+      }
+    }, 200);
+    setTimeout(() => clearInterval(interval), 10000);
+  </script>
+</body>
+</html>

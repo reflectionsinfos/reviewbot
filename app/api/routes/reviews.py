@@ -202,6 +202,106 @@ async def get_review(
     return response
 
 
+@router.get("/{review_id}/results")
+async def get_review_results(
+    review_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Get detailed results for a completed manual review"""
+    result = await db.execute(
+        select(Review)
+        .options(
+            selectinload(Review.project),
+            selectinload(Review.checklist),
+            selectinload(Review.items),
+            selectinload(Review.report),
+        )
+        .where(Review.id == review_id)
+    )
+    review = result.scalar_one_or_none()
+    if not review:
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    checklist_result = await db.execute(
+        select(Checklist)
+        .options(selectinload(Checklist.items))
+        .where(Checklist.id == review.checklist_id)
+    )
+    checklist = checklist_result.scalar_one_or_none()
+
+    review_items = await _ensure_review_item_snapshots(review, checklist, db)
+
+    responses_result = await db.execute(
+        select(ReviewResponse).where(ReviewResponse.review_id == review_id)
+    )
+    response_map = {
+        r.review_item_id: r
+        for r in responses_result.scalars().all()
+        if r.review_item_id is not None
+    }
+
+    items_out = []
+    for ri in review_items:
+        resp = response_map.get(ri.id)
+        items_out.append({
+            "review_item_id": ri.id,
+            "item_code": ri.item_code,
+            "area": ri.area,
+            "question": ri.question,
+            "expected_evidence": ri.expected_evidence,
+            "guidance": ri.guidance,
+            "weight": ri.weight,
+            "is_review_mandatory": ri.is_review_mandatory,
+            "order": ri.order,
+            "response_id": resp.id if resp else None,
+            "answer": resp.answer if resp else None,
+            "rag_status": resp.rag_status if resp else "na",
+            "comments": resp.comments if resp else None,
+            "evidence_links": resp.evidence_links if resp else [],
+            "last_updated_via": getattr(resp, "last_updated_via", None) if resp else None,
+            "last_updated_at": resp.updated_at.isoformat() if resp and resp.updated_at else None,
+        })
+
+    rag_counts = {"green": 0, "amber": 0, "red": 0, "na": 0}
+    for item in items_out:
+        rag = (item["rag_status"] or "na").lower()
+        rag_counts[rag] = rag_counts.get(rag, 0) + 1
+
+    report_data = None
+    if review.report:
+        report_data = {
+            "id": review.report.id,
+            "compliance_score": review.report.compliance_score,
+            "overall_rag_status": review.report.overall_rag_status,
+            "gaps_identified": review.report.gaps_identified,
+            "areas_followed": review.report.areas_followed,
+            "approval_status": review.report.approval_status,
+            "requires_approval": review.report.requires_approval,
+            "created_at": review.report.created_at.isoformat() if review.report.created_at else None,
+        }
+
+    return {
+        "review": {
+            "id": review.id,
+            "project_id": review.project_id,
+            "project_name": review.project.name if review.project else "Unknown",
+            "checklist_id": review.checklist_id,
+            "checklist_name": review.checklist.name if review.checklist else None,
+            "title": review.title,
+            "status": review.status,
+            "review_type": review.review_type,
+            "review_date": review.review_date.isoformat() if review.review_date else None,
+            "completed_at": review.completed_at.isoformat() if review.completed_at else None,
+            "assigned_reviewer_name": review.assigned_reviewer_name,
+            "assigned_reviewer_email": review.assigned_reviewer_email,
+        },
+        "report": report_data,
+        "summary": rag_counts,
+        "items": items_out,
+        "total": len(items_out),
+    }
+
+
 @router.post("/")
 async def create_review(
     project_id: int,
@@ -466,28 +566,103 @@ async def submit_voice_response(
     }
 
 
-@router.post("/{review_id}/complete")
+@router.post("/{review_id}/complete") #on complete manual review
 async def complete_review(
     review_id: int,
     db: AsyncSession = Depends(get_db)
 ):
-    """Complete the review and generate report"""
+    """Complete a manual review and generate report"""
     result = await db.execute(
-        select(Review).where(Review.id == review_id)
+        select(Review)
+        .options(
+            selectinload(Review.responses).selectinload(ReviewResponse.review_item),
+            selectinload(Review.items),
+        )
+        .where(Review.id == review_id)
     )
     review = result.scalar_one_or_none()
-    
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
     
     review.status = "completed"
     review.completed_at = datetime.utcnow()
     
+    # Calculate compliance score and build report data from responses
+    rag_scores = {"green": 100, "amber": 50, "red": 0}
+    rag_counts = {"green": 0, "amber": 0, "red": 0, "na": 0}
+    total_weight = 0.0
+    weighted_score = 0.0
+
+    for resp in review.responses:
+        rag = (resp.rag_status or "na").lower()
+        rag_counts[rag] = rag_counts.get(rag, 0) + 1
+        weight = resp.review_item.weight if resp.review_item and resp.review_item.weight is not None else 1.0
+        score = rag_scores.get(rag)
+        if score is not None:
+            weighted_score += score * weight
+            total_weight += weight
+
+    compliance_score = (weighted_score / total_weight) if total_weight else 0.0
+    overall_rag = (
+        "red" if rag_counts["red"] > 0
+        else "amber" if rag_counts["amber"] > 0
+        else "green" if rag_counts["green"] > 0
+        else "na"
+    )
+    
+    gaps = [
+        {
+            "item_code": resp.review_item.item_code if resp.review_item else None,
+            "rag_status": resp.rag_status,
+            "answer": resp.answer,
+            "comments": resp.comments or "",
+        }
+        for resp in review.responses
+        if (resp.rag_status or "na").lower() in ("red", "amber")
+    ]
+    
+    green_items = [
+        resp.review_item.item_code if resp.review_item else None
+        for resp in review.responses
+        if (resp.rag_status or "na").lower() == "green"
+    ]
+    
+    # Create or update Report
+    existing_report_result = await db.execute(
+        select(Report).where(Report.review_id == review.id)
+    )
+    report = existing_report_result.scalar_one_or_none()
+    
+    now = datetime.utcnow()
+    if report:
+        report.compliance_score = compliance_score
+        report.overall_rag_status = overall_rag
+        report.gaps_identified = gaps
+        report.areas_followed = green_items
+        report.approval_status = "pending"
+        report.created_at = now
+    else:
+        report = Report(
+            review_id=review.id,
+            compliance_score=compliance_score,
+            overall_rag_status=overall_rag,
+            gaps_identified=gaps,
+            areas_followed=green_items,
+            recommendations=[],
+            action_items=[],
+            approval_status="pending",
+            requires_approval=True,
+        )
+        db.add(report)
+    
     await db.commit()
     
     return {
         "message": "Review completed",
         "review_id": review_id,
+        "compliance_score": round(compliance_score, 1),
+        "rag_summary": rag_counts,
+        "overall_rag_status": overall_rag,
         "status": "pending_approval",
         "next_step": "Report generated and awaiting human approval"
     }
@@ -526,7 +701,7 @@ class OfflineReviewCreate(BaseModel):
     due_date: Optional[str] = None  # ISO format: "2026-05-09"
 
 
-async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSession):
+async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSession): #offline upload excel file
     """Parse uploaded response Excel, upsert ReviewResponse rows, create/update Report."""
     content = await file.read()
 
@@ -565,20 +740,15 @@ async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSes
         for r in existing_result.scalars().all()
     }
 
-    rag_scores = {"green": 100, "amber": 50, "red": 0}
-    rag_counts: Dict[str, int] = {"green": 0, "amber": 0, "red": 0, "na": 0}
-
     for item_data in parsed:
         cid = item_data["checklist_item_id"]
         rid = item_data.get("review_item_id")
         response_key = rid if rid is not None else cid
-        rag = item_data["rag_status"]
-        rag_counts[rag] = rag_counts.get(rag, 0) + 1
 
         if response_key in existing_map:
             resp = existing_map[response_key]
             resp.answer = item_data["answer"]
-            resp.rag_status = rag
+            resp.rag_status = item_data["rag_status"]
             resp.comments = item_data.get("comments") or ""
             resp.evidence_links = item_data.get("evidence_links") or []
             resp.review_item_id = rid
@@ -590,20 +760,30 @@ async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSes
                 checklist_item_id=cid,
                 review_item_id=rid,
                 answer=item_data["answer"],
-                rag_status=rag,
+                rag_status=item_data["rag_status"],
                 comments=item_data.get("comments") or "",
                 evidence_links=item_data.get("evidence_links") or [],
                 last_updated_via="excel",
             )
             db.add(resp)
 
-    # Compliance score: N/A items excluded from denominator
-    scored = [r for r in parsed if r["rag_status"] != "na"]
-    compliance_score = (
-        sum(rag_scores.get(r["rag_status"], 0) for r in scored) / len(scored)
-        if scored else 0.0
-    )
+    # Compliance score: N/A items excluded from denominator, weighted by review_item.weight
+    rag_scores = {"green": 100, "amber": 50, "red": 0}
+    review_item_weights = {ri.id: ri.weight for ri in review_items}
+    rag_counts = {"green": 0, "amber": 0, "red": 0, "na": 0}
+    total_weight = 0.0
+    weighted_score = 0.0
 
+    for r in parsed:
+        rag = r["rag_status"]
+        rag_counts[rag] = rag_counts.get(rag, 0) + 1
+        weight = review_item_weights.get(r.get("review_item_id"), 1.0)
+        score = rag_scores.get(rag)
+        if score is not None:
+            weighted_score += score * weight
+            total_weight += weight
+
+    compliance_score = (weighted_score / total_weight) if total_weight else 0.0
     overall_rag = (
         "red" if rag_counts["red"] > 0
         else "amber" if rag_counts["amber"] > 0
@@ -855,7 +1035,8 @@ async def download_checklist_by_token(
         select(Review)
         .options(
             selectinload(Review.project),
-            selectinload(Review.checklist).selectinload(Checklist.items)
+            selectinload(Review.checklist).selectinload(Checklist.items),
+            selectinload(Review.items),
         )
         .where(Review.upload_token == token)
     )

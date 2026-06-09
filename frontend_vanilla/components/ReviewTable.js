@@ -219,7 +219,7 @@ class ReviewTable {
         const status = this.renderStatus(item.status);
         const traceCount = item.llm_audit_count || 0;
         const isAutonomous = (item.review_type || '').toLowerCase() === 'autonomous';
-        const summaryHref = isAutonomous && item.job_id ? `/history/${item.job_id}` : `/projects-ui/${item.project_id || ''}`;
+        const summaryHref = isAutonomous && item.job_id ? `/history/${item.job_id}` : `/frontend_vanilla/manual-review-result.html?id=${item.review_id}`;
         const traceHref = isAutonomous && item.job_id ? `/history/${item.job_id}?tab=ai-trace` : '';
         const dateTooltip = this.formatDateTooltip(item);
         const typeBadge = this.renderType(item.review_type);

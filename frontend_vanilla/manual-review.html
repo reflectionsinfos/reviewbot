@@ -926,7 +926,8 @@
     try {
       const res = await fetch(`${API}/api/reviews/${REVIEW_ID}/complete`, { method: 'POST' });
       if (!res.ok) throw new Error(`Server error ${res.status}`);
-      renderSuccess();
+      const result = await res.json();
+      renderSuccess(result);
     } catch(e) {
       alert('Could not complete the review: ' + e.message);
       btn.disabled = false;
@@ -935,15 +936,19 @@
   }
 
   // ── Success screen ────────────────────────────────────────────────────────────
-  function renderSuccess() {
-    const rag = { green: 0, amber: 0, red: 0, na: 0 };
-    allItems.forEach(item => { const k = ANSWER_RAG[itemState[item.review_item_id].answer]; if (k) rag[k]++; });
-    const nonNA = rag.green + rag.amber + rag.red;
-    const score = nonNA > 0 ? ((rag.green + rag.amber * 0.5) / nonNA * 100).toFixed(1) : '0.0';
-    const col   = parseFloat(score) >= 70 ? '#22c55e' : parseFloat(score) >= 40 ? '#f59e0b' : '#ef4444';
+  function renderSuccess(result) {
+    // Use the backend-calculated compliance score (weight-aware)
+    const score = result && result.compliance_score != null
+      ? result.compliance_score.toFixed(1)
+      : '0.0';
+    const col   = parseFloat(score) >= 75 ? '#22c55e' : parseFloat(score) >= 50 ? '#f59e0b' : '#ef4444';
     document.getElementById('score-circle').style.borderColor = col;
     document.getElementById('score-value').style.color = col;
     document.getElementById('score-value').textContent = score + '%';
+
+    const rag = result && result.rag_summary
+      ? result.rag_summary
+      : { green: 0, amber: 0, red: 0, na: 0 };
 
     const segs = [{key:'green',color:'#22c55e'},{key:'amber',color:'#f59e0b'},{key:'red',color:'#ef4444'},{key:'na',color:'#475569'}];
     document.getElementById('rag-bar').innerHTML = segs.map(s =>
