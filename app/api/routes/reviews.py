@@ -17,6 +17,7 @@ from app.models import Review, ReviewItem, ReviewResponse, Checklist, ChecklistI
 from app.agents.review_agent import get_review_agent
 from sqlalchemy.orm import selectinload
 from app.services.voice_interface import get_voice_interface
+from app.services.compliance_score import calculate_compliance_score
 from app.services.excel_offline_exporter import generate_offline_excel
 from app.services.excel_response_parser import parse_response_excel
 from app.services.integrations import email_smtp as _smtp_svc
@@ -588,27 +589,12 @@ async def complete_review(
     review.completed_at = datetime.utcnow()
     
     # Calculate compliance score and build report data from responses
-    rag_scores = {"green": 100, "amber": 50, "red": 0}
-    rag_counts = {"green": 0, "amber": 0, "red": 0, "na": 0}
-    total_weight = 0.0
-    weighted_score = 0.0
-
-    for resp in review.responses:
-        rag = (resp.rag_status or "na").lower()
-        rag_counts[rag] = rag_counts.get(rag, 0) + 1
-        weight = resp.review_item.weight if resp.review_item and resp.review_item.weight is not None else 1.0
-        score = rag_scores.get(rag)
-        if score is not None:
-            weighted_score += score * weight
-            total_weight += weight
-
-    compliance_score = (weighted_score / total_weight) if total_weight else 0.0
-    overall_rag = (
-        "red" if rag_counts["red"] > 0
-        else "amber" if rag_counts["amber"] > 0
-        else "green" if rag_counts["green"] > 0
-        else "na"
-    )
+    rag_entries = [
+        ((r.rag_status or "na").lower(),
+         r.review_item.weight if r.review_item and r.review_item.weight is not None else 1.0)
+        for r in review.responses
+    ]
+    compliance_score, overall_rag, rag_counts = calculate_compliance_score(rag_entries)
     
     gaps = [
         {
@@ -768,28 +754,12 @@ async def _process_offline_upload(review: Review, file: UploadFile, db: AsyncSes
             db.add(resp)
 
     # Compliance score: N/A items excluded from denominator, weighted by review_item.weight
-    rag_scores = {"green": 100, "amber": 50, "red": 0}
     review_item_weights = {ri.id: ri.weight for ri in review_items}
-    rag_counts = {"green": 0, "amber": 0, "red": 0, "na": 0}
-    total_weight = 0.0
-    weighted_score = 0.0
-
-    for r in parsed:
-        rag = r["rag_status"]
-        rag_counts[rag] = rag_counts.get(rag, 0) + 1
-        weight = review_item_weights.get(r.get("review_item_id"), 1.0)
-        score = rag_scores.get(rag)
-        if score is not None:
-            weighted_score += score * weight
-            total_weight += weight
-
-    compliance_score = (weighted_score / total_weight) if total_weight else 0.0
-    overall_rag = (
-        "red" if rag_counts["red"] > 0
-        else "amber" if rag_counts["amber"] > 0
-        else "green" if rag_counts["green"] > 0
-        else "na"
-    )
+    rag_entries = [
+        (r["rag_status"], review_item_weights.get(r.get("review_item_id"), 1.0))
+        for r in parsed
+    ]
+    compliance_score, overall_rag, rag_counts = calculate_compliance_score(rag_entries)
 
     # Update review fields
     now = datetime.utcnow()

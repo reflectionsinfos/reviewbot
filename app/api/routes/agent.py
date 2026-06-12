@@ -26,6 +26,7 @@ from app.models import (
     Project, Checklist, ChecklistItem, User,
 )
 from app.services.autonomous_review.agent_orchestrator import run_agent_review
+from app.services.compliance_score import calculate_compliance_score
 
 router = APIRouter()
 
@@ -281,6 +282,7 @@ async def get_job_results(
 
     items = []
     counters = {"green": 0, "amber": 0, "red": 0, "skipped": 0, "na": 0}
+    rag_entries = []
 
     for r in job.results:
         # Effective RAG: use latest override if present
@@ -290,6 +292,8 @@ async def get_job_results(
             effective_rag = latest.new_rag_status
 
         counters[effective_rag] = counters.get(effective_rag, 0) + 1
+        if effective_rag in ("green", "amber", "red"):
+            rag_entries.append((effective_rag, r.checklist_item.weight if r.checklist_item else 1.0))
 
         items.append({
             "result_id": r.id,
@@ -308,8 +312,8 @@ async def get_job_results(
             "is_overridden": bool(r.overrides),
         })
 
-    auto_total = counters["green"] + counters["amber"] + counters["red"]
-    compliance = round(counters["green"] / auto_total * 100, 1) if auto_total else 0.0
+    compliance, _, _ = calculate_compliance_score(rag_entries)
+    compliance = round(compliance, 1)
 
     return {
         "job_id": job_id,

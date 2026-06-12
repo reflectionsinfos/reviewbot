@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.db.session import AsyncSessionLocal
 from app.models import AutonomousReviewJob, AutonomousReviewResult, AutonomousReviewOverride
+from app.services.compliance_score import calculate_compliance_score
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("backfill")
@@ -16,7 +17,10 @@ async def backfill_job_scores():
             .options(
                 selectinload(AutonomousReviewJob.results).selectinload(
                     AutonomousReviewResult.overrides
-                )
+                ),
+                selectinload(AutonomousReviewJob.results).selectinload(
+                    AutonomousReviewResult.checklist_item
+                ),
             )
             .where(AutonomousReviewJob.status == "completed")
         )
@@ -42,9 +46,14 @@ async def backfill_job_scores():
             skipped = sum(1 for r in results if get_effective_status(r) in ("skipped", "na", "human_required"))
             na_orig = sum(1 for r in results if get_effective_status(r) == "na")
             
-            # Score (Compliant / total automated)
-            auto_total = green + amber + red
-            score = round(green / auto_total * 100, 1) if auto_total else 0.0
+            # Score (weighted compliance)
+            rag_entries = [
+                (get_effective_status(r), r.checklist_item.weight if r.checklist_item else 1.0)
+                for r in results
+                if get_effective_status(r) in ("green", "amber", "red")
+            ]
+            score, _, _ = calculate_compliance_score(rag_entries)
+            score = round(score, 1)
             
             # Update job record
             job.green_count = green

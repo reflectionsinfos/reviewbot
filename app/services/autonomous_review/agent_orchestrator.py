@@ -45,6 +45,7 @@ from .analyzers.metadata_check import MetadataCheckAnalyzer
 from .analyzers.base import AnalysisResult
 from .llm_audit import is_llm_audit_enabled, record_llm_audit, usage_counts
 from .progress import progress_manager
+from app.services.compliance_score import calculate_compliance_score
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +210,7 @@ async def _execute_agent_review(job_id: int, db) -> None:
 
     # ── Phase 2: Execute all items ────────────────────────────────────────────
     counters = {"green": 0, "amber": 0, "red": 0, "skipped": 0, "na": 0}
+    rag_entries: list[tuple[str, float]] = []
 
     for idx, item in enumerate(items):
         # Determine strategy from Phase 0 or Phase 1 plan
@@ -264,6 +266,7 @@ async def _execute_agent_review(job_id: int, db) -> None:
             )
         job.completed_items = idx + 1
         counters[analysis.rag_status] = counters.get(analysis.rag_status, 0) + 1
+        rag_entries.append((analysis.rag_status, item.weight or 1.0))
         await db.commit()
 
         await progress_manager.broadcast(job_id, {
@@ -283,8 +286,7 @@ async def _execute_agent_review(job_id: int, db) -> None:
         })
 
     # ── Finalise ──────────────────────────────────────────────────────────────
-    auto_total = counters["green"] + counters["amber"] + counters["red"]
-    compliance = round(counters["green"] / auto_total * 100, 1) if auto_total else 0.0
+    compliance, _, _ = calculate_compliance_score(rag_entries)
 
     job.status = "completed"
     job.completed_at = datetime.utcnow()

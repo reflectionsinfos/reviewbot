@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.api.routes.auth import get_current_user
 from app.services.action_plan_generator import ActionPlanGenerator
+from app.services.compliance_score import calculate_compliance_score
 from app.services.autonomous_review.orchestrator import run_autonomous_review
 from app.services.autonomous_review.connectors.llm import (
     get_llm_client,
@@ -283,13 +284,13 @@ async def get_report(job_id: int, db: AsyncSession = Depends(get_db)):
         else:
             na.append(entry)
 
-    auto_total = len(red) + len(amber) + len(green)
-    compliance = round(len(green) / auto_total * 100, 1) if auto_total else 0.0
-    overall_rag = (
-        "green" if compliance >= 75 else
-        "amber" if compliance >= 50 else
-        "red"
-    )
+    rag_entries = [
+        (r.rag_status, r.checklist_item.weight if r.checklist_item else 1.0)
+        for r in job.results
+        if r.rag_status in ("green", "amber", "red")
+    ]
+    compliance, overall_rag, _ = calculate_compliance_score(rag_entries)
+    compliance = round(compliance, 1)
 
     return {
         "job_id": job_id,
@@ -299,7 +300,7 @@ async def get_report(job_id: int, db: AsyncSession = Depends(get_db)):
         "reviewed_at": job.completed_at.isoformat() if job.completed_at else None,
         "summary": {
             "total_items": job.total_items,
-            "auto_reviewed": auto_total,
+            "auto_reviewed": len(green) + len(amber) + len(red),
             "human_required": len(skipped),
             "na": len(na),
             "green": len(green),
@@ -434,7 +435,10 @@ async def override_review_result(
     results_q = (
         select(AutonomousReviewResult)
         .where(AutonomousReviewResult.job_id == job_id)
-        .options(selectinload(AutonomousReviewResult.overrides))
+        .options(
+            selectinload(AutonomousReviewResult.overrides),
+            selectinload(AutonomousReviewResult.checklist_item),
+        )
     )
     res_result = await db.execute(results_q)
     all_results = res_result.scalars().all()
@@ -454,8 +458,13 @@ async def override_review_result(
     na      = sum(1 for r in all_results if get_status(r) == "na")
 
     # Score calculation (based on automated items only)
-    auto_total = green + amber + red
-    score = round(green / auto_total * 100, 1) if auto_total else 0.0
+    rag_entries = [
+        (get_status(r), r.checklist_item.weight if r.checklist_item else 1.0)
+        for r in all_results
+        if get_status(r) in ("green", "amber", "red")
+    ]
+    score, _, _ = calculate_compliance_score(rag_entries)
+    score = round(score, 1)
 
     # Persistence
     job.green_count = green

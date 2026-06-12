@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from app.core.config import settings
 from app.agents.review_agent.states import ReviewState
+from app.services.compliance_score import calculate_compliance_score
 from app.services.report_generator import get_report_generator
 from app.services.checklist_optimizer import get_checklist_optimizer
 
@@ -192,6 +193,7 @@ class ReviewAgent:
             "question": current_item.get("question"),
             "area": current_item.get("area"),
             "answer": user_answer,
+            "weight": current_item.get("weight", 1.0),
             "timestamp": datetime.utcnow().isoformat()
         })
         
@@ -241,13 +243,13 @@ class ReviewAgent:
         
         # Calculate compliance score
         responses = state["responses"]
-        compliance_score = self.report_generator.calculate_compliance_score(
-            responses=responses,
-            checklist_items=state["checklist_items"]
-        )
-        
+        rag_entries = [
+           (r.get("rag_status", "na").lower(), r.get("weight", 1.0))
+            for r in responses
+             ]
+        compliance_score, overall_rag, rag_counts = calculate_compliance_score(rag_entries)
         state["compliance_score"] = compliance_score
-        state["overall_rag"] = self.report_generator.determine_overall_rag(compliance_score)
+        state["overall_rag"] = overall_rag
         
         # Analyze gaps
         gaps = self.report_generator.analyze_gaps(responses)

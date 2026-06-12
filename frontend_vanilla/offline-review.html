@@ -503,7 +503,7 @@
 
     // Score circle colour
     const circle = document.getElementById('score-circle');
-    const scoreColor = score >= 70 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
+    const scoreColor = score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
     circle.style.borderColor = scoreColor;
     document.getElementById('score-value').style.color = scoreColor;
     document.getElementById('score-value').textContent = score.toFixed(1) + '%';

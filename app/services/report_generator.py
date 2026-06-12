@@ -190,51 +190,6 @@ class ReportGenerator:
         
         return str(file_path)
     
-    def calculate_compliance_score(
-        self,
-        responses: List[Dict[str, Any]],
-        checklist_items: List[Dict[str, Any]]
-    ) -> float:
-        """
-        Calculate overall compliance score based on responses
-        Returns score 0-100
-        """
-        if not responses:
-            return 0.0
-        
-        total_weight = 0
-        weighted_score = 0
-        
-        rag_scores = {
-            'green': 100,
-            'amber': 50,
-            'red': 0,
-            'na': None  # Exclude from calculation
-        }
-        
-        for response in responses:
-            rag = response.get('rag_status', 'na').lower()
-            weight = response.get('weight', 1.0)
-            
-            score = rag_scores.get(rag)
-            if score is not None:
-                weighted_score += score * weight
-                total_weight += weight
-        
-        if total_weight == 0:
-            return 0.0
-        
-        return (weighted_score / total_weight)
-    
-    def determine_overall_rag(self, compliance_score: float) -> str:
-        """Determine overall RAG status based on compliance score"""
-        if compliance_score >= 80:
-            return 'green'
-        elif compliance_score >= 50:
-            return 'amber'
-        else:
-            return 'red'
-    
     def analyze_gaps(
         self,
         responses: List[Dict[str, Any]]

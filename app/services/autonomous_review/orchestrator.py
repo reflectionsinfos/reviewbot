@@ -23,6 +23,7 @@ from .analyzers.security_scan import SecurityScanAnalyzer
 from .analyzers.base import AnalysisResult
 from .llm_audit import is_llm_audit_enabled, record_llm_audit
 from .progress import progress_manager
+from app.services.compliance_score import calculate_compliance_score
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,7 @@ async def _execute_review(job_id: int, db) -> None:
 
     router = StrategyRouter(db_rules=db_rules)
     counters = {"green": 0, "amber": 0, "red": 0, "skipped": 0, "na": 0}
+    rag_entries: list[tuple[str, float]] = []
 
     # ── Process each item ─────────────────────────────────────────────────────
     for idx, item in enumerate(items):
@@ -234,6 +236,7 @@ async def _execute_review(job_id: int, db) -> None:
             )
         job.completed_items = idx + 1
         counters[analysis.rag_status] = counters.get(analysis.rag_status, 0) + 1
+        rag_entries.append((analysis.rag_status, item.weight or 1.0))
         await db.commit()
 
         await progress_manager.broadcast(job_id, {
@@ -263,8 +266,7 @@ async def _execute_review(job_id: int, db) -> None:
     job.skipped_count = counters.get("skipped", 0)
     job.na_count = counters.get("na", 0)
     
-    auto_total = counters["green"] + counters["amber"] + counters["red"]
-    compliance = round(counters["green"] / auto_total * 100, 1) if auto_total else 0.0
+    compliance, _, _ = calculate_compliance_score(rag_entries)
     job.compliance_score = compliance
     
     await db.commit()

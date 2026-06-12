@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.db.session import AsyncSessionLocal
 from app.models import AutonomousReviewJob, AutonomousReviewResult, AutonomousReviewOverride
+from app.services.compliance_score import calculate_compliance_score
 
 async def backfill():
     async with AsyncSessionLocal() as db:
@@ -22,7 +23,8 @@ async def backfill():
             select(AutonomousReviewJob)
             .where(AutonomousReviewJob.status == "completed")
             .options(
-                selectinload(AutonomousReviewJob.results).selectinload(AutonomousReviewResult.overrides)
+                selectinload(AutonomousReviewJob.results).selectinload(AutonomousReviewResult.overrides),
+                selectinload(AutonomousReviewJob.results).selectinload(AutonomousReviewResult.checklist_item),
             )
         )
         
@@ -42,6 +44,7 @@ async def backfill():
             red = 0
             skipped = 0
             na = 0
+            rag_entries = []
             
             if not job.results:
                 print(f"  Job {job.id}: No results found, skipping.")
@@ -63,9 +66,12 @@ async def backfill():
                 else:
                     # Fallback for unknown statuses
                     na += 1
+                
+                if status in ("green", "amber", "red"):
+                    rag_entries.append((status, r.checklist_item.weight if r.checklist_item else 1.0))
             
-            auto_total = green + amber + red
-            compliance = round(green / auto_total * 100, 1) if auto_total else 0.0
+            compliance, _, _ = calculate_compliance_score(rag_entries)
+            compliance = round(compliance, 1)
             
             # Print diff if changing
             if job.green_count != green or job.compliance_score != compliance:

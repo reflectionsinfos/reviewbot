@@ -20,6 +20,7 @@ from sqlalchemy.orm import selectinload, joinedload
 from pydantic import BaseModel
 from app.api.routes.auth import get_current_user
 from app.services.autonomous_review.llm_audit import is_llm_audit_enabled, user_can_view_full_llm_audit
+from app.services.compliance_score import calculate_compliance_score
 
 router = APIRouter()
 
@@ -77,6 +78,9 @@ async def get_report_history(
             selectinload(AutonomousReviewJob.results).selectinload(
                 AutonomousReviewResult.overrides
             ),
+            selectinload(AutonomousReviewJob.results).selectinload(
+                AutonomousReviewResult.checklist_item
+            ),
         )
         .order_by(AutonomousReviewJob.created_at.desc())
     )
@@ -118,6 +122,18 @@ async def get_report_history(
                 0,
             )
 
+        def _effective_status(r):
+            if r.overrides:
+                return sorted(r.overrides, key=lambda o: o.overridden_at)[-1].new_rag_status
+            return r.rag_status
+
+        _rag_entries = [
+            (_effective_status(r), r.checklist_item.weight if r.checklist_item else 1.0)
+            for r in job.results
+            if _effective_status(r) in ("green", "amber", "red")
+        ]
+        _score, _, _ = calculate_compliance_score(_rag_entries)
+
         reports.append({
             "id": job.id,
             "job_id": job.id,
@@ -127,7 +143,7 @@ async def get_report_history(
             "checklist_name": job.checklist.name if job.checklist else "—",
             "source_path": job.source_path,
             "status": job.status,
-            "compliance_score": job.compliance_score,
+            "compliance_score": round(_score, 1),
             "green_count": job.green_count,
             "amber_count": job.amber_count,
             "red_count": job.red_count,
@@ -166,6 +182,12 @@ async def get_review_activity(
             selectinload(AutonomousReviewJob.project),
             selectinload(AutonomousReviewJob.checklist),
             selectinload(AutonomousReviewJob.report),
+            selectinload(AutonomousReviewJob.results).selectinload(
+                AutonomousReviewResult.checklist_item
+            ),
+            selectinload(AutonomousReviewJob.results).selectinload(
+                AutonomousReviewResult.overrides
+            ),
         )
         .order_by(AutonomousReviewJob.created_at.desc())
     )
@@ -190,6 +212,19 @@ async def get_review_activity(
     activity = []
     for job in auto_result.scalars().all():
         generated_at = job.completed_at or job.started_at or job.created_at
+
+        def _es(r):
+            if r.overrides:
+                return sorted(r.overrides, key=lambda o: o.overridden_at)[-1].new_rag_status
+            return r.rag_status
+
+        _rag_entries = [
+            (_es(r), r.checklist_item.weight if r.checklist_item else 1.0)
+            for r in job.results
+            if _es(r) in ("green", "amber", "red")
+        ]
+        _score, _, _ = calculate_compliance_score(_rag_entries)
+
         activity.append({
             "id": f"autonomous-{job.id}",
             "job_id": job.id,
@@ -202,7 +237,7 @@ async def get_review_activity(
             "checklist_name": job.checklist.name if job.checklist else "—",
             "status": job.status,
             "approval_status": job.report.approval_status if job.report else None,
-            "compliance_score": job.compliance_score,
+            "compliance_score": round(_score, 1),
             "green_count": job.green_count,
             "amber_count": job.amber_count,
             "red_count": job.red_count,
@@ -709,8 +744,14 @@ async def get_report_details(
     green_count  = sum(1 for r in results if effective_status(r) == "green")
     amber_count  = sum(1 for r in results if effective_status(r) == "amber")
     red_count    = sum(1 for r in results if effective_status(r) == "red")
-    auto = green_count + amber_count + red_count
-    adjusted_score = round(green_count / auto * 100, 1) if auto else 0.0
+
+    rag_entries = [
+        (effective_status(r), r.checklist_item.weight if r.checklist_item else 1.0)
+        for r in results
+        if effective_status(r) in ("green", "amber", "red")
+    ]
+    adjusted_score, _, _ = calculate_compliance_score(rag_entries)
+    adjusted_score = round(adjusted_score, 1)
 
     return {
         "report": {
