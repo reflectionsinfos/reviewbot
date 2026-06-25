@@ -5,161 +5,148 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ReviewBot — Autonomous Code Review</title>
   <style>
-    /* ── Reset & base ─────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #0f172a; display: flex; flex-direction: column; min-height: 100vh; }
+    .container { display: flex; flex-direction: column; flex: 1; }
+    .content-row { display: flex; flex: 1; min-height: 0; }
+    #shared-sidebar-root,.main { min-width: 0; }
+    .main { flex: 1; padding: 28px 32px; max-width: 1300px; }
 
-    /* ── Layout ───────────────────────────────────────────────────────── */
-    header { display: none; } /* Handled by shared-header */
-
-    main { max-width: 1300px; margin: 0 auto; padding: 28px 24px; width: 100%; flex: 1; }
-
-    /* ── Auth overlay ─────────────────────────────────────────────────── */
     #auth-overlay { position: fixed; inset: 0; background: url('/frontend_vanilla/images/login_bg.png') center/cover no-repeat; display: flex; align-items: center; justify-content: center; z-index: 1000; }
     #auth-overlay::before { content: ''; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); }
-    .auth-card { position: relative; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px; width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+    .auth-card { position: relative; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px; width: 440px; max-width: calc(100vw - 32px); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
     .auth-card h2 { font-size: 32px; font-weight: 800; color: #38bdf8; margin-bottom: 8px; letter-spacing: -1px; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
     .auth-card p { color: #94a3b8; font-size: 14px; margin-bottom: 32px; font-weight: 500; }
     .auth-card .welcome-text { color: #ffffff; font-size: 24px; font-weight: 700; margin-bottom: 4px; }
 
-    /* ── Form elements ────────────────────────────────────────────────── */
     .form-group { margin-bottom: 24px; }
     label { display: block; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
-    input, select, textarea { width: 100%; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: #f1f5f9; padding: 12px 16px; border-radius: 12px; font-size: 15px; transition: all 0.3s; }
-    input:focus, select:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.15); background: rgba(15, 23, 42, 0.8); }
+    input, select, textarea { width: 100%; background: #fff; border: 1px solid #e2e8f0; color: #0f172a; padding: 12px 16px; border-radius: 12px; font-size: 15px; transition: all 0.3s; }
+    input:focus, select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,.1); background: #fff; }
 
-    /* ── Buttons ──────────────────────────────────────────────────────── */
     .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
-    .btn-primary { background: #0ea5e9; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #38bdf8; }
-    .btn-primary:disabled { background: #1e40af; color: #93c5fd; cursor: not-allowed; opacity: 0.6; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-primary:disabled { background: #93c5fd; color: #fff; cursor: not-allowed; opacity: 0.6; }
     .btn-danger { background: #ef4444; color: #fff; }
-    .btn-danger:hover { background: #f87171; }
-    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 8px; }
     .btn-block { width: 100%; }
 
-    /* ── Config panel ─────────────────────────────────────────────────── */
-    .config-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
-    .config-panel h2 { font-size: 16px; font-weight: 600; color: #f1f5f9; margin-bottom: 20px; }
+    .config-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .config-panel h2 { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 20px; }
 
-    /* ── Source type selector ──────────────────────────────────────────── */
-    .source-type-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 8px; border: 1px solid #334155; cursor: pointer; font-size: 13px; color: #94a3b8; transition: all 0.15s; user-select: none; }
-    .source-type-btn:hover { border-color: #38bdf8; color: #38bdf8; }
-    .source-type-btn.active { border-color: #0ea5e9; background: #0ea5e933; color: #38bdf8; }
-    .info-tip { cursor: help; color: #475569; font-size: 12px; margin-left: 3px; }
-    .info-tip:hover { color: #38bdf8; }
+    .source-type-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; font-size: 13px; color: #64748b; transition: all 0.15s; user-select: none; }
+    .source-type-btn:hover { border-color: #3b82f6; color: #3b82f6; }
+    .source-type-btn.active { border-color: #3b82f6; background: #eff6ff; color: #2563eb; }
+    .info-tip { cursor: help; color: #94a3b8; font-size: 12px; margin-left: 3px; }
+    .info-tip:hover { color: #3b82f6; }
     .provider-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-    .provider-github  { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
-    .provider-gitlab  { background: #fc6d2633; color: #fc6d26; border: 1px solid #fc6d26; }
-    .provider-bitbucket { background: #205081aa; color: #4c9aff; border: 1px solid #205081; }
-    .provider-azure   { background: #0078d433; color: #60a5fa; border: 1px solid #0078d4; }
-    .provider-unknown { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+    .provider-github  { background: #f8fafc; color: #1f2937; border: 1px solid #e2e8f0; }
+    .provider-gitlab  { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+    .provider-bitbucket { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .provider-azure   { background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd; }
+    .provider-unknown { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
     .config-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
     .start-row { display: flex; align-items: flex-end; gap: 16px; margin-top: 16px; }
     .start-row .form-group { flex: 1; margin-bottom: 0; }
 
-    /* ── Progress section ─────────────────────────────────────────────── */
     #progress-section { display: none; }
     .progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-    .progress-title { font-size: 16px; font-weight: 600; color: #f1f5f9; }
+    .progress-title { font-size: 16px; font-weight: 600; color: #0f172a; }
 
     .stats-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-    .stat-chip { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px 16px; display: flex; flex-direction: column; align-items: center; min-width: 90px; }
+    .stat-chip { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; display: flex; flex-direction: column; align-items: center; min-width: 90px; }
     .stat-chip .val { font-size: 24px; font-weight: 700; }
-    .stat-chip .lbl { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
-    .stat-green .val { color: #4ade80; }
-    .stat-amber .val { color: #fbbf24; }
-    .stat-red .val { color: #f87171; }
-    .stat-skip .val { color: #94a3b8; }
-    .stat-total .val { color: #38bdf8; }
+    .stat-chip .lbl { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+    .stat-green .val { color: #16a34a; }
+    .stat-amber .val { color: #d97706; }
+    .stat-red .val { color: #dc2626; }
+    .stat-skip .val { color: #64748b; }
+    .stat-total .val { color: #2563eb; }
     .stat-score .val { font-size: 20px; }
 
-    /* ── Progress bar ─────────────────────────────────────────────────── */
-    .progress-bar-wrap { background: #0f172a; border-radius: 999px; height: 8px; margin-bottom: 20px; overflow: hidden; }
-    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #0ea5e9, #38bdf8); border-radius: 999px; transition: width 0.4s ease; width: 0%; }
+    .progress-bar-wrap { background: #e2e8f0; border-radius: 999px; height: 8px; margin-bottom: 20px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, #2563eb, #3b82f6); border-radius: 999px; transition: width 0.4s ease; width: 0%; }
 
-    /* ── Status log ───────────────────────────────────────────────────── */
-    .status-log { background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #64748b; font-family: monospace; height: 40px; line-height: 20px; overflow: hidden; }
+    .status-log { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #64748b; font-family: monospace; height: 40px; line-height: 20px; overflow: hidden; }
 
-    /* ── Results table ────────────────────────────────────────────────── */
-    .results-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
-    .results-toolbar { padding: 14px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #334155; flex-wrap: wrap; }
-    .results-toolbar .filter-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 4px 12px; border-radius: 999px; font-size: 12px; cursor: pointer; }
-    .results-toolbar .filter-btn.active { border-color: #38bdf8; color: #38bdf8; background: #0c4a6e; }
+    .results-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+    .results-toolbar { padding: 14px 20px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+    .results-toolbar .filter-btn { background: #f8fafc; border: 1px solid #e2e8f0; color: #64748b; padding: 4px 12px; border-radius: 999px; font-size: 12px; cursor: pointer; }
+    .results-toolbar .filter-btn.active { border-color: #3b82f6; color: #2563eb; background: #eff6ff; }
 
     .results-table-wrap { overflow-x: auto; max-height: 500px; overflow-y: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    thead th { background: #0f172a; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 16px; text-align: left; position: sticky; top: 0; }
-    tbody tr { border-bottom: 1px solid #1e293b; transition: background 0.1s; }
-    tbody tr:hover { background: #1e3a5f22; }
+    thead th { background: #f8fafc; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 10px 16px; text-align: left; position: sticky; top: 0; border-bottom: 1px solid #e2e8f0; }
+    tbody tr { border-bottom: 1px solid #f1f5f9; transition: background 0.1s; }
+    tbody tr:hover { background: #f8fafc; }
     tbody td { padding: 10px 16px; vertical-align: top; }
 
-    /* ── RAG badges ───────────────────────────────────────────────────── */
     .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
-    .badge-green  { background: #14532d; color: #4ade80; border: 1px solid #166534; }
-    .badge-amber  { background: #451a03; color: #fbbf24; border: 1px solid #78350f; }
-    .badge-red    { background: #450a0a; color: #f87171; border: 1px solid #7f1d1d; }
-    .badge-skipped{ background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
-    .badge-na     { background: #1e293b; color: #64748b; border: 1px solid #1e293b; }
-    .badge-queued { background: #1c1917; color: #a8a29e; border: 1px solid #292524; }
+    .badge-green  { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
+    .badge-amber  { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .badge-red    { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+    .badge-skipped{ background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .badge-na     { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+    .badge-queued { background: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
 
-    .strategy-tag { font-size: 10px; color: #475569; background: #0f172a; padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
+    .strategy-tag { font-size: 10px; color: #94a3b8; background: #f8fafc; padding: 1px 6px; border-radius: 4px; margin-left: 4px; }
 
-    /* ── Report panel ─────────────────────────────────────────────────── */
     #report-section { display: none; }
-    .report-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+    .report-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
     .report-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-    .report-item { padding: 12px 0; border-bottom: 1px solid #1e293b; }
+    .report-item { padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
     .report-item:last-child { border-bottom: none; }
     .report-item .item-header { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 4px; }
-    .report-item .item-code { font-size: 11px; color: #94a3b8; min-width: 40px; }
-    .report-item .item-q { font-size: 13px; color: #e2e8f0; flex: 1; }
-    .report-item .item-evidence { font-size: 12px; color: #94a3b8; margin-top: 4px; padding-left: 48px; }
-    .report-item .item-hint { font-size: 11px; color: #fbbf24; margin-top: 4px; padding-left: 48px; }
+    .report-item .item-code { font-size: 11px; color: #64748b; min-width: 40px; }
+    .report-item .item-q { font-size: 13px; color: #334155; flex: 1; }
+    .report-item .item-evidence { font-size: 12px; color: #64748b; margin-top: 4px; padding-left: 48px; }
+    .report-item .item-hint { font-size: 11px; color: #d97706; margin-top: 4px; padding-left: 48px; }
 
-    /* ── Misc ─────────────────────────────────────────────────────────── */
     .alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
-    .alert-error { background: #450a0a; border: 1px solid #7f1d1d; color: #f87171; }
-    .alert-info  { background: #0c4a6e; border: 1px solid #0369a1; color: #7dd3fc; }
-    .alert-success { background: #14532d; border: 1px solid #166534; color: #4ade80; }
-    /* ── Tool Panels (VS Code / CLI) ───────────────────────── */
-    .tool-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; }
-    .tool-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 16px; }
+    .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+    .alert-info  { background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; }
+
+    .tool-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+    .tool-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px; }
     .tool-title { display: flex; align-items: center; gap: 12px; }
-    .tool-title h3 { font-size: 18px; color: #f1f5f9; }
+    .tool-title h3 { font-size: 18px; color: #0f172a; }
     .tool-icon { width: 32px; height: 32px; }
     
     .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
     @media (max-width: 900px) { .tool-grid { grid-template-columns: 1fr; } }
     
     .features-list { list-style: none; }
-    .features-list li { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 14px; color: #94a3b8; }
+    .features-list li { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 14px; color: #64748b; }
     .features-list li::before { content: '✅'; font-size: 12px; }
 
-    .screenshot-carousel { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #334155; background: #0f172a; aspect-ratio: 16/10; }
+    .screenshot-carousel { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; background: #f8fafc; aspect-ratio: 16/10; }
     .carousel-track { display: flex; transition: transform 0.3s ease; height: 100%; }
     .carousel-slide { min-width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
     .carousel-slide img { max-width: 100%; max-height: 100%; object-fit: contain; }
     .carousel-nav { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; }
-    .carousel-dot { width: 8px; height: 8px; border-radius: 50%; background: #475569; cursor: pointer; border: none; }
-    .carousel-dot.active { background: #38bdf8; }
+    .carousel-dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; cursor: pointer; border: none; }
+    .carousel-dot.active { background: #3b82f6; }
 
-    .code-block { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; font-family: 'Consolas', monospace; font-size: 13px; color: #e2e8f0; position: relative; margin-top: 12px; }
-    .copy-btn { position: absolute; top: 8px; right: 8px; background: #334155; color: #94a3b8; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
-    .copy-btn:hover { background: #475569; color: #f1f5f9; }
+    .code-block { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; font-family: 'Consolas', monospace; font-size: 13px; color: #334155; position: relative; margin-top: 12px; }
+    .copy-btn { position: absolute; top: 8px; right: 8px; background: #e2e8f0; color: #64748b; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+    .copy-btn:hover { background: #cbd5e1; color: #334155; }
 
-    .download-btn { display: inline-flex; align-items: center; gap: 8px; background: #0ea5e9; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: 0.2s; font-size: 14px; }
-    .download-btn:hover { background: #38bdf8; transform: translateY(-1px); }
+    .download-btn { display: inline-flex; align-items: center; gap: 8px; background: #2563eb; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: 0.2s; font-size: 14px; }
+    .download-btn:hover { background: #1d4ed8; transform: translateY(-1px); }
     .download-btn svg { width: 18px; height: 18px; }
     
     .setup-steps { margin-top: 20px; }
     .setup-step { display: flex; gap: 12px; margin-bottom: 12px; }
-    .step-num { min-width: 24px; height: 24px; background: #334155; color: #38bdf8; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
-    .step-text { font-size: 14px; color: #94a3b8; }
+    .step-num { min-width: 24px; height: 24px; background: #e2e8f0; color: #3b82f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+    .step-text { font-size: 14px; color: #64748b; }
 
     .hidden { display: none !important; }
     .spin { animation: spin 1s linear infinite; display: inline-block; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    @media(max-width:768px){.sidebar{display:none}.main{padding:16px}}
 </style>
 </head>
 <body>
@@ -178,18 +165,17 @@
       <label>Password</label>
       <input id="login-password" type="password" placeholder="••••••••" />
     </div>
-    <button class="btn btn-primary btn-block btn-lg" onclick="login()" style="height: 48px; font-size: 16px; background: linear-gradient(135deg, #0ea5e9, #38bdf8); border-radius: 12px; box-shadow: 0 8px 16px rgba(14, 165, 233, 0.25); border: none; font-weight: 700; cursor: pointer; transition: all 0.3s;">Sign In</button>
+    <button class="btn btn-primary btn-block btn-lg" onclick="login()" style="height:48px;font-size:16px;background:linear-gradient(135deg,#0ea5e9,#38bdf8);border-radius:12px;box-shadow:0 8px 16px rgba(14,165,233,0.25);border:none;font-weight:700;cursor:pointer;transition:all .3s">Sign In</button>
     <div style="margin-top:24px; text-align:center; font-size:12px; color:#64748b;">
       Secure access for ReviewBot Enterprise
     </div>
   </div>
 </div>
 
-<!-- ── Shared Header ─────────────────────────────────────────────────────── -->
-<div id="shared-header-root"></div>
-
-<!-- ── Main ───────────────────────────────────────────────────────────────── -->
-<main>
+    <div class="container">
+      <div class="content-row">
+      <div id="shared-sidebar-root"></div>
+<main class="main">
 
   <!-- Config Panel -->
   <div class="config-panel">
@@ -339,27 +325,27 @@
     <div id="source-cli-panel" style="display:none;">
       <div class="tool-header">
         <div class="tool-title">
-          <div class="tool-icon" style="background:#334155;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#38bdf8;font-weight:bold;font-family:monospace;font-size:13px;">$_</div>
+          <div class="tool-icon" style="background:#e2e8f0;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#3b82f6;font-weight:bold;font-family:monospace;font-size:13px;">$_</div>
           <h3>ReviewBot CLI Agent</h3>
         </div>
       </div>
 
-      <p style="color:#94a3b8;font-size:13px;margin:0 0 20px;">Run autonomous code reviews from your terminal or CI/CD pipeline. Commands below are <strong style="color:#38bdf8">pre-filled</strong> with your selected project and checklist.</p>
+      <p style="color:#64748b;font-size:13px;margin:0 0 20px;">Run autonomous code reviews from your terminal or CI/CD pipeline. Commands below are <strong style="color:#2563eb">pre-filled</strong> with your selected project and checklist.</p>
 
       <!-- Step 1 — Install -->
       <div style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-          <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">1</span>
-          <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Install the agent</span>
-          <span style="font-size:11px;color:#475569;">— one time only, choose one method</span>
+          <span style="background:#2563eb;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">1</span>
+          <span style="font-size:13px;font-weight:600;color:#0f172a;">Install the agent</span>
+          <span style="font-size:11px;color:#94a3b8;">— one time only, choose one method</span>
         </div>
 
         <!-- Option A -->
-        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:10px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <div>
-              <span style="font-size:11px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:0.06em;">Option A</span>
-              <span style="font-size:12px;color:#94a3b8;margin-left:8px;">Pre-built wheel — recommended, works offline</span>
+              <span style="font-size:11px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:0.06em;">Option A</span>
+              <span style="font-size:12px;color:#64748b;margin-left:8px;">Pre-built wheel — recommended, works offline</span>
             </div>
             <a href="/frontend_vanilla/downloads/reviewbot_cli-0.1.0-py3-none-any.whl" class="download-btn" style="padding:6px 14px;font-size:12px;" download>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
@@ -372,14 +358,13 @@
           </div>
         </div>
 
-        <!-- Option B -->
-        <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:14px 16px;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
             <div>
-              <span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">Option B</span>
-              <span style="font-size:12px;color:#94a3b8;margin-left:8px;">Source zip — install from downloaded archive</span>
+              <span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;">Option B</span>
+              <span style="font-size:12px;color:#64748b;margin-left:8px;">Source zip — install from downloaded archive</span>
             </div>
-            <a href="/frontend_vanilla/downloads/reviewbot-cli.zip" class="download-btn" style="padding:6px 14px;font-size:12px;background:#334155;" download>
+            <a href="/frontend_vanilla/downloads/reviewbot-cli.zip" class="btn btn-sm" style="background:#e2e8f0;color:#64748b;padding:6px 14px;font-size:12px;border-radius:8px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;font-weight:600;" download>
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
               Download .zip
             </a>
@@ -394,9 +379,9 @@
       <!-- Step 2 — Login -->
       <div style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">2</span>
-          <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Login</span>
-          <span style="font-size:11px;color:#475569;">— token lasts 8 hours, no prior auth needed</span>
+          <span style="background:#2563eb;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">2</span>
+          <span style="font-size:13px;font-weight:600;color:#0f172a;">Login</span>
+          <span style="font-size:11px;color:#94a3b8;">— token lasts 8 hours, no prior auth needed</span>
         </div>
         <div class="code-block" id="cli-login-cmd">
           <button class="copy-btn" onclick="copyCode('cli-login-cmd')">Copy</button>
@@ -407,30 +392,30 @@
       <!-- Step 3 — Run Review -->
       <div style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span style="background:#0ea5e9;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">3</span>
-          <span style="font-size:13px;font-weight:600;color:#f1f5f9;">Run a review</span>
+          <span style="background:#2563eb;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">3</span>
+          <span style="font-size:13px;font-weight:600;color:#0f172a;">Run a review</span>
           <span id="cli-noprefill-badge" style="font-size:11px;color:#f59e0b;">— select a project &amp; checklist above to pre-fill IDs</span>
         </div>
-        <div id="cli-prefill-context" style="display:none;background:rgba(56,189,248,0.07);border:1px solid rgba(56,189,248,0.2);border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#94a3b8;">
-          <span style="color:#38bdf8;font-weight:600;">Project:</span> <span id="cli-pname-label"></span>
-          <span style="margin:0 10px;color:#334155;">|</span>
-          <span style="color:#38bdf8;font-weight:600;">Checklist:</span> <span id="cli-cname-label"></span>
+        <div id="cli-prefill-context" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#64748b;">
+          <span style="color:#2563eb;font-weight:600;">Project:</span> <span id="cli-pname-label"></span>
+          <span style="margin:0 10px;color:#cbd5e1;">|</span>
+          <span style="color:#2563eb;font-weight:600;">Checklist:</span> <span id="cli-cname-label"></span>
         </div>
         <div class="code-block" id="cli-review-cmd">
           <button class="copy-btn" onclick="copyCode('cli-review-cmd')">Copy</button>
           <code id="cli-review-cmd-text">reviewbot review --project-id &lt;project-id&gt; --checklist-id &lt;checklist-id&gt; --source-path ./your-project --output ./review-report.md</code>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
-          <span style="font-size:11px;color:#475569;">Tip: on bash/macOS you can split with <code style="font-size:10px;color:#64748b;">\</code> at end of each line for readability. On PowerShell use a backtick <code style="font-size:10px;color:#64748b;">`</code></span>
-          <button onclick="toggleCliExample()" id="cli-example-btn" style="background:none;border:1px solid #334155;color:#94a3b8;font-size:11px;border-radius:4px;padding:3px 10px;cursor:pointer;white-space:nowrap;margin-left:12px;">View example ▾</button>
+          <span style="font-size:11px;color:#94a3b8;">Tip: on bash/macOS you can split with <code style="font-size:10px;color:#64748b;">\</code> at end of each line for readability. On PowerShell use a backtick <code style="font-size:10px;color:#64748b;">`</code></span>
+          <button onclick="toggleCliExample()" id="cli-example-btn" style="background:none;border:1px solid #e2e8f0;color:#64748b;font-size:11px;border-radius:4px;padding:3px 10px;cursor:pointer;white-space:nowrap;margin-left:12px;">View example ▾</button>
         </div>
         <!-- Example panel -->
-        <div id="cli-example-panel" style="display:none;margin-top:10px;border:1px solid #1e3a4a;border-radius:8px;overflow:hidden;">
-          <div style="background:#0c2233;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:11px;font-weight:700;color:#38bdf8;text-transform:uppercase;letter-spacing:0.06em;">Example — reviewing a Node.js project</span>
+        <div id="cli-example-panel" style="display:none;margin-top:10px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+          <div style="background:#f1f5f9;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:11px;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:0.06em;">Example — reviewing a Node.js project</span>
             <button class="copy-btn" style="position:static;opacity:1;" onclick="copyCode('cli-example-cmd')">Copy</button>
           </div>
-          <div style="background:#071a27;padding:14px 16px;font-size:13px;line-height:1.8;">
+          <div style="background:#fafafa;padding:14px 16px;font-size:13px;line-height:1.8;">
             <div style="color:#64748b;font-size:11px;margin-bottom:8px;">bash / macOS / Linux</div>
             <div class="code-block" id="cli-example-cmd" style="margin:0 0 14px;">
               <code>reviewbot review \
@@ -448,11 +433,11 @@
   --source-path C:\projects\my-node-app `
   --output C:\Users\you\Desktop\review-report.md</code>
             </div>
-            <div style="background:rgba(56,189,248,0.06);border-left:3px solid #0ea5e9;padding:8px 12px;border-radius:0 4px 4px 0;">
-              <div style="font-size:11px;color:#94a3b8;line-height:1.7;">
-                <strong style="color:#f1f5f9;">project-id</strong> and <strong style="color:#f1f5f9;">checklist-id</strong> — select from dropdowns above and the command auto-fills.<br/>
-                <strong style="color:#f1f5f9;">source-path</strong> — the root folder of the codebase you want reviewed.<br/>
-                <strong style="color:#f1f5f9;">output</strong> — where to save the Markdown report. Use an absolute path to avoid confusion.
+            <div style="background:#eff6ff;border-left:3px solid #3b82f6;padding:8px 12px;border-radius:0 4px 4px 0;">
+              <div style="font-size:11px;color:#64748b;line-height:1.7;">
+                <strong style="color:#1e293b;">project-id</strong> and <strong style="color:#1e293b;">checklist-id</strong> — select from dropdowns above and the command auto-fills.<br/>
+                <strong style="color:#1e293b;">source-path</strong> — the root folder of the codebase you want reviewed.<br/>
+                <strong style="color:#1e293b;">output</strong> — where to save the Markdown report. Use an absolute path to avoid confusion.
               </div>
             </div>
           </div>
@@ -478,8 +463,8 @@
             </div>
           </div>
         </div>
-        <div style="margin-top:12px;font-size:12px;color:#475569;line-height:1.6;">
-          Token expires after <strong style="color:#94a3b8">8 hours</strong>. Re-run <code>reviewbot login</code> if you get a <code>401 Unauthorized</code> error.<br/>
+        <div style="margin-top:12px;font-size:12px;color:#94a3b8;line-height:1.6;">
+          Token expires after <strong style="color:#64748b">8 hours</strong>. Re-run <code>reviewbot login</code> if you get a <code>401 Unauthorized</code> error.<br/>
           Credentials stored at <code>~/.reviewbot/config.json</code> (Windows: <code>%USERPROFILE%\.reviewbot\config.json</code>).
         </div>
       </details>
@@ -487,16 +472,16 @@
 
     <!-- Documents panel (coming soon) -->
     <div id="source-docs-panel" style="display:none;">
-      <div style="background:#1e293b;border:1px dashed #334155;border-radius:8px;padding:20px;text-align:center;color:#475569;font-size:13px;">
-        📄 Review Docs — <strong style="color:#38bdf8">Coming in Phase 2</strong><br/>
+      <div style="background:#fff;border:1px dashed #e2e8f0;border-radius:8px;padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
+        📄 Review Docs — <strong style="color:#2563eb">Coming in Phase 2</strong><br/>
         <span style="font-size:12px;margin-top:4px;display:block;">Upload architecture docs, HLD/LLD, or process documentation for AI-powered compliance and gap analysis.</span>
       </div>
     </div>
 
     <!-- QUIZ panel (coming soon) -->
     <div id="source-quiz-panel" style="display:none;">
-      <div style="background:#1e293b;border:1px dashed #334155;border-radius:8px;padding:20px;text-align:center;color:#475569;font-size:13px;">
-        🧠 Become Domain Expert with AI — <strong style="color:#38bdf8">Coming in Phase 3</strong><br/>
+      <div style="background:#fff;border:1px dashed #e2e8f0;border-radius:8px;padding:20px;text-align:center;color:#94a3b8;font-size:13px;">
+        🧠 Become Domain Expert with AI — <strong style="color:#2563eb">Coming in Phase 3</strong><br/>
         <span style="font-size:12px;margin-top:4px;display:block;">Elevate team domain mastery through AI-driven interactive sessions. Identify and bridge knowledge gaps per role with precision.</span>
       </div>
     </div>
@@ -512,7 +497,7 @@
   <div id="progress-section">
     <div class="progress-header">
       <span class="progress-title" id="progress-title">Reviewing…</span>
-      <span id="progress-label" style="font-size:13px;color:#94a3b8"></span>
+      <span id="progress-label" style="font-size:13px;color:#64748b"></span>
     </div>
 
     <div class="stats-bar">
@@ -530,7 +515,7 @@
     <!-- Filter toolbar -->
     <div class="results-panel" style="margin-top:16px">
       <div class="results-toolbar">
-        <span style="font-size:12px;color:#94a3b8;margin-right:4px">Filter:</span>
+        <span style="font-size:12px;color:#64748b;margin-right:4px">Filter:</span>
         <button class="filter-btn active" data-filter="all" onclick="applyFilter('all',this)">All</button>
         <button class="filter-btn" data-filter="red" onclick="applyFilter('red',this)">❌ Red</button>
         <button class="filter-btn" data-filter="amber" onclick="applyFilter('amber',this)">⚠️ Amber</button>
@@ -566,10 +551,12 @@
   </div>
 
 </main>
+  </div>
 
-<div id="shared-footer-root"></div>
-  <script src="/frontend_vanilla/components/header_loader.js"></script>
+  <div id="shared-footer-root"></div>
+</div>
   <script src="/frontend_vanilla/components/footer-loader.js"></script>
+  <script src="/frontend_vanilla/components/sidebar-loader.js"></script>
 <script>
 // ── State ──────────────────────────────────────────────────────────────────────
 let token = localStorage.getItem('rb_token') || '';
@@ -744,8 +731,8 @@ async function onProjectChange() {
 
 // ── Source type UI ─────────────────────────────────────────────────────────────
 const PAT_GUIDES = {
-  github: `<strong>GitHub PAT:</strong> Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate. Scopes needed: <code>repo</code> (private) or <code>public_repo</code> (public). <a href="https://github.com/settings/tokens" target="_blank" style="color:#38bdf8;">Open GitHub →</a>`,
-  gitlab: `<strong>GitLab PAT:</strong> User settings → Access Tokens → Add token. Scopes needed: <code>read_repository</code>. <a href="https://gitlab.com/-/profile/personal_access_tokens" target="_blank" style="color:#38bdf8;">Open GitLab →</a>`,
+  github: `<strong>GitHub PAT:</strong> Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate. Scopes needed: <code>repo</code> (private) or <code>public_repo</code> (public). <a href="https://github.com/settings/tokens" target="_blank" style="color:#2563eb;">Open GitHub →</a>`,
+  gitlab: `<strong>GitLab PAT:</strong> User settings → Access Tokens → Add token. Scopes needed: <code>read_repository</code>. <a href="https://gitlab.com/-/profile/personal_access_tokens" target="_blank" style="color:#2563eb;">Open GitLab →</a>`,
   bitbucket: `<strong>Bitbucket App Password:</strong> Personal settings → App passwords → Create. Permissions needed: <code>Repositories: Read</code>. Use your Bitbucket <em>username</em> as the username and the app password as the token.`,
   azure: `<strong>Azure DevOps PAT:</strong> User settings (top-right avatar) → Personal access tokens → New Token. Scopes: <code>Code (Read)</code>.`,
 };
@@ -989,7 +976,7 @@ function renderRow(row) {
   tr.innerHTML = `
     <td><span style="color:#94a3b8;font-size:11px">${esc(row.item_code||'')}</span></td>
     <td style="color:#94a3b8;font-size:12px">${esc(row.area||'')}</td>
-    <td style="color:#e2e8f0">${esc(row.question||'')}
+    <td style="color:#334155">${esc(row.question||'')}
       <span class="strategy-tag">${esc({
         file_presence: '📁 file scan',
         pattern_scan:  '🔍 pattern',
@@ -1001,7 +988,7 @@ function renderRow(row) {
     <td>${ragBadge(row.rag_status)}</td>
     <td style="color:#94a3b8;font-size:12px">
       ${esc(truncate(row.evidence||'',150))}
-      ${row.evidence_hint ? `<div style="color:#fbbf24;margin-top:3px;font-size:11px">📋 ${esc(row.evidence_hint)}</div>` : ''}
+      ${row.evidence_hint ? `<div style="color:#d97706;margin-top:3px;font-size:11px">📋 ${esc(row.evidence_hint)}</div>` : ''}
     </td>`;
   tbody.appendChild(tr);
   tr.scrollIntoView({ block: 'nearest' });
@@ -1066,7 +1053,7 @@ function renderReport(r) {
   el.innerHTML = `
     <div class="report-card">
       <h3>📊 Summary — ${esc(r.project)}</h3>
-      <p style="color:#94a3b8;font-size:13px;margin-bottom:12px">${esc(r.checklist)} | Source: <code>${esc(r.source_path)}</code></p>
+      <p style="color:#64748b;font-size:13px;margin-bottom:12px">${esc(r.checklist)} | Source: <code>${esc(r.source_path)}</code></p>
       <div class="stats-bar">
         <div class="stat-chip stat-total"><span class="val">${s.total_items}</span><span class="lbl">Total</span></div>
         <div class="stat-chip stat-green"><span class="val">${s.green}</span><span class="lbl">✅ Green</span></div>

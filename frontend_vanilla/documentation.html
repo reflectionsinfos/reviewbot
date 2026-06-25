@@ -6,54 +6,53 @@
   <title>ReviewBot — How It Works</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
-
-    header { display: none; } /* Handled by shared-header */
-
-    /* ── Main Content ──────────────────────────────────────────────────────── */
-    main { max-width: 1200px; margin: 0 auto; padding: 40px 24px 120px; flex: 1; }
-    h1 { font-size: 32px; font-weight: 700; color: #f1f5f9; margin-bottom: 16px; }
-    h2 { font-size: 24px; font-weight: 600; color: #38bdf8; margin: 40px 0 16px; }
-    h3 { font-size: 18px; font-weight: 600; color: #e2e8f0; margin: 24px 0 12px; }
-    p { font-size: 15px; color: #94a3b8; line-height: 1.7; margin-bottom: 16px; }
-    ul, ol { color: #94a3b8; line-height: 1.7; margin-bottom: 16px; padding-left: 24px; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #0f172a; display: flex; flex-direction: column; min-height: 100vh; }
+    .container { display: flex; flex-direction: column; flex: 1; }
+    .content-row { display: flex; flex: 1; min-height: 0; }
+    #shared-sidebar-root,.main { min-width: 0; }
+    .main { flex: 1; max-width: 1200px; padding: 40px 32px 60px; }
+    h1 { font-size: 32px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
+    h2 { font-size: 24px; font-weight: 600; color: #2563eb; margin: 40px 0 16px; }
+    h3 { font-size: 18px; font-weight: 600; color: #0f172a; margin: 24px 0 12px; }
+    p { font-size: 15px; color: #475569; line-height: 1.7; margin-bottom: 16px; }
+    ul, ol { color: #475569; line-height: 1.7; margin-bottom: 16px; padding-left: 24px; }
     li { margin-bottom: 8px; }
 
     /* ── Code blocks ───────────────────────────────────────────────────────── */
-    pre { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 16px 0; }
-    code { font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; color: #e2e8f0; }
-    .inline-code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    pre { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; overflow-x: auto; margin: 16px 0; }
+    code { font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; color: #0f172a; }
+    .inline-code { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
 
     /* ── Tables ────────────────────────────────────────────────────────────── */
     table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    th, td { border: 1px solid #334155; padding: 12px 16px; text-align: left; }
-    th { background: #1e293b; color: #38bdf8; font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px; }
-    td { color: #94a3b8; font-size: 14px; }
-    tr:hover { background: #1e293b44; }
+    th, td { border: 1px solid #e2e8f0; padding: 12px 16px; text-align: left; }
+    th { background: #f8fafc; color: #2563eb; font-size: 13px; text-transform: uppercase; letter-spacing: 0.6px; }
+    td { color: #475569; font-size: 14px; }
+    tr:hover td { background: #f8fafc; }
 
     /* ── Diagram boxes ─────────────────────────────────────────────────────── */
-    .diagram { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin: 20px 0; }
-    .diagram-box { background: #0f172a; border: 1px solid #38bdf8; border-radius: 6px; padding: 12px; margin: 12px 0; }
-    .diagram-arrow { text-align: center; color: #38bdf8; font-size: 20px; margin: 8px 0; }
+    .diagram { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .diagram-box { background: #f8fafc; border: 1px solid #2563eb; border-radius: 6px; padding: 12px; margin: 12px 0; }
+    .diagram-arrow { text-align: center; color: #2563eb; font-size: 20px; margin: 8px 0; }
 
     /* ── Callouts ──────────────────────────────────────────────────────────── */
-    .callout { background: #1e3a5f44; border: 1px solid #1d4ed8; border-radius: 8px; padding: 16px; margin: 20px 0; }
-    .callout-title { color: #60a5fa; font-weight: 600; margin-bottom: 8px; }
-    .callout-info { background: #14532d44; border-color: #166534; }
-    .callout-info .callout-title { color: #4ade80; }
-    .callout-warning { background: #78350f44; border-color: #92400e; }
-    .callout-warning .callout-title { color: #fb923c; }
-    .callout a { color: #93c5fd; text-decoration: none; }
-    .callout a:hover { color: #dbeafe; text-decoration: underline; }
+    .callout { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 20px 0; }
+    .callout-title { color: #2563eb; font-weight: 600; margin-bottom: 8px; }
+    .callout-info { background: #f0fdf4; border-color: #bbf7d0; }
+    .callout-info .callout-title { color: #16a34a; }
+    .callout-warning { background: #fffbeb; border-color: #fde68a; }
+    .callout-warning .callout-title { color: #d97706; }
+    .callout a { color: #2563eb; text-decoration: none; }
+    .callout a:hover { color: #1d4ed8; text-decoration: underline; }
 
     /* ── Related Documentation ─────────────────────────────────────────────── */
     .related-docs {
-      background: linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.98));
-      border: 1px solid #334155;
+      background: #fff;
+      border: 1px solid #e2e8f0;
       border-radius: 14px;
       padding: 22px 24px;
       margin-top: 32px;
-      box-shadow: 0 16px 40px rgba(2, 6, 23, 0.24);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.04);
     }
     .related-docs .callout-title {
       display: flex;
@@ -61,7 +60,7 @@
       gap: 10px;
       margin-bottom: 16px;
       font-size: 16px;
-      color: #f8fafc;
+      color: #0f172a;
     }
     .related-docs-list {
       list-style: none;
@@ -77,10 +76,10 @@
       justify-content: space-between;
       gap: 16px;
       padding: 14px 16px;
-      border: 1px solid #334155;
+      border: 1px solid #e2e8f0;
       border-radius: 10px;
-      background: rgba(15, 23, 42, 0.88);
-      color: #e2e8f0;
+      background: #f8fafc;
+      color: #334155;
       text-decoration: none;
       font-size: 14px;
       font-weight: 500;
@@ -88,59 +87,33 @@
     }
     .related-docs-list a::after {
       content: "↗";
-      color: #38bdf8;
+      color: #2563eb;
       font-size: 15px;
       flex-shrink: 0;
     }
     .related-docs-list a:hover {
-      border-color: #38bdf8;
-      background: rgba(30, 41, 59, 0.96);
-      color: #f8fafc;
+      border-color: #2563eb;
+      background: #fff;
+      color: #0f172a;
       transform: translateY(-1px);
-      box-shadow: 0 10px 24px rgba(14, 165, 233, 0.12);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
       text-decoration: none;
     }
     .related-docs-list a:focus-visible {
-      outline: 2px solid #38bdf8;
+      outline: 2px solid #2563eb;
       outline-offset: 3px;
     }
 
-    /* Keep global shared footer visible while scrolling on this page */
-    #shared-footer-root .shared-footer {
-      position: fixed !important;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 110;
-    }
-
-    /* ── Footer ────────────────────────────────────────────────────────────── */
-    footer {
-      background: linear-gradient(180deg, #1e293b 0%, #172033 100%);
-      border-top: 1px solid #334155;
-      padding: 20px 28px;
-      font-size: 12px;
-      color: #cbd5e1;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-      box-shadow: 0 -8px 24px rgba(2, 6, 23, 0.18);
-    }
-    footer a { color: #93c5fd; text-decoration: none; transition: color 0.15s, opacity 0.15s; }
-    footer a:hover { color: #e0f2fe; opacity: 1; }
-    .footer-links { display: flex; gap: 20px; align-items: center; }
-    .footer-powered { display: flex; align-items: center; gap: 8px; color: #e2e8f0; }
-    .footer-powered img { height: 20px; width: auto; border-radius: 4px; }
+    /* ── Footer (dark theme from shared component) ─────────────────────────── */
+    @media(max-width:768px){.sidebar{display:none}.main{padding:16px}}
   </style>
 </head>
 <body>
 
-<!-- ── Shared Header ─────────────────────────────────────────────────────── -->
-<div id="shared-header-root"></div>
-
-<main>
+<div class="container">
+  <div class="content-row">
+<div id="shared-sidebar-root"></div>
+<main class="main">
   <h1>How ReviewBot Works</h1>
   <p style="font-size: 16px; color: #64748b;">Understanding the autonomous review architecture, strategies, and decision-making process.</p>
 
@@ -717,8 +690,8 @@ POST /api/autonomous-reviews/{job_id}/action-plan/enhance
           <li>Select the downloaded file and restart VS Code.</li>
         </ol>
       </div>
-      <div style="background:#0f172a; border-radius:8px; padding:10px; border:1px solid #334155;">
-        <img src="/frontend_vanilla/images/vscode-plugin/reviewbot-vscode-Review-InProgress.png" alt="VS Code Progress" style="max-width:100%; border-radius:4px; border:1px solid #334155;" />
+      <div style="background:#fff; border-radius:8px; padding:10px; border:1px solid #e2e8f0;">
+        <img src="/frontend_vanilla/images/vscode-plugin/reviewbot-vscode-Review-InProgress.png" alt="VS Code Progress" style="max-width:100%; border-radius:4px; border:1px solid #e2e8f0;" />
         <p style="font-size:12px; text-align:center; margin-top:8px; color:#64748b;">AI streaming results directly to the VS Code sidebar.</p>
       </div>
     </div>
@@ -795,10 +768,12 @@ reviewbot review \
   </div>
 
 </main>
+  </div>
 
-<div id="shared-footer-root"></div>
-<script src="/frontend_vanilla/components/header_loader.js"></script>
+  <div id="shared-footer-root"></div>
+</div>
 <script src="/frontend_vanilla/components/footer-loader.js"></script>
+<script src="/frontend_vanilla/components/sidebar-loader.js"></script>
 
 <script>
   const TOKEN_KEY = 'rb_token';

@@ -6,133 +6,117 @@
   <title>ReviewBot — Global Templates</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
-    header { display: none; } /* Handled by shared-header */
-
-    /* ── User Dropdown ──────────────────────────────────────────────────────── */
-    .nav-right { display: flex; align-items: center; }
-    .user-dropdown { position: relative; }
-    .user-dropdown-btn { background: transparent; border: 1px solid #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
-    .user-dropdown-btn:hover { border-color: #38bdf8; background: #1e293b; }
-    .user-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; }
-    .user-avatar-human { background: linear-gradient(135deg, #10b981, #059669); }
-    .user-avatar-bot { background: linear-gradient(135deg, #6366f1, #4f46e5); }
-    .user-dropdown-menu { position: absolute; top: 100%; right: 0; margin-top: 8px; background: #1e293b; border: 1px solid #334155; border-radius: 8px; min-width: 220px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); z-index: 100; }
-    .user-dropdown-menu.hidden { display: none; }
-    .user-dropdown-header { padding: 12px 16px; border-bottom: 1px solid #334155; }
-    .user-dropdown-name { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bottom: 2px; }
-    .user-dropdown-role { font-size: 11px; color: #64748b; text-transform: uppercase; }
-    .user-dropdown-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #94a3b8; text-decoration: none; font-size: 13px; transition: all 0.15s; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
-    .user-dropdown-item:hover { background: #0f172a; color: #38bdf8; }
-    .user-dropdown-item svg { width: 16px; height: 16px; }
-
-    /* ── Layout ───────────────────────────────────────────────────────────── */
-    main { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+    body { font-family: Inter, 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #0f172a; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; min-height: 100vh; }
+    .container{display:flex;flex-direction:column;flex:1}
+    .content-row{display:flex;flex:1;min-height:0}
+    #shared-sidebar-root,.main{min-width:0}
+    .main{flex:1;padding:28px 32px;max-width:1360px;display:flex;flex-direction:column;min-height:0}
 
     /* ── Auth Overlay ─────────────────────────────────────────────────────── */
     #auth-overlay { position: fixed; inset: 0; background: url('/frontend_vanilla/images/login_bg.png') center/cover no-repeat; display: flex; align-items: center; justify-content: center; z-index: 1000; }
     #auth-overlay::before { content: ''; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); }
-    .auth-card { position: relative; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px; width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+    .auth-card { position: relative; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px; width: 440px; max-width: calc(100vw - 32px); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
     .auth-card h2 { font-size: 32px; font-weight: 800; color: #38bdf8; margin-bottom: 8px; letter-spacing: -1px; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
     .auth-card p { color: #94a3b8; font-size: 14px; margin-bottom: 32px; font-weight: 500; }
     .auth-card .welcome-text { color: #ffffff; font-size: 24px; font-weight: 700; margin-bottom: 4px; }
 
     /* ── Form elements ────────────────────────────────────────────────────── */
     .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
-    input, select, textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: #38bdf8; }
-    select option { background: #1e293b; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    input, select, textarea { width: 100%; background: #fff; border: 1px solid #e2e8f0; color: #0f172a; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #3b82f6; }
+    select option { background: #fff; }
 
     /* ── Buttons ──────────────────────────────────────────────────────────── */
     .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn-primary { background: #0ea5e9; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #38bdf8; }
+    .btn-primary { background: #2563eb; color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,.2); }
+    .btn-primary:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,.25); }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
-    .btn-ghost:hover { border-color: #38bdf8; color: #38bdf8; }
+    .btn-ghost { background: #fff; border: 1px solid #e2e8f0; color: #475569; }
+    .btn-ghost:hover { border-color: #3b82f6; color: #2563eb; }
     .btn-danger { background: #ef4444; color: #fff; }
     .btn-danger:hover { background: #f87171; }
     .btn-sm { padding: 4px 10px; font-size: 11px; }
-    .btn-icon-only { background: none; border: none; cursor: pointer; color: #475569; padding: 4px; border-radius: 4px; font-size: 14px; }
-    .btn-icon-only:hover { background: #1e293b; color: #38bdf8; }
 
     /* ── Badges ───────────────────────────────────────────────────────────── */
     .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
-    .badge-blue { background: #1e3a5f44; color: #7dd3fc; border: 1px solid #1d4ed8; }
-    .badge-purple { background: #3b0764aa; color: #c084fc; border: 1px solid #6d28d9; }
-    .badge-teal { background: #0f3f3f88; color: #5eead4; border: 1px solid #0f766e; }
-    .badge-amber { background: #4a2c0b88; color: #fbbf24; border: 1px solid #b45309; }
-    .badge-gray { background: #1e293b; color: #94a3b8; border-color: #334155; }
+    .badge-blue { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+    .badge-purple { background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
+    .badge-teal { background: #f0fdfa; color: #0f766e; border: 1px solid #bbf7d0; }
+    .badge-amber { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .badge-gray { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
 
-    /* ── Left Panel ───────────────────────────────────────────────────────── */
-    .left-panel { width: 320px; background: #1e293b; border-right: 1px solid #334155; display: flex; flex-direction: column; overflow: hidden; }
-    .left-panel-header { padding: 16px 20px; border-bottom: 1px solid #334155; display: flex; align-items: center; justify-content: space-between; }
-    .left-panel-header h2 { font-size: 16px; font-weight: 700; color: #f1f5f9; }
-    .left-panel-filters { padding: 8px 12px; border-bottom: 1px solid #1e293b; display: flex; gap: 6px; background: #1a2537; }
-    .left-panel-filters input, .left-panel-filters select { font-size: 11px; padding: 5px 8px; border-radius: 6px; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; flex: 1; }
-    .left-panel-content { flex: 1; overflow-y: auto; padding: 12px 12px 104px; }
-    .template-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
-    .template-card:hover { border-color: #475569; }
-    .template-card.selected { border-color: #38bdf8; background: #1e3a5f33; }
-    .template-card-name { font-size: 13px; font-weight: 600; color: #f1f5f9; margin-bottom: 6px; }
+    /* ── Template Section (top) ──────────────────────────────────────────── */
+    .template-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; flex-shrink: 0; }
+    .template-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .template-header h2 { font-size: 16px; font-weight: 700; color: #0f172a; }
+    .template-header-actions { display: flex; gap: 8px; align-items: center; }
+    .template-filters { display: flex; gap: 8px; margin-bottom: 12px; }
+    .template-filters input,
+    .template-filters select { font-size: 12px; padding: 6px 10px; border-radius: 6px; background: #fff; border: 1px solid #e2e8f0; color: #475569; }
+    .template-filters input { flex: 1; max-width: 220px; }
+    .template-filters select { width: auto; }
+    .template-cards { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+    .template-card { min-width: 200px; max-width: 240px; flex-shrink: 0; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.15s; }
+    .template-card:hover { border-color: #cbd5e1; }
+    .template-card.selected { border-color: #3b82f6; background: #eff6ff; }
+    .template-card-name { font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .template-card-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; flex-wrap: wrap; }
-    .badge-org { background: #1a2f1a88; color: #86efac; border: 1px solid #166534; }
+    .badge-org { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 
-    /* ── Right Panel ──────────────────────────────────────────────────────── */
-    .right-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    .right-panel-header { padding: 20px 28px; border-bottom: 1px solid #334155; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-    .right-panel-info h2 { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
-    .right-panel-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .right-panel-actions { display: flex; gap: 8px; }
+    /* ── Items Section (bottom) ──────────────────────────────────────────── */
+    .items-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .items-header { padding: 20px 24px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; margin-bottom: 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .items-info h2 { font-size: 18px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+    .items-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .items-actions { display: flex; gap: 8px; }
 
     /* ── Empty State ──────────────────────────────────────────────────────── */
-    .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; }
+    .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 300px; }
     .empty-state-content { text-align: center; color: #64748b; }
-    .empty-state-content h3 { font-size: 16px; font-weight: 600; color: #94a3b8; margin-bottom: 4px; }
+    .empty-state-content h3 { font-size: 16px; font-weight: 600; color: #64748b; margin-bottom: 4px; }
     .empty-state-content p { font-size: 13px; }
 
     /* ── Table ────────────────────────────────────────────────────────────── */
-    .table-container { flex: 1; overflow: auto; padding: 20px 28px 104px; }
-    .table-card { background: #0f172a55; border: 1px solid #334155; border-radius: 10px; overflow: hidden; }
+    .table-container { flex: 1; overflow: auto; }
+    .table-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
     .table-card > table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { background: #0f172a; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 12px 14px; text-align: left; position: sticky; top: 0; }
-    td { padding: 12px 14px; vertical-align: top; border-bottom: 1px solid #1e293b22; }
+    th { background: #0f172a; color: #e2e8f0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 12px 14px; text-align: left; position: sticky; top: 0; }
+    td { padding: 12px 14px; vertical-align: top; border-bottom: 1px solid #f1f5f9; }
     tr:last-child td { border-bottom: none; }
     .actions-cell { display: flex; gap: 4px; }
-    .inline-input { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
-    .inline-input:focus { outline: none; border-color: #38bdf8; }
-    .col-info-icon { position: relative; cursor: help; color: #38bdf8; font-size: 11px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 3px; }
+    .inline-input { width: 100%; background: #fff; border: 1px solid #e2e8f0; color: #0f172a; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
+    .inline-input:focus { outline: none; border-color: #3b82f6; }
+    .col-info-icon { position: relative; cursor: help; color: #3b82f6; font-size: 11px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 3px; }
     .col-info-icon .col-tooltip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; font-weight: 400; line-height: 1.4; padding: 7px 10px; border-radius: 6px; white-space: normal; width: 180px; text-align: center; text-transform: none; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
     .col-info-icon:hover .col-tooltip { display: block; }
-    .inline-textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
+    .inline-textarea { width: 100%; background: #fff; border: 1px solid #e2e8f0; color: #0f172a; padding: 6px 8px; border-radius: 6px; font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
     .cell-stack { display: flex; flex-direction: column; gap: 6px; }
-    .question-text { color: #e2e8f0; line-height: 1.45; }
-    .meta-text { font-size: 11px; color: #94a3b8; line-height: 1.45; }
+    .question-text { color: #0f172a; line-height: 1.45; }
+    .meta-text { font-size: 11px; color: #64748b; line-height: 1.45; }
     .tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
-    .tag-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: #0f172a; border: 1px solid #334155; font-size: 10px; color: #94a3b8; }
-    .add-row { background: #0f172a44; border-top: 2px dashed #334155; }
+    .tag-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 10px; color: #475569; }
+    .add-row { background: #f8fafc; border-top: 2px dashed #e2e8f0; }
     .add-row td { vertical-align: middle; }
 
     /* ── Modals ───────────────────────────────────────────────────────────── */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 200; }
-    .modal-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
-    .modal-box h3 { margin-bottom: 6px; font-size: 18px; font-weight: 700; }
-    .modal-subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
+    .modal-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; width: 480px; max-width: 95vw; max-height: 90vh; overflow-y: auto; color: #0f172a; }
+    .modal-box h3 { margin-bottom: 6px; font-size: 18px; font-weight: 700; color: #0f172a; }
+    .modal-subtitle { font-size: 13px; color: #64748b; margin-bottom: 20px; }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
 
     /* ── Toast ────────────────────────────────────────────────────────────── */
-    #toast { position: fixed; bottom: 84px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-    #toast.success { border-color: #22c55e; color: #4ade80; }
-    #toast.error { border-color: #ef4444; color: #f87171; }
+    #toast { position: fixed; bottom: 84px; right: 24px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #0f172a; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    #toast.success { border-color: #22c55e; color: #16a34a; }
+    #toast.error { border-color: #ef4444; color: #dc2626; }
 
     .hidden { display: none !important; }
+
+    @media(max-width:768px){.sidebar{display:none}.main{padding:16px}}
   </style>
 </head>
 <body>
-
-<!-- ── Shared Header ─────────────────────────────────────────────────────── -->
-<div id="shared-header-root"></div>
 
 <!-- ── Auth Overlay ───────────────────────────────────────────────────────── -->
 <div id="auth-overlay" style="display:none;">
@@ -155,97 +139,108 @@
   </div>
 </div>
 
-<!-- ── Main ───────────────────────────────────────────────────────────────── -->
-<main>
-  <!-- Left Panel: Template List -->
-  <div class="left-panel">
-    <div class="left-panel-header">
+<!-- ── Main Content ────────────────────────────────────────────────────────── -->
+<div id="main-content">
+<div class="container">
+<div class="content-row">
+<div id="shared-sidebar-root"></div>
+<main class="main">
+
+  <!-- Hidden file inputs -->
+  <input type="file" id="excel-upload-input"       accept=".xlsx,.xlsm" style="display:none;" onchange="handleExcelUpload(event)" />
+  <input type="file" id="excel-upload-items-input" accept=".xlsx,.xlsm" style="display:none;" onchange="handleUploadItems(event)" />
+
+  <!-- Template Section (top) -->
+  <div class="template-section">
+    <div class="template-header">
       <h2>Global Templates</h2>
-      <button class="btn btn-ghost btn-sm" onclick="downloadMasterTemplate()" title="Download all 156 standard checklist items as a single Excel sheet — edit and upload back">&#8595; Master Template</button>
-      <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
+      <div class="template-header-actions">
+        <button class="btn btn-ghost btn-sm" onclick="downloadMasterTemplate()" title="Download all 156 standard checklist items as a single Excel sheet — edit and upload back">&#8595; Master Template</button>
+        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ New</button>
+      </div>
     </div>
-    <!-- hidden file inputs -->
-    <input type="file" id="excel-upload-input"       accept=".xlsx,.xlsm" style="display:none;" onchange="handleExcelUpload(event)" />
-    <input type="file" id="excel-upload-items-input" accept=".xlsx,.xlsm" style="display:none;" onchange="handleUploadItems(event)" />
-    <div class="left-panel-filters">
-      <input id="filter-type" type="text" placeholder="Filter by type…" oninput="renderTemplateList()" style="min-width:0;" />
+    <div class="template-filters">
+      <input id="filter-type" type="text" placeholder="Filter by type…" oninput="renderTemplateList()" />
       <select id="filter-scope" onchange="renderTemplateList()">
         <option value="all">All orgs</option>
         <option value="platform">Platform only</option>
         <option value="org">My org only</option>
       </select>
     </div>
-    <div class="left-panel-content" id="template-list">
+    <div class="template-cards" id="template-list">
       <div style="text-align:center;color:#64748b;font-size:13px;padding:24px;">Loading…</div>
     </div>
   </div>
 
-  <!-- Right Panel: Items Table -->
-  <div class="right-panel">
-    <div id="right-panel-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
-      <!-- Empty state -->
-      <div id="empty-state" class="empty-state">
-        <div class="empty-state-content">
-          <h3>Select a template</h3>
-          <p>Choose a global template from the left to view and edit its items</p>
+  <!-- Items Section (bottom) -->
+  <div class="items-section" id="items-section-root">
+    <!-- Empty state -->
+    <div id="empty-state" class="empty-state">
+      <div class="empty-state-content">
+        <h3>Select a template</h3>
+        <p>Choose a global template from the top to view and edit its items</p>
+      </div>
+    </div>
+
+    <!-- Template detail view -->
+    <div id="template-detail" class="hidden" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="items-header">
+        <div class="items-info">
+          <h2 id="td-name">Template Name</h2>
+          <div class="items-meta">
+            <span id="td-type" class="badge"></span>
+            <span id="td-version" style="font-size:11px;color:#64748b;"></span>
+            <span id="td-id" style="font-size:11px;color:#64748b;background:#f1f5f9;border:1px solid #e2e8f0;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
+          </div>
+          <div id="td-area-codes" style="margin-top:8px;font-size:11px;color:#64748b;"></div>
+        </div>
+        <div class="items-actions">
+          <button class="btn btn-ghost btn-sm" onclick="downloadExcelTemplate()" title="Download the standard Excel template pre-filled with all items — customise and re-upload">⬇ Template Excel</button>
+          <button class="btn btn-ghost btn-sm" onclick="triggerUploadItems()" title="Replace this template's items by uploading a filled Excel file">⬆ Upload Items</button>
+          <button id="btn-rename" class="btn btn-ghost btn-sm" onclick="startRename()">Rename</button>
+          <button id="btn-delete-template" class="btn btn-danger btn-sm" onclick="confirmDeleteTemplate()">Delete Template</button>
         </div>
       </div>
 
-      <!-- Template detail view -->
-      <div id="template-detail" class="hidden" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
-        <div class="right-panel-header">
-          <div class="right-panel-info">
-            <h2 id="td-name">Template Name</h2>
-            <div class="right-panel-meta">
-              <span id="td-type" class="badge"></span>
-              <span id="td-version" style="font-size:11px;color:#64748b;"></span>
-              <span id="td-id" style="font-size:11px;color:#475569;background:#0f172a;border:1px solid #334155;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
-            </div>
-            <div id="td-area-codes" style="margin-top:8px;font-size:11px;color:#64748b;"></div>
-          </div>
-          <div class="right-panel-actions">
-            <button class="btn btn-ghost btn-sm" onclick="downloadExcelTemplate()" title="Download the standard Excel template pre-filled with all items — customise and re-upload">⬇ Template Excel</button>
-            <button class="btn btn-ghost btn-sm" onclick="triggerUploadItems()" title="Replace this template's items by uploading a filled Excel file">⬆ Upload Items</button>
-            <button id="btn-rename" class="btn btn-ghost btn-sm" onclick="startRename()">Rename</button>
-            <button id="btn-delete-template" class="btn btn-danger btn-sm" onclick="confirmDeleteTemplate()">Delete Template</button>
-          </div>
-        </div>
-
-        <div class="table-container">
-          <div class="table-card">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:80px;">Code</th>
-                  <th style="width:120px;">Area</th>
-                  <th style="width:130px;">Team</th>
-                  <th>Question</th>
-                  <th style="width:100px;">Evidence</th>
-                  <th style="width:70px;">Weight</th>
-                  <th style="width:80px;">Review?<span class="col-info-icon">ⓘ<span class="col-tooltip">IS REVIEW MANDATORY?</span></span></th>
-                  <th style="width:90px;">Actions</th>
-                </tr>
-              </thead>
-              <tbody id="items-tbody"></tbody>
-              <tbody>
-                <tr class="add-row">
-                  <td><input id="add-code" class="inline-input" placeholder="SEC-001" style="width:80px;" title="Leave blank for auto-generation" /></td>
-                  <td><input id="add-area" class="inline-input" placeholder="General" /></td>
-                  <td><select id="add-team" class="inline-input"></select></td>
-                  <td><div class="cell-stack"><textarea id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;"></textarea><textarea id="add-guidance" class="inline-textarea" placeholder="Guidance for reviewers or external teams" style="min-height:52px;"></textarea><input id="add-tags" class="inline-input" placeholder="Applicability tags, comma separated" /></div></td>
-                  <td><input id="add-evidence" class="inline-input" placeholder="Evidence..." /></td>
-                  <td><input id="add-weight" type="number" step="0.5" class="inline-input" value="1.0" style="width:60px;" /></td>
-                  <td><select id="add-req" class="inline-input" style="width:50px;"><option value="true">Yes</option><option value="false">No</option></select></td>
-                  <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+      <div class="table-container">
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:80px;">Code</th>
+                <th style="width:120px;">Area</th>
+                <th style="width:130px;">Team</th>
+                <th>Question</th>
+                <th style="width:100px;">Evidence</th>
+                <th style="width:70px;">Weight</th>
+                <th style="width:80px;">Review?<span class="col-info-icon">ⓘ<span class="col-tooltip">IS REVIEW MANDATORY?</span></span></th>
+                <th style="width:90px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="items-tbody"></tbody>
+            <tbody>
+              <tr class="add-row">
+                <td><input id="add-code" class="inline-input" placeholder="SEC-001" style="width:80px;" title="Leave blank for auto-generation" /></td>
+                <td><input id="add-area" class="inline-input" placeholder="General" /></td>
+                <td><select id="add-team" class="inline-input"></select></td>
+                <td><div class="cell-stack"><textarea id="add-question" class="inline-textarea" placeholder="Question?" style="min-height:40px;"></textarea><textarea id="add-guidance" class="inline-textarea" placeholder="Guidance for reviewers or external teams" style="min-height:52px;"></textarea><input id="add-tags" class="inline-input" placeholder="Applicability tags, comma separated" /></div></td>
+                <td><input id="add-evidence" class="inline-input" placeholder="Evidence..." /></td>
+                <td><input id="add-weight" type="number" step="0.5" class="inline-input" value="1.0" style="width:60px;" /></td>
+                <td><select id="add-req" class="inline-input" style="width:50px;"><option value="true">Yes</option><option value="false">No</option></select></td>
+                <td><button class="btn btn-primary btn-sm" onclick="addItem()">Add</button></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
+
 </main>
+</div>
+<div id="shared-footer-root"></div>
+</div>
+</div>
 
 <!-- ── Modals ─────────────────────────────────────────────────────────────── -->
 <div id="create-modal" class="modal-overlay hidden">
@@ -307,8 +302,8 @@
 </div>
 
 <div id="toast"></div>
-<div id="shared-footer-root"></div>
-  <script src="/frontend_vanilla/components/header_loader.js"></script>
+
+  <script src="/frontend_vanilla/components/sidebar-loader.js"></script>
   <script src="/frontend_vanilla/components/footer-loader.js"></script>
 
 <script>
@@ -391,7 +386,6 @@
   async function loadTemplates() {
     const container = document.getElementById('template-list'); container.innerHTML = 'Loading…';
     try {
-      // Fetch current user org in parallel with templates
       const [data, meData] = await Promise.all([
         api('/api/checklists/templates/global'),
         api('/api/auth/me').catch(() => null),
@@ -426,6 +420,9 @@
         <div class="template-card-meta">${typeBadgeMarkup(t.type)}${orgBadge}<span>${t.items_count} items</span></div>
       </div>`;
     }).join('');
+
+    const selectedEl = container.querySelector('.template-card.selected');
+    if (selectedEl) selectedEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }
 
   async function selectTemplate(id) {
@@ -554,7 +551,7 @@
     }
   }
 
-  // ── Master template download (left-panel button) ─────────────────────────
+  // ── Master template download ─────────────────────────────────────────────
   async function downloadMasterTemplate() {
     try {
       const res = await fetch('/api/checklists/templates/download-excel-template?type=master', {
@@ -589,7 +586,6 @@
     const file = event.target.files[0];
     if (!file) return;
 
-    // Show modal in loading state
     const modal = document.getElementById('upload-modal');
     document.getElementById('upload-modal-msg').textContent = `Uploading "${file.name}"…`;
     document.getElementById('upload-spinner').style.display = 'block';

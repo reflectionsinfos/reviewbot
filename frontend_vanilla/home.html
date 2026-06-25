@@ -1,263 +1,286 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ReviewBot — Dashboard</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
-
-    header { display: none; } /* Handled by shared-header */
-
-    /* ── Buttons ─────────────────────────────────────────────────────────────── */
-    .btn { padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn-primary { background: #0ea5e9; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #38bdf8; }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-sm { padding: 5px 12px; font-size: 12px; }
-    .btn-block { width: 100%; }
-    .btn-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
-    .btn-ghost:hover { border-color: #38bdf8; color: #38bdf8; }
-
-    /* ── Login modal ─────────────────────────────────────────────────────────── */
-    #auth-modal { position: fixed; inset: 0; background: url('/frontend_vanilla/images/login_bg.png') center/cover no-repeat; display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    #auth-modal::before { content: ''; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); }
-    #auth-modal.hidden { display: none; }
-    .auth-card { position: relative; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px; width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
-    .auth-card h2 { font-size: 32px; font-weight: 800; color: #38bdf8; margin-bottom: 8px; letter-spacing: -1px; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
-    .auth-card .subtitle { color: #94a3b8; font-size: 14px; margin-bottom: 32px; font-weight: 500; }
-    .auth-card .welcome-text { color: #ffffff; font-size: 24px; font-weight: 700; margin-bottom: 4px; }
-    .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
-    input { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
-    input:focus { outline: none; border-color: #38bdf8; }
-    #login-error { color: #f87171; font-size: 13px; margin-top: 12px; min-height: 20px; }
-
-    /* ── Layout ─────────────────────────────────────────────────────────────── */
-    #main-content { display: none; flex: 1; }
-    .page-wrap { max-width: 1400px; margin: 0 auto; padding: 0 24px 48px; }
-
-    /* ── Hero band ───────────────────────────────────────────────────────────── */
-    .hero { background: linear-gradient(135deg, #1e293b 0%, #0f172a 60%, #0c1a2e 100%); border-bottom: 1px solid #334155; padding: 48px 24px; }
-    .hero-inner { max-width: 1400px; margin: 0 auto; }
-    .hero h1 { font-size: 32px; font-weight: 800; color: #f1f5f9; letter-spacing: -0.5px; margin-bottom: 8px; }
-    .hero h1 span { color: #38bdf8; }
-    .hero p { font-size: 15px; color: #94a3b8; max-width: 560px; line-height: 1.6; }
-
-    /* ── Stats row ───────────────────────────────────────────────────────────── */
-    .stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 28px 0; }
-    .stat-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; min-width: 140px; flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: border-color 0.15s; }
-    .stat-card:hover { border-color: #475569; }
-    .stat-card-info .stat-num { font-size: 30px; font-weight: 800; color: #f1f5f9; line-height: 1; }
-    .stat-card-info .stat-label { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 4px; }
-    .stat-card-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .stat-icon-blue { background: #1e3a5f44; border: 1px solid #1d4ed8; }
-    .stat-icon-green { background: #14532d44; border: 1px solid #166534; }
-    .stat-icon-amber { background: #78350f44; border: 1px solid #92400e; }
-    .stat-icon-purple { background: #3b0764aa; border: 1px solid #6d28d9; }
-
-    /* ── Section headings ────────────────────────────────────────────────────── */
-    .section-heading { font-size: 16px; font-weight: 700; color: #f1f5f9; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-    .section-heading::after { content: ''; flex: 1; height: 1px; background: #334155; margin-left: 8px; }
-
-    /* ── Feature cards grid ──────────────────────────────────────────────────── */
-    .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 36px; }
-    .feature-card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; text-decoration: none; display: flex; flex-direction: column; gap: 12px; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
-    .feature-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(14,165,233,0.15); border-color: #38bdf8; }
-    .feature-card-icon { width: 44px; height: 44px; border-radius: 10px; background: #0ea5e922; border: 1px solid #0ea5e944; display: flex; align-items: center; justify-content: center; }
-    .feature-card-icon svg { width: 22px; height: 22px; color: #38bdf8; }
-    .feature-card-title { font-size: 15px; font-weight: 700; color: #f1f5f9; }
-    .feature-card-desc { font-size: 13px; color: #94a3b8; line-height: 1.6; flex: 1; }
-    .feature-card-cta { font-size: 13px; color: #38bdf8; font-weight: 600; margin-top: 4px; }
-
-    /* ── Activity table ──────────────────────────────────────────────────────── */
-    .table-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow-x: auto; }
-    table { width: 100%; min-width: 700px; border-collapse: collapse; }
-    thead th { background: #0f172a; padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid #334155; white-space: nowrap; }
-    tbody tr { border-bottom: 1px solid #1e293b; transition: background 0.1s; }
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: #0f172a44; }
-    tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
-
-    /* ── Badges ──────────────────────────────────────────────────────────────── */
-    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-    .badge-green  { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
-    .badge-amber  { background: #78350f44; color: #fb923c; border: 1px solid #92400e; }
-    .badge-red    { background: #7f1d1d44; color: #f87171; border: 1px solid #991b1b; }
-    .badge-blue   { background: #1e3a5f44; color: #60a5fa; border: 1px solid #1d4ed8; }
-    .badge-gray   { background: #1e293b; color: #64748b; border: 1px solid #334155; }
-
-    /* ── Empty / loading ─────────────────────────────────────────────────────── */
-    .empty-state { text-align: center; padding: 48px 20px; color: #475569; }
-    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
-    .empty-state p { font-size: 14px; }
-    .loading-row td { text-align: center; padding: 32px; color: #475569; }
-    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 6px; vertical-align: middle; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Footer ──────────────────────────────────────────────────────────────── */
-    footer { background: #1e293b; border-top: 1px solid #334155; padding: 20px 28px; font-size: 12px; color: #475569; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-    footer a { color: #64748b; text-decoration: none; transition: color 0.15s; }
-    footer a:hover { color: #38bdf8; }
-    .footer-links { display: flex; gap: 20px; }
-    .footer-powered { display: flex; align-items: center; gap: 8px; }
-    .footer-powered img { height: 20px; width: auto; }
-
-    /* ── Score display ───────────────────────────────────────────────────────── */
-    .score-green { color: #4ade80; font-weight: 700; }
-    .score-amber { color: #fb923c; font-weight: 700; }
-    .score-red   { color: #f87171; font-weight: 700; }
-    .score-na    { color: #64748b; }
-
-    /* ── Pending offline reviews banner ─────────────────────────────────────── */
-    #pending-offline-wrap { display: none; max-width: 1400px; margin: 20px auto 0; padding: 0 24px; }
-    .offline-banner { background: #451a0322; border: 1px solid #b4530955; border-radius: 10px; overflow: hidden; }
-    .offline-banner-header { background: #451a0344; padding: 10px 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #fb923c; border-bottom: 1px solid #b4530944; }
-    .offline-banner-body { padding: 4px 0; }
-    .offline-banner-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #33415522; flex-wrap: wrap; }
-    .offline-banner-item:last-child { border-bottom: none; }
-    .offline-banner-item-info { flex: 1; min-width: 180px; }
-    .offline-banner-item-project { font-size: 13px; font-weight: 600; color: #f1f5f9; }
-    .offline-banner-item-checklist { font-size: 11px; color: #64748b; margin-top: 1px; }
-    .offline-banner-item-due { font-size: 11px; color: #fb923c; background: #78350f44; border: 1px solid #b4530955; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
-
-    /* ── Responsive ──────────────────────────────────────────────────────────── */
-    @media (max-width: 700px) {
-      header nav { display: none; }
-      .stats-row { flex-direction: column; }
-      .feature-grid { grid-template-columns: 1fr; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReviewBot Dashboard</title>
+<style>
+*,:before,:after{margin:0;padding:0;box-sizing:border-box;font-family:Inter,'Segoe UI',system-ui,sans-serif}
+body{background:#f1f5f9;color:#0f172a;font-size:14px;line-height:1.5;display:flex;flex-direction:column;min-height:100vh}
+.container{display:flex;flex-direction:column;flex:1}
+.content-row{display:flex;flex:1;min-height:0}
+#shared-sidebar-root,.main{min-width:0}
+/* Main */
+.main{flex:1;padding:28px 32px;max-width:1360px}
+/* Header */
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;flex-wrap:wrap;gap:12px}
+.top-left h1{font-size:26px;font-weight:700;letter-spacing:-.3px;background:linear-gradient(135deg,#0f172a,#475569);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.top-left p{color:#64748b;font-size:13px;margin-top:4px}
+.top-right{display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:10px 18px;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;text-decoration:none}
+.btn-primary{background:#2563eb;color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.2)}
+.btn-primary:hover{background:#1d4ed8;transform:translateY(-1px);box-shadow:0 6px 20px rgba(37,99,235,.25)}
+.btn-outline{background:#fff;color:#475569;border:1px solid #e2e8f0}
+.btn-outline:hover{border-color:#3b82f6;color:#2563eb}
+.btn-sm{padding:6px 12px;font-size:12px;border-radius:8px}
+/* KPI */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.stat{background:#fff;border-radius:14px;padding:20px;border:1px solid #e2e8f0;transition:all .2s;position:relative;overflow:hidden}
+.stat:hover{border-color:#cbd5e1;box-shadow:0 4px 16px rgba(0,0,0,.04);transform:translateY(-1px)}
+.stat:before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.stat.blue:before{background:linear-gradient(90deg,#3b82f6,#60a5fa)}
+.stat.green:before{background:linear-gradient(90deg,#16a34a,#22c55e)}
+.stat.amber:before{background:linear-gradient(90deg,#d97706,#f59e0b)}
+.stat.purple:before{background:linear-gradient(90deg,#7c3aed,#a78bfa)}
+.stat-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.stat-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.stat-icon.blue{background:#eff6ff;color:#2563eb}
+.stat-icon.green{background:#f0fdf4;color:#16a34a}
+.stat-icon.amber{background:#fffbeb;color:#d97706}
+.stat-icon.purple{background:#f5f3ff;color:#7c3aed}
+.stat-trend{font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px}
+.stat-trend.up{color:#16a34a;background:#f0fdf4}
+.stat-trend.down{color:#dc2626;background:#fef2f2}
+.stat-value{font-size:28px;font-weight:700;line-height:1;margin-bottom:2px}
+.stat-label{font-size:12px;color:#64748b;font-weight:500}
+/* Grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+/* Widget */
+.widget{background:#fff;border-radius:14px;border:1px solid #e2e8f0;overflow:hidden;transition:border .2s}
+.widget:hover{border-color:#cbd5e1}
+.widget-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f5f9}
+.widget-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.widget-title svg{width:16px;height:16px;color:#3b82f6}
+.widget-body{padding:20px}
+.widget-foot{padding:12px 20px;border-top:1px solid #f1f5f9;font-size:12px}
+/* Status list */
+.status-list{display:flex;flex-direction:column;gap:0}
+.status-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid #f8fafc}
+.status-row:last-child{border-bottom:none}
+.status-row-left{display:flex;align-items:center;gap:10px}
+.status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.status-dot.green{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.3)}
+.status-dot.orange{background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,.3)}
+.status-dot.blue{background:#3b82f6;box-shadow:0 0 8px rgba(59,130,246,.3)}
+.status-label{font-size:13px;color:#334155}
+.status-count{font-size:18px;font-weight:700;color:#0f172a}
+/* Priority grid */
+.prio-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.prio-card{padding:16px;border-radius:10px;font-size:12px;font-weight:500}
+.prio-card h3{font-size:24px;font-weight:700;margin-top:6px}
+.prio-card.red{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.prio-card.amber{background:#fffbeb;color:#d97706;border:1px solid #fde68a}
+.prio-card.sky{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe}
+.prio-card.green{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:#dcfce7;color:#15803d}
+.badge-amber{background:#fef3c7;color:#b45309}
+.badge-red{background:#fee2e2;color:#b91c1c}
+.badge-blue{background:#dbeafe;color:#1d4ed8}
+.score{font-weight:600}
+.score-green{color:#15803d}
+.score-red{color:#b91c1c}
+.score-amber{color:#b45309}
+/* Activity */
+.activity{display:flex;flex-direction:column}
+.activity-item{display:flex;align-items:flex-start;gap:12px;padding:10px 0;border-bottom:1px solid #f1f5f9}
+.activity-item:last-child{border-bottom:none}
+.activity-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.activity-icon.check{background:#f0fdf4;color:#16a34a}
+.activity-icon.warn{background:#fffbeb;color:#d97706}
+.activity-icon.info{background:#eff6ff;color:#2563eb}
+.activity-text{flex:1}
+.activity-text div{font-size:13px;color:#334155}
+.activity-text span{font-size:11px;color:#94a3b8}
+/* Risk banner */
+.risk-banner{background:linear-gradient(135deg,#f8fafc,#eff6ff);border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;display:flex;align-items:center;gap:14px;margin-bottom:24px}
+.risk-icon{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#fef2f2,#fee2e2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.risk-text{flex:1;font-size:13px;color:#475569;line-height:1.5}
+.risk-text strong{color:#0f172a}
+/* Auth modal */
+#auth-modal{position:fixed;inset:0;background:url('/frontend_vanilla/images/login_bg.png') center/cover no-repeat;display:flex;align-items:center;justify-content:center;z-index:1000}
+#auth-modal::before{content:'';position:absolute;inset:0;background:rgba(15,23,42,0.4);backdrop-filter:blur(8px)}
+#auth-modal.hidden{display:none}
+.auth-card{position:relative;background:rgba(30,41,59,0.7);border:1px solid rgba(255,255,255,0.1);backdrop-filter:blur(20px);border-radius:24px;padding:48px;width:440px;max-width:calc(100vw - 32px);box-shadow:0 25px 50px -12px rgba(0,0,0,0.5)}
+.auth-card h2{font-size:32px;font-weight:800;color:#38bdf8;margin-bottom:8px;letter-spacing:-1px;text-shadow:0 0 20px rgba(56,189,248,0.3)}
+.auth-card .subtitle{color:#94a3b8;font-size:14px;margin-bottom:32px;font-weight:500}
+.auth-card .welcome-text{color:#fff;font-size:24px;font-weight:700;margin-bottom:4px}
+.auth-card .form-group{margin-bottom:16px}
+.auth-card label{display:block;font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px}
+.auth-card input{width:100%;background:#0f172a;border:1px solid #334155;color:#e2e8f0;padding:9px 12px;border-radius:8px;font-size:14px;transition:border-color 0.2s;outline:none}
+.auth-card input:focus{border-color:#38bdf8}
+#login-error{color:#f87171;font-size:13px;margin-top:12px;min-height:20px}
+/* Spinner */
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid #e2e8f0;border-top-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty-state{text-align:center;padding:48px 20px;color:#94a3b8}
+.empty-state .icon{font-size:40px;margin-bottom:12px}
+.empty-state p{font-size:14px}
+/* Pending offline reviews */
+#pending-offline-wrap{display:none;margin-bottom:24px}
+.offline-banner{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;overflow:hidden}
+.offline-banner-header{background:#fef3c7;padding:10px 16px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#92400e;border-bottom:1px solid #fde68a}
+.offline-banner-body{padding:4px 0}
+.offline-banner-item{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #fef3c7;flex-wrap:wrap}
+.offline-banner-item:last-child{border-bottom:none}
+.offline-banner-item-info{flex:1;min-width:180px}
+.offline-banner-item-project{font-size:13px;font-weight:600;color:#0f172a}
+.offline-banner-item-checklist{font-size:11px;color:#64748b;margin-top:1px}
+.offline-banner-item-due{font-size:11px;color:#92400e;background:#fef3c7;border:1px solid #fde68a;border-radius:999px;padding:2px 8px;white-space:nowrap}
+/* Recent review cards */
+.recent-cards{display:flex;flex-direction:column;gap:10px}
+.recent-card{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;transition:all .15s}
+.recent-card:hover{border-color:#cbd5e1;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.recent-card-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;font-weight:700}
+.recent-card-icon.auto{background:#eff6ff;color:#2563eb}
+.recent-card-icon.offline{background:#fffbeb;color:#d97706}
+.recent-card-icon.online{background:#f0fdf4;color:#16a34a}
+.recent-card-body{flex:1;min-width:0}
+.recent-card-body .rrc-project{font-size:13px;font-weight:600;color:#0f172a;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.recent-card-body .rrc-project a{color:inherit;text-decoration:none}
+.recent-card-body .rrc-project a:hover{color:#2563eb}
+.recent-card-body .rrc-checklist{font-size:12px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent-card-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.rrc-score{font-weight:700;font-size:14px;min-width:42px;text-align:right}
+.rrc-date{font-size:11px;color:#94a3b8;white-space:nowrap;min-width:60px;text-align:right}
+/* Responsive */
+@media(max-width:1000px){.stats{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+@media(max-width:768px){.sidebar{display:none}.main{padding:16px}.stats{grid-template-columns:1fr}.top{flex-direction:column;align-items:flex-start}.top-right{width:100%}.top-right .btn{flex:1;justify-content:center}}
+</style>
 </head>
 <body>
-
-<!-- ── Shared Header ──────────────────────────────────────────────────────── -->
-<div id="shared-header-root"></div>
-<script src="/frontend_vanilla/components/ReviewTable.js"></script>
-
-<!-- ── Login modal ────────────────────────────────────────────────────────── -->
+<!-- Auth modal -->
 <div id="auth-modal">
   <div class="auth-card">
     <div class="welcome-text">Welcome back</div>
     <p class="subtitle">Sign in to continue to dashboard</p>
-    <div id="login-error" style="color: #f87171; font-size: 13px; margin-bottom: 16px;"></div>
+    <div id="login-error"></div>
     <div class="form-group">
       <label for="login-email">Email</label>
       <input type="email" id="login-email" placeholder="you@example.com" autocomplete="username"
-             onkeydown="if(event.key==='Enter') login()" />
+           onkeydown="if(event.key==='Enter') login()" />
     </div>
     <div class="form-group">
       <label for="login-password">Password</label>
-      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" 
              onkeydown="if(event.key==='Enter') login()" />
     </div>
-    <button class="btn btn-primary btn-block" id="btn-login" onclick="login()" style="height: 48px; font-size: 16px; background: linear-gradient(135deg, #0ea5e9, #38bdf8); border-radius: 12px; box-shadow: 0 8px 16px rgba(14, 165, 233, 0.25); border: none; font-weight: 700; cursor: pointer; transition: all 0.3s;">Sign In</button>
-    <div style="margin-top:24px; text-align:center; font-size:12px; color:#64748b;">
-      Secure access for ReviewBot Enterprise
-    </div>
+    <button class="btn btn-primary btn-block" id="btn-login" onclick="login()" style="height:48px;font-size:16px;background:linear-gradient(135deg,#0ea5e9,#38bdf8);border-radius:12px;box-shadow:0 8px 16px rgba(14,165,233,0.25);border:none;font-weight:700;cursor:pointer;transition:all .3s;width:100%;color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px">Sign In</button>
+    <div style="margin-top:24px;text-align:center;font-size:12px;color:#64748b">Secure access for ReviewBot Enterprise</div>
   </div>
 </div>
 
-<!-- ── Main content (auth-gated) ──────────────────────────────────────────── -->
-<div id="main-content">
+<div id="main-content" style="display:none">
+<div class="container">
+<div class="content-row">
+<div id="shared-sidebar-root"></div>
+<main class="main">
+<div class="top">
+<div>
+<h1>Dashboard</h1>
+<p>Monitor project reviews, compliance, and approval workflows</p>
+</div>
+<div class="top-right">
 
-  <!-- Hero band -->
-  <div class="hero">
-    <div class="hero-inner">
-      <h1>ReviewBot <span>Dashboard</span></h1>
-      <p>AI-powered technical and delivery project reviews. Evaluate projects against structured checklists, generate compliance reports, and track approval workflows.</p>
-    </div>
+<a href="/ui" class="btn btn-primary">+ New Review</a>
+</div>
+</div>
+<div class="stats">
+<div class="stat blue">
+<div class="stat-top"><div class="stat-icon blue">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div></div>
+            <div class="stat-value" id="kpi-projects">—</div>
+            <div class="stat-label">Active Projects</div>
+</div>
+<div class="stat green">
+<div class="stat-top"><div class="stat-icon green">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></div></div>
+<div class="stat-value" id="kpi-reviews">—</div>
+<div class="stat-label">Reviews Completed</div>
+</div>
+<div class="stat amber">
+<div class="stat-top"><div class="stat-icon amber">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/></svg></div></div>
+<div class="stat-value" id="kpi-compliance">—</div>
+<div class="stat-label">Global Checklists</div>
+</div>
+
+</div>
+<div class="grid">
+<div class="widget">
+<div class="widget-head">
+<div class="widget-title">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Review Status
+</div>
+</div>
+<div class="widget-body">
+<div class="status-list">
+<div class="status-row">
+<div class="status-row-left"><span class="status-dot green"></span><span class="status-label">Autonomous Reviews</span></div>
+    <strong class="status-count" id="s-completed">24</strong>
+</div>
+<div class="status-row">
+<div class="status-row-left"><span class="status-dot orange"></span><span class="status-label">Offline Review</span></div>
+<strong class="status-count" id="s-offline">10</strong>
+</div>
+<div class="status-row">
+<div class="status-row-left"><span class="status-dot blue"></span><span class="status-label">Manual Review</span></div>
+<strong class="status-count" id="s-manual">7</strong>
+</div>
+</div>
+</div>
+</div>
+<div class="widget">
+<div class="widget-head">
+<div class="widget-title">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>Priority Breakdown
+</div>
+</div>
+<div class="widget-body">
+<div class="prio-grid">
+<div class="prio-card red">Critical<h3 id="p-critical">21</h3></div>
+<div class="prio-card amber">Amber<h3 id="p-amber">24</h3></div>
+<div class="prio-card sky">Human Review<h3 id="p-human">3</h3></div>
+<div class="prio-card green">Compliant<h3 id="p-compliant">82</h3></div>
+</div>
+</div>
+</div>
+</div>
+<div id="pending-offline-wrap">
+<div class="offline-banner">
+<div class="offline-banner-header">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+<span id="pending-offline-title">Pending Offline Reviews</span>
+</div>
+<div class="offline-banner-body" id="pending-offline-list"></div>
+</div>
+</div>
+<div class="widget" style="margin-bottom:24px">
+<div class="widget-head">
+<div class="widget-title">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Recent Reviews
+</div>
+<a href="/history" style="font-size:12px;color:#3b82f6;text-decoration:none;font-weight:500">View All →</a>
+</div>
+<div id="reviews-card-container" class="widget-body"></div>
+</div>
+<div class="widget">
+<div class="widget-head">
+<div class="widget-title">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Recent Activity
+</div>
+</div>
+<div class="widget-body">
+<div class="activity" id="activity-feed"></div>
+</div>
+</div>
+</main>
   </div>
+  <div id="shared-footer-root"></div>
+</div>
+</div>
 
-  <!-- Quick action cards -->
-  <div class="page-wrap" style="margin-top: 28px;">
-    <div class="feature-grid">
-      <a href="/ui" class="feature-card">
-        <div class="feature-card-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        </div>
-        <div class="feature-card-title">Autonomous Review</div>
-        <div class="feature-card-desc">Run AI-powered code reviews against structured checklists. Configure repo, branch, and source types for automated compliance scoring.</div>
-        <div class="feature-card-cta">Launch Review →</div>
-      </a>
-      <a href="/projects-ui" class="feature-card">
-        <div class="feature-card-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" y2="13"/><line x1="8" y1="13" y2="13"/><line x1="16" y1="17" y2="17"/><line x1="8" y1="17" y2="17"/></svg>
-        </div>
-        <div class="feature-card-title">Manual Review</div>
-        <div class="feature-card-desc">Complete offline review checklists for assigned projects. Respond to review items, track progress, and submit results.</div>
-        <div class="feature-card-cta">Open Portal →</div>
-      </a>
-    </div>
-  </div>
-
-  <!-- Pending offline reviews banner -->
-  <div id="pending-offline-wrap">
-    <div class="offline-banner">
-      <div class="offline-banner-header">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <span id="pending-offline-title">Pending Offline Reviews</span>
-      </div>
-      <div class="offline-banner-body" id="pending-offline-list"></div>
-    </div>
-  </div>
-
-  <div class="page-wrap">
-
-    <!-- Stats row -->
-    <div class="stats-row">
-
-      <div class="stat-card">
-        <div class="stat-card-info">
-          <div class="stat-num" id="stat-projects">–</div>
-          <div class="stat-label">Projects</div>
-        </div>
-        <div class="stat-card-icon stat-icon-blue">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 7h18M3 12h18M3 17h18"/><rect x="2" y="3" width="20" height="18" rx="2"/>
-          </svg>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-card-info">
-          <div class="stat-num" id="stat-reviews">–</div>
-          <div class="stat-label">Reviews</div>
-        </div>
-        <div class="stat-card-icon stat-icon-purple">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
-          </svg>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-card-info">
-          <div class="stat-num" id="stat-checklists">–</div>
-          <div class="stat-label">Global Checklists</div>
-        </div>
-        <div class="stat-card-icon stat-icon-green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-          </svg>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Recent activity -->
-    <div class="section-heading">Recent Reviews</div>
-    <div id="reviews-grid-container">
-      <!-- ReviewTable will render here -->
-    </div>
-
-  </div><!-- /page-wrap -->
-</div><!-- /main-content -->
-
-<!-- ── Footer ──────────────────────────────────────────────────────────────── -->
-<div id="shared-footer-root"></div>
-  <script src="/frontend_vanilla/components/header_loader.js"></script>
+  <script src="/frontend_vanilla/components/sidebar-loader.js"></script>
   <script src="/frontend_vanilla/components/footer-loader.js"></script>
 
 <script>
@@ -266,12 +289,12 @@
 
   function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
 
-  function isTokenExpired(tok) {
-    try {
-      const payload = JSON.parse(atob(tok.split('.')[1]));
-      return payload.exp && (payload.exp * 1000) < Date.now();
-    } catch { return true; }
-  }
+function isTokenExpired(tok) {
+ try {
+    const payload = JSON.parse(atob(tok.split('.')[1]));
+    return payload.exp && (payload.exp * 1000) < Date.now();
+  } catch { return true; }
+}
 
   async function api(path, opts = {}) {
     const controller = new AbortController();
@@ -290,176 +313,273 @@
     }
   }
 
-  /* ── Modal helpers ──────────────────────────────────────────────────────── */
-  function showLogin() {
-    document.getElementById('auth-modal').classList.remove('hidden');
-    document.getElementById('main-content').style.display = 'none';
-    if (window.updateSharedUserInfo) window.updateSharedUserInfo();
+function showLogin() {
+  document.getElementById('auth-modal').classList.remove('hidden');
+  document.getElementById('main-content').style.display = 'none';
+  if (window.updateSharedUserInfo) window.updateSharedUserInfo();
+}
+
+function closeLogin() {
+  document.getElementById('auth-modal').classList.add('hidden');
+}
+
+async function login() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  const btn      = document.getElementById('btn-login');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Email and password are required.'; return; }
+  btn.disabled = true;
+  btn.textContent = 'Signing in\u2026';
+  try {
+    const body = new URLSearchParams({ username: email, password });
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = 'Invalid credentials.';
+      try { msg = JSON.parse(text).detail || msg; } catch {}
+      throw new Error(msg);
+    }
+    const data = await res.json();
+    localStorage.setItem(TOKEN_KEY, data.access_token);
+    closeLogin();
+    await showDashboard();
+  } catch (err) {
+    errEl.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+}
+window.login = login;
+
+function logout() {
+  if (_logoutInProgress) return;
+  _logoutInProgress = true;
+  localStorage.removeItem(TOKEN_KEY);
+  showLogin();
+  _logoutInProgress = false;
+}
+
+async function showDashboard() {
+  const authModal = document.getElementById('auth-modal');
+  const mainContent = document.getElementById('main-content');
+  if (authModal) authModal.classList.add('hidden');
+  if (mainContent) mainContent.style.display = 'block';
+  if (window.updateSharedUserInfo) window.updateSharedUserInfo();
+  await loadDashboard();
+}
+
+async function loadDashboard() {
+  const [projects, allReviews, checklists] = await Promise.allSettled([
+    api('/api/projects/'),
+    api('/api/reports/activity?limit=1000'),
+    api('/api/checklists/templates/global')
+  ]);
+
+  if (projects.status === 'fulfilled') {
+    const val = projects.value?.pagination?.total ?? projects.value?.total ?? (Array.isArray(projects.value) ? projects.value.length : '\u2014');
+    document.getElementById('kpi-projects').textContent = val;
   }
 
-  function openLogin() {
-    document.getElementById('auth-modal').classList.remove('hidden');
+  if (allReviews.status === 'fulfilled') {
+    const items = allReviews.value?.reports ?? allReviews.value?.items ?? allReviews.value?.results ?? (Array.isArray(allReviews.value) ? allReviews.value : []);
+    const total = allReviews.value?.total ?? allReviews.value?.pagination?.total ?? items.length;
+    document.getElementById('kpi-reviews').textContent = total;
+    // Status breakdown by review_type
+    var autoCount = 0, offlineCount = 0, manualCount = 0;
+    items.forEach(function (r) {
+      var t = (r.review_type || '').toLowerCase();
+      if (t === 'autonomous') autoCount++;
+      else if (t === 'offline') offlineCount++;
+      else manualCount++;
+    });
+    document.getElementById('s-completed').textContent = autoCount;
+    document.getElementById('s-offline').textContent = offlineCount;
+    document.getElementById('s-manual').textContent = manualCount;
+    // Activity feed — most recent 5
+    renderRecentActivity(items.slice(0, 5));
+    // Priority breakdown from most recent completed review
+    const latest = items.find(r => r.status === 'completed') || items[0];
+    if (latest) {
+      document.getElementById('p-critical').textContent = latest.red_count ?? 0;
+      document.getElementById('p-amber').textContent = latest.amber_count ?? 0;
+      document.getElementById('p-human').textContent = (latest.na_count ?? 0) + (latest.skipped_count ?? 0);
+      document.getElementById('p-compliant').textContent = latest.green_count ?? 0;
+    }
   }
 
-  function closeLogin() {
-    document.getElementById('auth-modal').classList.add('hidden');
+  if (checklists.status === 'fulfilled') {
+    const templates = checklists.value?.templates ?? [];
+    const total = checklists.value?.total ?? templates.length;
+    document.getElementById('kpi-compliance').textContent = total;
   }
 
-  /* ── Login ──────────────────────────────────────────────────────────────── */
-  async function login() {
-    const email    = document.getElementById('login-email').value.trim();
-    const password = document.getElementById('login-password').value;
-    const errEl    = document.getElementById('login-error');
-    const btn      = document.getElementById('btn-login');
-    errEl.textContent = '';
-    if (!email || !password) { errEl.textContent = 'Email and password are required.'; return; }
-    btn.disabled = true;
-    btn.textContent = 'Signing in…';
-    try {
-      const body = new URLSearchParams({ username: email, password });
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        let msg = 'Invalid credentials.';
-        try { msg = JSON.parse(text).detail || msg; } catch {}
-        throw new Error(msg);
+  loadPendingOfflineReviews();
+
+  renderRecentReviews();
+}
+
+function renderRecentActivity(items) {
+  const feed = document.getElementById('activity-feed');
+  if (!feed) return;
+  if (!items || !items.length) {
+    feed.innerHTML = '<div class="empty-state"><p>No recent activity</p></div>';
+    return;
+  }
+  feed.innerHTML = items.slice(0, 5).map(function (r) {
+    var icon = 'info';
+    var symbol = 'i';
+    var text = '';
+
+    if (r.status === 'completed' || r.status === 'approved') {
+      icon = 'check';
+      symbol = '\u2713';
+      text = r.review_type === 'autonomous'
+        ? 'Autonomous review completed for <strong>' + escHtml(r.project_name) + '</strong>'
+        : 'Review completed for <strong>' + escHtml(r.project_name) + '</strong>';
+      if (r.compliance_score != null) {
+        text += ' (score: ' + parseFloat(r.compliance_score).toFixed(2) + '%)';
       }
-      const data = await res.json();
-      localStorage.setItem(TOKEN_KEY, data.access_token);
-      closeLogin();
-      await showDashboard();
-    } catch (err) {
-      errEl.textContent = err.message;
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Sign In';
+    } else if (r.red_count > 0) {
+      icon = 'warn';
+      symbol = '!';
+      text = 'Compliance issues found in <strong>' + escHtml(r.project_name) + '</strong>';
+    } else if (r.amber_count > 0) {
+      icon = 'warn';
+      symbol = '!';
+      text = 'Amber items flagged in <strong>' + escHtml(r.project_name) + '</strong>';
+    } else if (r.status === 'in_progress') {
+      icon = 'info';
+      symbol = 'i';
+      text = 'Review in progress for <strong>' + escHtml(r.project_name) + '</strong>';
+    } else if (r.review_type === 'offline' && r.status === 'pending_approval') {
+      icon = 'info';
+      symbol = 'i';
+      text = 'Offline review submitted for <strong>' + escHtml(r.project_name) + '</strong>';
+    } else {
+      icon = 'info';
+      symbol = 'i';
+      text = (r.review_type ? r.review_type.charAt(0).toUpperCase() + r.review_type.slice(1) : 'Review') + ' for <strong>' + escHtml(r.project_name) + '</strong>';
     }
-  }
-  window.login = login;
 
-  /* ── Logout ─────────────────────────────────────────────────────────────── */
-  function logout() {
-    if (_logoutInProgress) return;
-    _logoutInProgress = true;
-    localStorage.removeItem(TOKEN_KEY);
+    return '<div class="activity-item"><div class="activity-icon ' + icon + '">' + symbol + '</div><div class="activity-text"><div>' + text + '</div><span>' + timeAgo(r.generated_at || r.completed_at || r.created_at) + '</span></div></div>';
+  }).join('');
+}
+
+async function renderRecentReviews() {
+  const container = document.getElementById('reviews-card-container');
+  if (!container) return;
+  try {
+    const data = await api('/api/reports/activity?skip=0&limit=5');
+    const items = data?.reports ?? [];
+    if (!items.length) {
+      container.innerHTML = '<div class="empty-state"><div class="icon">&#128196;</div><p>No reviews yet.</p></div>';
+      return;
+    }
+    container.innerHTML = '<div class="recent-cards">' + items.map(r => {
+      const type = (r.review_type || 'online').toLowerCase();
+      const iconMap = { autonomous: 'auto', offline: 'offline', online: 'online' };
+      const icon = iconMap[type] || 'online';
+      const iconSvg = {
+        autonomous: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>',
+        offline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="m9 14 2 2 4-4"/></svg>',
+        online: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>'
+      };
+      const svg = iconSvg[type] || iconSvg.online;
+      const pct = r.compliance_score != null ? Math.round(r.compliance_score) : null;
+      const scoreCls = pct >= 75 ? 'score-green' : pct >= 50 ? 'score-amber' : 'score-red';
+      const scoreHtml = pct != null ? `<span class="rrc-score ${scoreCls}">${pct}%</span>` : '<span class="rrc-score" style="color:#94a3b8">—</span>';
+      const isAuto = type === 'autonomous';
+      const summaryHref = isAuto && r.job_id ? `/history/${r.job_id}` : `/frontend_vanilla/manual-review-result.html?id=${r.review_id || ''}`;
+      const date = r.generated_at
+        ? new Date(r.generated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+        : '';
+      return '<div class="recent-card">'
+        + '<div class="recent-card-icon ' + icon + '">' + svg + '</div>'
+        + '<div class="recent-card-body">'
+        + '<div class="rrc-project"><a href="' + summaryHref + '">' + escHtml(r.project_name) + '</a> '
+        + '<span class="badge badge-' + (type === 'autonomous' ? 'blue' : type === 'offline' ? 'amber' : 'green') + '" style="text-transform:capitalize">' + type + '</span>'
+        + ' <span class="badge ' + (r.status === 'completed' ? 'badge-green' : r.status === 'running' ? 'badge-blue' : r.status === 'failed' || r.status === 'error' ? 'badge-red' : 'badge-amber') + '">' + (r.status || '-') + '</span>'
+        + '</div>'
+        + '<div class="rrc-checklist">' + escHtml(r.checklist_name) + '</div>'
+        + '</div>'
+        + '<div class="recent-card-right">'
+        + scoreHtml
+        + '<span class="rrc-date">' + date + '</span>'
+        + '<a href="' + summaryHref + '" class="btn btn-outline btn-sm" style="text-decoration:none">Open</a>'
+        + '</div>'
+        + '</div>';
+    }).join('') + '</div>';
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state"><p>Could not load reviews.</p></div>';
+  }
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return min + ' minute' + (min > 1 ? 's' : '') + ' ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + ' hour' + (hr > 1 ? 's' : '') + ' ago';
+  const day = Math.floor(hr / 24);
+  if (day < 30) return day + ' day' + (day > 1 ? 's' : '') + ' ago';
+  return fmtDate(iso);
+}
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch { return iso; }
+}
+
+async function loadPendingOfflineReviews() {
+  try {
+    const data = await api('/api/reviews/offline/pending');
+    const pending = data?.pending_reviews || [];
+    if (!pending.length) return;
+    const wrap = document.getElementById('pending-offline-wrap');
+    const titleEl = document.getElementById('pending-offline-title');
+    const listEl = document.getElementById('pending-offline-list');
+    titleEl.textContent = `You have ${pending.length} pending offline review${pending.length > 1 ? 's' : ''} awaiting your response`;
+    listEl.innerHTML = pending.map(r => {
+      const due = r.due_date ? `<span class="offline-banner-item-due">Due ${fmtDate(r.due_date)}</span>` : '';
+      return `<div class="offline-banner-item">
+        <div class="offline-banner-item-info">
+          <div class="offline-banner-item-project">${escHtml(r.project_name)}</div>
+          <div class="offline-banner-item-checklist">${escHtml(r.checklist_name)}</div>
+        </div>
+        ${due}
+        <a href="${escHtml(r.review_url)}" class="btn btn-primary btn-sm">Open Review</a>
+      </div>`;
+    }).join('');
+    wrap.style.display = 'block';
+  } catch (e) { /* fail silently */ }
+}
+
+window.addEventListener('DOMContentLoaded', async function() {
+  const tok = getToken();
+  if (tok && !isTokenExpired(tok)) {
+    await showDashboard();
+  } else {
+    if (tok) localStorage.removeItem(TOKEN_KEY);
     showLogin();
-    _logoutInProgress = false;
+    if (window.tryDevAutoLogin) window.tryDevAutoLogin();
   }
-
-
-
-  /* ── Show dashboard ─────────────────────────────────────────────────────── */
-  async function showDashboard() {
-    const authModal = document.getElementById('auth-modal');
-    const mainContent = document.getElementById('main-content');
-    const btnSignin = document.getElementById('btn-signin');
-    const btnLogout = document.getElementById('btn-logout');
-    
-    if (authModal) authModal.classList.add('hidden');
-    if (mainContent) mainContent.style.display = 'block';
-    if (btnSignin) btnSignin.style.display = 'none';
-    if (btnLogout) btnLogout.style.display = 'none';
-
-    // Sync shared header user info
-    if (window.updateSharedUserInfo) window.updateSharedUserInfo();
-
-    await loadDashboard();
-  }
-
-  /* ── Dashboard data ─────────────────────────────────────────────────────── */
-  async function loadDashboard() {
-    // Load stats in parallel, fail silently
-    const [projects, reviews, reports, checklists] = await Promise.allSettled([
-      api('/api/projects/'),
-      api('/api/reports/activity?limit=1'),
-      api('/api/reports/'),
-      api('/api/checklists/templates/global')
-    ]);
-
-    // Projects count
-    if (projects.status === 'fulfilled') {
-      const val = projects.value?.pagination?.total ?? projects.value?.total ?? (Array.isArray(projects.value) ? projects.value.length : '–');
-      document.getElementById('stat-projects').textContent = val;
-    }
-
-    // Reviews count
-    if (reviews.status === 'fulfilled') {
-      const items = reviews.value?.items ?? reviews.value?.results ?? (Array.isArray(reviews.value) ? reviews.value : []);
-      const total = reviews.value?.pagination?.total ?? reviews.value?.total ?? items.length;
-      document.getElementById('stat-reviews').textContent = total;
-    }
-
-    // Global checklists
-    if (checklists.status === 'fulfilled') {
-      const templates = checklists.value?.templates ?? [];
-      const total = checklists.value?.total ?? templates.length;
-      document.getElementById('stat-checklists').textContent = total;
-    }
-
-    // Check for pending offline reviews assigned to this user
-    loadPendingOfflineReviews();
-
-    // Recent activity grid (Unified Component)
-    if (!window.reviewTable) {
-        window.reviewTable = new ReviewTable('#reviews-grid-container', { limit: 10, paginate: true });
-    } else {
-        window.reviewTable.refresh();
-    }
-  }
-
-  /* ── Pending offline reviews ────────────────────────────────────────────── */
-  function escHtml(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
-
-  function fmtDate(iso) {
-    if (!iso) return '';
-    try {
-      return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch { return iso; }
-  }
-
-  async function loadPendingOfflineReviews() {
-    try {
-      const data = await api('/api/reviews/offline/pending');
-      const pending = data?.pending_reviews || [];
-      if (!pending.length) return;
-      const titleEl = document.getElementById('pending-offline-title');
-      const listEl = document.getElementById('pending-offline-list');
-      const wrap = document.getElementById('pending-offline-wrap');
-      titleEl.textContent = `You have ${pending.length} pending offline review${pending.length > 1 ? 's' : ''} awaiting your response`;
-      listEl.innerHTML = pending.map(r => {
-        const due = r.due_date ? `<span class="offline-banner-item-due">Due ${fmtDate(r.due_date)}</span>` : '';
-        return `<div class="offline-banner-item">
-          <div class="offline-banner-item-info">
-            <div class="offline-banner-item-project">${escHtml(r.project_name)}</div>
-            <div class="offline-banner-item-checklist">${escHtml(r.checklist_name)}</div>
-          </div>
-          ${due}
-          <a href="${escHtml(r.review_url)}" class="btn btn-primary btn-sm">Open Review</a>
-        </div>`;
-      }).join('');
-      wrap.style.display = 'block';
-    } catch (e) { /* fail silently — banner is non-critical */ }
-  }
-
-  /* ── Removed old loadRecentReviews logic (now in ReviewTable component) ── */
-
-  /* ── Init ───────────────────────────────────────────────────────────────── */
-  window.addEventListener('DOMContentLoaded', async function() {
-    const tok = getToken();
-    if (tok && !isTokenExpired(tok)) {
-      await showDashboard();
-    } else {
-      if (tok) localStorage.removeItem(TOKEN_KEY); // clear expired token
-      showLogin();
-      if (window.tryDevAutoLogin) window.tryDevAutoLogin();
-    }
-  });
+});
 </script>
 </body>
 </html>

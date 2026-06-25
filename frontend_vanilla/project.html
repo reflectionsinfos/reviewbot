@@ -6,199 +6,200 @@
   <title>ReviewBot — Checklist Management</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; flex-direction: column; }
-
-    header { display: none; } /* Handled by shared-header */
-    /* ── Layout ───────────────────────────────────────────────────────────── */
-    main { max-width: 1300px; margin: 0 auto; padding: 28px 24px 120px; width: 100%; flex: 1; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #0f172a; display: flex; flex-direction: column; min-height: 100vh; }
+    .container { display: flex; flex-direction: column; flex: 1; }
+    .content-row { display: flex; flex: 1; min-height: 0; }
+    #shared-sidebar-root,.main { min-width: 0; }
+    .main { flex: 1; padding: 28px 32px; max-width: 1300px; }
 
     /* ── Auth Overlay ─────────────────────────────────────────────────────── */
     #auth-overlay { position: fixed; inset: 0; background: url('/frontend_vanilla/images/login_bg.png') center/cover no-repeat; display: flex; align-items: center; justify-content: center; z-index: 1000; }
     #auth-overlay::before { content: ''; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(8px); }
-    .auth-card { position: relative; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px; width: 440px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+    .auth-card { position: relative; background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(20px); border-radius: 24px; padding: 48px; width: 440px; max-width: calc(100vw - 32px); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
     .auth-card h2 { font-size: 32px; font-weight: 800; color: #38bdf8; margin-bottom: 8px; letter-spacing: -1px; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
     .auth-card p { color: #94a3b8; font-size: 14px; margin-bottom: 32px; font-weight: 500; }
     .auth-card .welcome-text { color: #ffffff; font-size: 24px; font-weight: 700; margin-bottom: 4px; }
 
     /* ── Form elements ────────────────────────────────────────────────────── */
     .form-group { margin-bottom: 16px; }
-    label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
-    input, select, textarea { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
-    input:focus, select:focus, textarea:focus { outline: none; border-color: #38bdf8; }
-    select option { background: #1e293b; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    input, select, textarea { width: 100%; background: #fff; border: 1px solid #e2e8f0; color: #0f172a; padding: 9px 12px; border-radius: 8px; font-size: 14px; transition: border-color 0.2s; }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: #3b82f6; }
+    select option { background: #fff; }
 
     /* ── Buttons ──────────────────────────────────────────────────────────── */
     .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-    .btn-primary { background: #0ea5e9; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #38bdf8; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #3b82f6; }
     .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-ghost { background: transparent; border: 1px solid #334155; color: #94a3b8; }
-    .btn-ghost:hover { border-color: #38bdf8; color: #38bdf8; }
-    .btn-danger { background: #ef4444; color: #fff; }
-    .btn-danger:hover { background: #f87171; }
+    .btn-ghost { background: transparent; border: 1px solid #e2e8f0; color: #64748b; }
+    .btn-ghost:hover { border-color: #3b82f6; color: #2563eb; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #ef4444; }
     .btn-sm { padding: 4px 10px; font-size: 11px; }
     .btn-block { width: 100%; }
-    .btn-icon-only { background: transparent; border: none; cursor: pointer; color: #475569; padding: 4px; border-radius: 4px; font-size: 14px; }
-    .btn-icon-only:hover { background: #1e293b; color: #38bdf8; }
+    .btn-icon-only { background: transparent; border: none; cursor: pointer; color: #94a3b8; padding: 4px; border-radius: 4px; font-size: 14px; }
+    .btn-icon-only:hover { background: #f1f5f9; color: #2563eb; }
 
     /* ── Badges ───────────────────────────────────────────────────────────── */
-    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; background: #0ea5e933; color: #7dd3fc; border: 1px solid #0ea5e9; }
-    .badge-gray { background: #1e293b; color: #94a3b8; border-color: #334155; }
-    .badge-green { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
-    .badge-blue { background: #1e3a5f44; color: #7dd3fc; border: 1px solid #1d4ed8; }
-    .badge-purple { background: #3b0764aa; color: #c084fc; border: 1px solid #6d28d9; }
-    .badge-teal { background: #0f3f3f88; color: #5eead4; border: 1px solid #0f766e; }
-    .badge-amber { background: #4a2c0b88; color: #fbbf24; border: 1px solid #b45309; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+    .badge-gray { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+    .badge-green { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .badge-blue { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+    .badge-purple { background: #f3e8ff; color: #7c3aed; border: 1px solid #d8b4fe; }
+    .badge-teal { background: #ccfbf1; color: #0d9488; border: 1px solid #5eead4; }
+    .badge-amber { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
 
     /* ── Project selector bar ─────────────────────────────────────────────── */
-    .project-bar { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .project-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .project-bar label { margin: 0; white-space: nowrap; }
     .project-bar select { flex: 1; min-width: 200px; max-width: 400px; margin: 0; }
     .project-bar .project-meta { font-size: 13px; color: #64748b; margin-left: auto; }
 
     /* ── Empty state ──────────────────────────────────────────────────────── */
-    .empty-state { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 64px 32px; text-align: center; }
+    .empty-state { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 64px 32px; text-align: center; }
     .empty-state-icon { font-size: 40px; margin-bottom: 16px; }
-    .empty-state h3 { font-size: 18px; font-weight: 600; color: #f1f5f9; margin-bottom: 8px; }
+    .empty-state h3 { font-size: 18px; font-weight: 600; color: #0f172a; margin-bottom: 8px; }
     .empty-state p { font-size: 14px; color: #64748b; margin-bottom: 24px; line-height: 1.6; }
 
     /* ── Checklist panel ──────────────────────────────────────────────────── */
-    .checklist-panel { background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }
+    .checklist-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
 
     /* ── Tabs toolbar ─────────────────────────────────────────────────────── */
-    .tabs-toolbar { display: flex; align-items: center; border-bottom: 1px solid #334155; padding: 0 16px; gap: 4px; overflow-x: auto; min-height: 48px; }
-    .tab { padding: 14px 16px; cursor: pointer; color: #94a3b8; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; flex-shrink: 0; position: relative; }
-    .tab:hover { color: #e2e8f0; }
-    .tab.active { color: #38bdf8; border-bottom-color: #38bdf8; }
-    .tab .tab-delete-btn { opacity: 0; position: absolute; top: 2px; right: 2px; background: #ef4444; color: #fff; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.2s; }
+    .tabs-toolbar { display: flex; align-items: center; border-bottom: 1px solid #e2e8f0; padding: 0 16px; gap: 4px; overflow-x: auto; min-height: 48px; }
+    .tab { padding: 14px 16px; cursor: pointer; color: #64748b; font-size: 13px; font-weight: 600; border-bottom: 2px solid transparent; white-space: nowrap; transition: all 0.15s; flex-shrink: 0; position: relative; }
+    .tab:hover { color: #0f172a; }
+    .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+    .tab .tab-delete-btn { opacity: 0; position: absolute; top: 2px; right: 2px; background: #dc2626; color: #fff; border: none; border-radius: 50%; width: 14px; height: 14px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.2s; }
     .tab:hover .tab-delete-btn { opacity: 1; }
     .tabs-spacer { flex: 1; }
     .btn-add-checklist { margin: 8px 0; flex-shrink: 0; }
 
     /* ── Checklist header ─────────────────────────────────────────────────── */
     .checklist-header { padding: 20px 24px 0; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
-    .checklist-title { font-size: 20px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px; }
+    .checklist-title { font-size: 20px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
     .checklist-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
     /* ── Callout area (post-clone) ────────────────────────────────────────── */
     .callout { margin: 16px 24px 0; padding: 12px 16px; border-radius: 8px; font-size: 13px; display: flex; align-items: flex-start; gap: 10px; }
-    .callout-success { background: #14532d22; border: 1px solid #166534; color: #4ade80; }
-    .callout-info { background: #1e3a5f44; border: 1px solid #1d4ed8; color: #93c5fd; }
+    .callout-success { background: #dcfce7; border: 1px solid #86efac; color: #15803d; }
+    .callout-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
     .callout-close { margin-left: auto; cursor: pointer; color: inherit; opacity: 0.6; background: none; border: none; font-size: 16px; line-height: 1; padding: 0 2px; }
 
     /* ── Table ────────────────────────────────────────────────────────────── */
     .table-wrap { padding: 20px 24px 24px; }
-    .table-card { background: #0f172a55; border: 1px solid #334155; border-radius: 10px; overflow: hidden; }
+    .table-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
     .table-card > table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { background: #0f172a; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 12px 14px; text-align: left; position: sticky; top: 0; }
-    td { padding: 12px 14px; vertical-align: top; border-bottom: 1px solid #1e293b22; }
+    th { background: #0f172a; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; padding: 12px 14px; text-align: left; position: sticky; top: 0; }
+    td { padding: 12px 14px; vertical-align: top; border-bottom: 1px solid #f1f5f9; color: #0f172a; }
     tr:last-child td { border-bottom: none; }
-    tr.drag-over { border-top: 2px solid #38bdf8; background: #0f172a88; }
-    .drag-handle { cursor: grab; color: #475569; font-size: 16px; text-align: center; }
+    tr.drag-over { border-top: 2px solid #2563eb; background: #eff6ff; }
+    .drag-handle { cursor: grab; color: #94a3b8; font-size: 16px; text-align: center; }
     .drag-handle:active { cursor: grabbing; }
     .actions-cell { display: flex; gap: 4px; }
-    .inline-edit-input { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 6px 8px; border-radius: 6px; font-size: 13px; margin-bottom: 4px; }
-    .inline-edit-input:focus { outline: none; border-color: #38bdf8; }
+    .inline-edit-input { width: 100%; background: #fff; border: 1px solid #e2e8f0; color: #0f172a; padding: 6px 8px; border-radius: 6px; font-size: 13px; margin-bottom: 4px; }
+    .inline-edit-input:focus { outline: none; border-color: #3b82f6; }
     .cell-stack { display: flex; flex-direction: column; gap: 6px; }
-    .question-text { color: #e2e8f0; line-height: 1.45; }
-    .meta-text { font-size: 11px; color: #94a3b8; line-height: 1.45; }
+    .question-text { color: #0f172a; line-height: 1.45; }
+    .meta-text { font-size: 11px; color: #64748b; line-height: 1.45; }
     .tag-list { display: flex; flex-wrap: wrap; gap: 4px; }
-    .tag-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: #0f172a; border: 1px solid #334155; font-size: 10px; color: #94a3b8; }
-    .add-row { background: #0f172a44; border-top: 2px dashed #334155; }
+    .tag-chip { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 10px; color: #475569; }
+    .add-row { background: #f8fafc; border-top: 2px dashed #e2e8f0; }
     .col-info-icon { position: relative; cursor: help; color: #38bdf8; font-size: 11px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 3px; }
     .col-info-icon .col-tooltip { display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: #1e293b; border: 1px solid #334155; color: #e2e8f0; font-size: 11px; font-weight: 400; line-height: 1.4; padding: 7px 10px; border-radius: 6px; white-space: normal; width: 180px; text-align: center; text-transform: none; z-index: 50; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
     .col-info-icon:hover .col-tooltip { display: block; }
     .col-info-btn { cursor: pointer; color: #38bdf8; font-size: 12px; display: inline-flex; align-items: center; vertical-align: middle; margin-left: 4px; background: none; border: none; padding: 0; line-height: 1; opacity: 0.75; transition: opacity 0.15s; }
     .col-info-btn:hover { opacity: 1; }
-    #col-info-panel { display: none; position: fixed; z-index: 500; background: #1e293b; border: 1px solid #334155; border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); width: 300px; padding: 16px 18px 14px; font-size: 13px; line-height: 1.5; color: #e2e8f0; }
+    #col-info-panel { display: none; position: fixed; z-index: 500; background: #1e293b; border: 1px solid #334155; border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); width: 300px; padding: 16px 18px 14px; font-size: 13px; line-height: 1.5; color: #e2e8f0; }
     #col-info-panel.visible { display: block; }
     #col-info-panel .cip-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
     #col-info-panel .cip-title { font-size: 14px; font-weight: 700; color: #f1f5f9; }
     #col-info-panel .cip-close { background: none; border: none; color: #64748b; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; flex-shrink: 0; margin-top: -2px; }
-    #col-info-panel .cip-close:hover { color: #f1f5f9; }
+    #col-info-panel .cip-close:hover { color: #e2e8f0; }
     #col-info-panel .cip-body { color: #94a3b8; font-size: 12px; }
     #col-info-panel .cip-body p { margin-bottom: 8px; }
     #col-info-panel .cip-body p:last-child { margin-bottom: 0; }
-    #col-info-panel .cip-body .cip-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; margin-bottom: 4px; }
+    #col-info-panel .cip-body .cip-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 4px; }
     #col-info-panel .cip-body ul { padding-left: 14px; margin: 0; }
     #col-info-panel .cip-body ul li { margin-bottom: 3px; }
-    #col-info-panel .cip-body code { background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; color: #7dd3fc; white-space: nowrap; }
-    #col-info-panel .cip-divider { border: none; border-top: 1px solid #334155; margin: 10px 0; }
+    #col-info-panel .cip-body code { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 11px; color: #2563eb; white-space: nowrap; }
+    #col-info-panel .cip-divider { border: none; border-top: 1px solid #e2e8f0; margin: 10px 0; }
 
     /* ── Modals ───────────────────────────────────────────────────────────── */
-    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 200; }
-    .modal-box { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 28px; width: 540px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .modal-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px; width: 540px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
     .modal-box h3 { margin-bottom: 6px; font-size: 18px; font-weight: 700; }
-    .modal-subtitle { font-size: 13px; color: #94a3b8; margin-bottom: 20px; }
-    .modal-desc { font-size: 13px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
+    .modal-subtitle { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+    .modal-desc { font-size: 13px; color: #64748b; margin-bottom: 20px; line-height: 1.5; }
     .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
-    .modal-divider { border: none; border-top: 1px solid #334155; margin: 16px 0; }
+    .modal-divider { border: none; border-top: 1px solid #e2e8f0; margin: 16px 0; }
 
     /* ── Template Selection Rows (in Modal) ───────────────────────────────── */
-    .template-row { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid #334155; border-radius: 8px; margin-bottom: 10px; transition: all 0.15s; }
-    .template-row:hover { border-color: #475569; background: #0f172a44; }
-    .template-row-added { border-color: #166534; background: #14532d11; }
+    .template-row { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; transition: all 0.15s; }
+    .template-row:hover { border-color: #94a3b8; background: #f8fafc; }
+    .template-row-added { border-color: #86efac; background: #f0fdf4; }
     .template-row-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
-    .template-icon-technical { background: #3b076444; color: #c084fc; border: 1px solid #6d28d944; }
-    .template-icon-delivery { background: #1e3a5f44; color: #7dd3fc; border: 1px solid #1d4ed844; }
+    .template-icon-technical { background: #f3e8ff; color: #7c3aed; border: 1px solid #d8b4fe; }
+    .template-icon-delivery { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
     .template-row-info { flex: 1; }
-    .template-row-name { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 2px; }
+    .template-row-name { font-size: 14px; font-weight: 600; color: #0f172a; margin-bottom: 2px; }
     .template-row-meta { font-size: 12px; color: #64748b; }
     .template-row-action { flex-shrink: 0; }
 
     /* ── Strategy options (Sync Modal) ─────────────────────────────────────── */
-    .strategy-radio { display: flex; gap: 12px; padding: 12px; border: 1px solid #334155; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
-    .strategy-radio:hover { background: #0f172a88; border-color: #475569; }
+    .strategy-radio { display: flex; gap: 12px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.15s; }
+    .strategy-radio:hover { background: #f8fafc; border-color: #94a3b8; }
     .strategy-radio input { margin-top: 3px; }
-    .strategy-radio strong { display: block; font-size: 13px; color: #e2e8f0; margin-bottom: 2px; }
+    .strategy-radio strong { display: block; font-size: 13px; color: #0f172a; margin-bottom: 2px; }
     .strategy-radio p { font-size: 12px; color: #64748b; line-height: 1.4; }
 
     /* ── Toast ────────────────────────────────────────────────────────────── */
-    #toast { position: fixed; bottom: 84px; right: 24px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #e2e8f0; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
-    #toast.success { border-color: #22c55e; color: #4ade80; }
-    #toast.error { border-color: #ef4444; color: #f87171; }
+    #toast { position: fixed; bottom: 84px; right: 24px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 20px; font-size: 13px; color: #0f172a; display: none; z-index: 300; max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+    #toast.success { border-color: #22c55e; color: #15803d; }
+    #toast.error { border-color: #ef4444; color: #dc2626; }
 
     .hidden { display: none !important; }
 
     /* ── Unified tab toolbar: review nav tabs ────────────────────────────────── */
-    .tabs-sep { width: 1px; height: 20px; background: #334155; margin: 0 10px; flex-shrink: 0; align-self: center; }
+    .tabs-sep { width: 1px; height: 20px; background: #e2e8f0; margin: 0 10px; flex-shrink: 0; align-self: center; }
     .review-nav-tab { color: #64748b !important; }
-    .review-nav-tab.active { color: #a78bfa !important; border-bottom-color: #a78bfa !important; }
+    .review-nav-tab.active { color: #7c3aed !important; border-bottom-color: #7c3aed !important; }
 
     /* ── Filter bar ───────────────────────────────────────────────────────────── */
     .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 14px 24px 0; }
-    .filter-bar input[type="search"], .filter-bar select { width: auto; flex: 1; min-width: 150px; max-width: 240px; font-size: 12px; padding: 7px 10px; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; border-radius: 7px; margin: 0; }
+    .filter-bar input[type="search"], .filter-bar select { width: auto; flex: 1; min-width: 150px; max-width: 240px; font-size: 12px; padding: 7px 10px; background: #fff; border: 1px solid #e2e8f0; color: #0f172a; border-radius: 7px; margin: 0; }
     .filter-count { font-size: 12px; color: #64748b; margin-left: auto; white-space: nowrap; }
 
     /* ── Pagination ───────────────────────────────────────────────────────────── */
     .pagination-bar { display: flex; align-items: center; gap: 6px; padding: 12px 24px 20px; justify-content: flex-end; flex-wrap: wrap; }
     .pagination-bar .page-btn { padding: 5px 11px; font-size: 12px; min-width: 32px; }
-    .pagination-bar .page-btn.active { background: #0ea5e9; color: #fff; border-color: #0ea5e9; }
+    .pagination-bar .page-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
     .pagination-info { font-size: 12px; color: #64748b; margin-right: auto; }
 
     /* ── Reviews content (inside unified panel) ──────────────────────────────── */
     .review-tab-content { display: none; padding: 20px; }
     .review-tab-content.active { display: block; }
     .review-tab-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-    .review-tab-title { font-size: 15px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 8px; }
-    .or-table-wrap { background: #0f172a; border: 1px solid #334155; border-radius: 10px; overflow-x: auto; }
+    .review-tab-title { font-size: 15px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; }
+    .or-table-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow-x: auto; }
     .or-table { width: 100%; border-collapse: collapse; min-width: 600px; }
-    .or-table th { background: #0f172a; padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid #334155; white-space: nowrap; }
-    .or-table td { padding: 11px 14px; font-size: 13px; vertical-align: middle; border-bottom: 1px solid #1e293b55; }
+    .or-table th { background: #0f172a; padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; border-bottom: 1px solid #334155; white-space: nowrap; }
+    .or-table td { padding: 11px 14px; font-size: 13px; vertical-align: middle; border-bottom: 1px solid #f1f5f9; color: #0f172a; }
     .or-table tr:last-child td { border-bottom: none; }
-    .or-table tr:hover td { background: #1e293b55; }
-    .or-empty { text-align: center; padding: 36px 20px; color: #475569; font-size: 13px; }
-    .badge-sent { background: #1e3a5f44; color: #7dd3fc; border: 1px solid #1d4ed8; }
-    .badge-uploaded { background: #3b076444; color: #c084fc; border: 1px solid #6d28d9; }
-    .badge-scored { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
-    .badge-pending-send { background: #1e293b; color: #64748b; border: 1px solid #334155; }
-    .badge-pending-approval { background: #78350f44; color: #fbbf24; border: 1px solid #b45309; }
-    .badge-approved { background: #14532d44; color: #4ade80; border: 1px solid #166534; }
-    .badge-revision { background: #7f1d1d44; color: #f87171; border: 1px solid #991b1b; }
+    .or-table tr:hover td { background: #f8fafc; }
+    .or-empty { text-align: center; padding: 36px 20px; color: #94a3b8; font-size: 13px; }
+    .badge-sent { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+    .badge-uploaded { background: #f3e8ff; color: #7c3aed; border: 1px solid #d8b4fe; }
+    .badge-scored { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .badge-pending-send { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+    .badge-pending-approval { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+    .badge-approved { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .badge-revision { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
     .score-pill { font-weight: 700; font-size: 13px; }
-    .score-green { color: #4ade80; }
-    .score-amber { color: #fbbf24; }
-    .score-red { color: #f87171; }
+    .score-green { color: #15803d; }
+    .score-amber { color: #b45309; }
+    .score-red { color: #b91c1c; }
+    @media(max-width:768px){.sidebar{display:none}.main{padding:16px}}
   </style>
 </head>
 <body>
@@ -224,12 +225,10 @@
   </div>
 </div>
 
-<!-- ── Header ─────────────────────────────────────────────────────────────── -->
-<!-- ── Shared Header ─────────────────────────────────────────────────────── -->
-<div id="shared-header-root"></div>
-
-<!-- ── Main ───────────────────────────────────────────────────────────────── -->
-<main>
+<div class="container">
+  <div class="content-row">
+<div id="shared-sidebar-root"></div>
+<main class="main">
 
   <!-- Project selector bar -->
   <div class="project-bar">
@@ -265,7 +264,7 @@
     <div id="callout-area"></div>
 
     <!-- No-checklists inline state (shown when project has no checklists) -->
-    <div id="state-no-checklists" class="empty-state hidden" style="border:none;border-radius:0;border-top:1px solid #334155;">
+    <div id="state-no-checklists" class="empty-state hidden" style="border:none;border-radius:0;border-top:1px solid #e2e8f0;">
       <div class="empty-state-icon">📭</div>
       <h3>No checklists yet</h3>
       <p>This project has no checklists. Add one from a global template to get started.<br>
@@ -282,8 +281,8 @@
           <div class="checklist-title" id="c-name"></div>
           <div class="checklist-meta">
             <span id="c-type" class="badge badge-gray"></span>
-            <span id="c-items-count" style="font-size:13px;color:#94a3b8;"></span>
-            <span id="c-id-badge" style="font-size:11px;color:#475569;background:#0f172a;border:1px solid #334155;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
+            <span id="c-items-count" style="font-size:13px;color:#64748b;"></span>
+            <span id="c-id-badge" style="font-size:11px;color:#94a3b8;background:#0f172a;border:1px solid #334155;padding:2px 8px;border-radius:4px;font-family:monospace;"></span>
           </div>
         </div>
         <div>
@@ -348,7 +347,7 @@
       <div id="tab-manual" class="review-tab-content active">
         <div class="review-tab-header">
           <div class="review-tab-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
             Manual Reviews
           </div>
           <div style="display:flex;gap:8px;">
@@ -409,6 +408,7 @@
   </div><!-- /#checklist-panel -->
 
 </main>
+  </div>
 
 <!-- ── Add Checklist Modal ─────────────────────────────────────────────────── -->
 <div id="add-modal" class="modal-overlay hidden">
@@ -456,7 +456,7 @@
     <label class="strategy-radio">
       <input type="radio" name="sync-strategy" value="full_reset" />
       <div>
-        <strong style="color:#ef4444;">Full Reset — Destructive</strong>
+        <strong style="color:#dc2626;">Full Reset — Destructive</strong>
         <p>Deletes ALL items in this checklist and replaces them with an exact copy of the global template.</p>
       </div>
     </label>
@@ -471,9 +471,9 @@
 <!-- ── Delete Checklist Confirmation Modal ────────────────────────────────── -->
 <div id="delete-modal" class="modal-overlay hidden">
   <div class="modal-box" style="max-width:420px;">
-    <h3 style="color:#f87171;">Delete Checklist</h3>
+    <h3 style="color:#dc2626;">Delete Checklist</h3>
     <p class="modal-desc" id="delete-modal-msg"></p>
-    <div style="background:#ef444411;border:1px solid #ef444444;border-radius:8px;padding:12px 14px;font-size:12px;color:#fca5a5;margin-bottom:8px;">
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 14px;font-size:12px;color:#b91c1c;margin-bottom:8px;">
       ⚠ This will permanently delete all checklist items. This cannot be undone.
     </div>
     <div class="modal-actions">
@@ -509,7 +509,7 @@
       <div id="cp-templates-list" style="display:flex;flex-direction:column;gap:10px;max-height:300px;overflow-y:auto;"></div>
     </div>
     
-    <div id="cp-error" style="display:none;color:#f87171;font-size:13px;margin-bottom:12px;"></div>
+    <div id="cp-error" style="display:none;color:#dc2626;font-size:13px;margin-bottom:12px;"></div>
     
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeCreateProjectModal()">Cancel</button>
@@ -536,8 +536,8 @@
       <input id="new-manual-title" type="text" placeholder="e.g. Q2 Security Review" />
     </div>
 
-    <div id="new-manual-error" style="display:none;color:#f87171;font-size:13px;padding:10px 14px;background:#7f1d1d22;border:1px solid #7f1d1d55;border-radius:8px;margin-bottom:12px;"></div>
-    <div id="new-manual-success" style="display:none;font-size:13px;padding:10px 14px;background:#14532d22;border:1px solid #16653444;border-radius:8px;color:#4ade80;margin-bottom:12px;line-height:1.5;"></div>
+    <div id="new-manual-error" style="display:none;color:#dc2626;font-size:13px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:12px;"></div>
+    <div id="new-manual-success" style="display:none;font-size:13px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#15803d;margin-bottom:12px;line-height:1.5;"></div>
 
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeNewManualReviewModal()">Cancel</button>
@@ -578,8 +578,8 @@
       <textarea id="offline-message" rows="3" placeholder="Context, scope, or instructions for the reviewer…"></textarea>
     </div>
 
-    <div id="offline-create-error" style="display:none;color:#f87171;font-size:13px;padding:10px 14px;background:#7f1d1d22;border:1px solid #7f1d1d55;border-radius:8px;margin-bottom:12px;"></div>
-    <div id="offline-create-success" style="display:none;font-size:13px;padding:10px 14px;background:#14532d22;border:1px solid #16653444;border-radius:8px;color:#4ade80;margin-bottom:12px;line-height:1.5;"></div>
+    <div id="offline-create-error" style="display:none;color:#dc2626;font-size:13px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;margin-bottom:12px;"></div>
+    <div id="offline-create-success" style="display:none;font-size:13px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#15803d;margin-bottom:12px;line-height:1.5;"></div>
 
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeCreateOfflineModal()">Cancel</button>
@@ -598,8 +598,9 @@
 </div>
 
 <div id="shared-footer-root"></div>
-  <script src="/frontend_vanilla/components/header_loader.js"></script>
+</div>
   <script src="/frontend_vanilla/components/footer-loader.js"></script>
+  <script src="/frontend_vanilla/components/sidebar-loader.js"></script>
 
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
@@ -759,7 +760,7 @@
       });
       document.getElementById('state-no-project').innerHTML = '<div class="empty-state-icon">📋</div><h3>Select a project</h3><p>Choose a project from the dropdown above to view and manage its checklists.</p>';
     } catch(e) {
-      document.getElementById('state-no-project').innerHTML = `<div class="empty-state-icon">⚠️</div><h3>Failed to load</h3><p style="color:#f87171;">${e.message}</p><button class="btn btn-ghost" onclick="loadInitialData()" style="margin-top:12px;">Retry</button>`;
+      document.getElementById('state-no-project').innerHTML = `<div class="empty-state-icon">⚠️</div><h3>Failed to load</h3><p style="color:#dc2626;">${e.message}</p><button class="btn btn-ghost" onclick="loadInitialData()" style="margin-top:12px;">Retry</button>`;
     }
   }
 
@@ -905,17 +906,17 @@
           <td><input id="edit-ev-${item.id}" class="inline-edit-input" value="${escapeHtml(item.expected_evidence)}"></td>
           <td><input id="edit-weight-${item.id}" type="number" step="0.5" class="inline-edit-input" value="${item.weight}"></td>
           <td><select id="edit-req-${item.id}" class="inline-edit-input"><option value="true" ${item.is_review_mandatory?'selected':''}>Yes</option><option value="false" ${!item.is_review_mandatory?'selected':''}>No</option></select></td>
-          <td class="actions-cell"><button class="btn-icon-only" style="color:#4ade80" onclick="saveItem(${item.id})">💾</button><button class="btn-icon-only" onclick="cancelEdit()">✕</button></td>`;
+          <td class="actions-cell"><button class="btn-icon-only" style="color:#15803d" onclick="saveItem(${item.id})">💾</button><button class="btn-icon-only" onclick="cancelEdit()">✕</button></td>`;
       } else {
         tr.innerHTML = `<td class="drag-handle">≡</td>
-          <td style="font-family:monospace;color:#94a3b8">${item.item_code||''}</td>
-          <td style="color:#94a3b8;font-size:12px">${item.area||''}</td>
+          <td style="font-family:monospace;color:#64748b">${item.item_code||''}</td>
+          <td style="color:#64748b;font-size:12px">${item.area||''}</td>
           <td>${item.team_category ? `<span class="tag-chip">${escapeHtml(item.team_category)}</span>` : '<span class="meta-text">Unassigned</span>'}</td>
           <td><div class="cell-stack"><div class="question-text">${escapeHtml(item.question)}</div>${renderQuestionMeta(item)}</div></td>
           <td style="font-size:11px;color:#64748b;">${item.expected_evidence||''}</td>
           <td>${item.weight}</td>
           <td style="text-align:center;">${item.is_review_mandatory?'Yes':'No'}</td>
-          <td class="actions-cell"><button class="btn-icon-only" onclick="startEdit(${item.id})">✏️</button><button class="btn-icon-only" style="color:#f87171" onclick="deleteItem(${item.id})">🗑️</button></td>`;
+          <td class="actions-cell"><button class="btn-icon-only" onclick="startEdit(${item.id})">✏️</button><button class="btn-icon-only" style="color:#dc2626" onclick="deleteItem(${item.id})">🗑️</button></td>`;
       }
       tbody.appendChild(tr);
     });
@@ -1095,7 +1096,7 @@
     weight: {
       title: 'Weight',
       html: `
-        <p>A multiplier (default <code>1.0</code>) controlling how much this item contributes to the overall <strong style="color:#f1f5f9">Compliance Score</strong>. Higher-weight items have greater impact on the final score.</p>
+        <p>A multiplier (default <code>1.0</code>) controlling how much this item contributes to the overall <strong style="color:#0f172a">Compliance Score</strong>. Higher-weight items have greater impact on the final score.</p>
         <hr class="cip-divider">
         <div class="cip-label">Score Formula</div>
         <p><code>Score = Σ(RAG × weight) ÷ Σ(weight)</code></p>
@@ -1108,7 +1109,7 @@
         <div class="cip-label">Example — 3 items</div>
         <table style="width:100%;border-collapse:collapse;font-size:0.82em;margin:6px 0">
           <thead>
-            <tr style="color:#94a3b8;text-align:left">
+            <tr style="color:#64748b;text-align:left">
               <th style="padding:2px 6px 4px 0">Item</th>
               <th style="padding:2px 6px 4px">RAG</th>
               <th style="padding:2px 6px 4px">Weight</th>
@@ -1117,24 +1118,24 @@
           </thead>
           <tbody>
             <tr>
-              <td style="padding:2px 6px 2px 0;color:#94a3b8">A</td>
+              <td style="padding:2px 6px 2px 0;color:#64748b">A</td>
               <td style="padding:2px 6px">🟢 Green</td>
               <td style="padding:2px 6px">2</td>
               <td style="padding:2px 0 2px 6px;text-align:right">100 × 2 = 200</td>
             </tr>
             <tr>
-              <td style="padding:2px 6px 2px 0;color:#94a3b8">B</td>
+              <td style="padding:2px 6px 2px 0;color:#64748b">B</td>
               <td style="padding:2px 6px">🔴 Red</td>
               <td style="padding:2px 6px">1</td>
               <td style="padding:2px 0 2px 6px;text-align:right">0 × 1 = 0</td>
             </tr>
             <tr>
-              <td style="padding:2px 6px 2px 0;color:#94a3b8">C</td>
+              <td style="padding:2px 6px 2px 0;color:#64748b">C</td>
               <td style="padding:2px 6px">🟡 Amber</td>
               <td style="padding:2px 6px">1</td>
               <td style="padding:2px 0 2px 6px;text-align:right">50 × 1 = 50</td>
             </tr>
-            <tr style="border-top:1px solid #334155;color:#f1f5f9">
+            <tr style="border-top:1px solid #e2e8f0;color:#0f172a">
               <td colspan="2" style="padding:4px 6px 2px 0">Total weight</td>
               <td style="padding:4px 6px 2px">2+1+1 = <strong>4</strong></td>
               <td style="padding:4px 0 2px 6px;text-align:right">200+0+50 = <strong>250</strong></td>
@@ -1225,7 +1226,7 @@
       );
       renderManualReviewsTable();
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="8" class="or-empty" style="color:#f87171;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="or-empty" style="color:#dc2626;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
     }
   }
 
@@ -1241,19 +1242,19 @@
       }
       tbody.innerHTML = list.map(j => {
         const score = j.compliance_score ? `${Math.round(j.compliance_score)}%` : '—';
-        const statusColors = { completed: '#4ade80', running: '#fbbf24', pending: '#94a3b8', failed: '#f87171' };
-        const statusColor = statusColors[j.status] || '#94a3b8';
+        const statusColors = { completed: '#15803d', running: '#b45309', pending: '#64748b', failed: '#dc2626' };
+        const statusColor = statusColors[j.status] || '#64748b';
         const jobId = j.job_id || j.id;
         return `<tr>
-          <td style="color:#94a3b8;">Checklist #${escapeHtml(String(j.checklist_id || '—'))}</td>
+          <td style="color:#64748b;">Checklist #${escapeHtml(String(j.checklist_id || '—'))}</td>
           <td><span style="color:${statusColor};text-transform:capitalize;">${escapeHtml(j.status || '—')}</span></td>
-          <td style="font-weight:600;color:#f1f5f9;">${score}</td>
+          <td style="font-weight:600;color:#0f172a;">${score}</td>
           <td style="color:#64748b;font-size:12px;">${formatDate(j.created_at)}</td>
           <td><a href="/ui?job_id=${jobId}" class="btn btn-ghost btn-sm" style="padding:3px 8px;">View</a></td>
         </tr>`;
       }).join('');
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="5" class="or-empty" style="color:#f87171;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="or-empty" style="color:#dc2626;">Failed to load: ${escapeHtml(e.message)}</td></tr>`;
     }
   }
 
@@ -1327,7 +1328,7 @@
 
       const checklistName = escapeHtml(r.checklist_name || '—');
       const createdAt = formatDate(r.excel_sent_at || r.review_date || r.created_at);
-      const dueDate = r.due_date ? `<span style="color:#fb923c;">${formatDate(r.due_date)}</span>` : '—';
+      const dueDate = r.due_date ? `<span style="color:#ea580c;">${formatDate(r.due_date)}</span>` : '—';
       const score = formatOfflineScore(r);
       const status = getOfflineStatus(r);
 
@@ -1356,7 +1357,7 @@
 
       return `<tr>
         <td>
-          <div style="font-weight:600;color:#f1f5f9;margin-bottom:2px;">${reviewerName}</div>
+          <div style="font-weight:600;color:#0f172a;margin-bottom:2px;">${reviewerName}</div>
           ${reviewerEmail ? `<div style="font-size:11px;color:#64748b;">${reviewerEmail}</div>` : ''}
         </td>
         <td>${checklistName}</td>
@@ -1474,9 +1475,9 @@
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">🔗 Magic Link — share directly with reviewer</div>
           <div style="display:flex;gap:8px;align-items:center;">
             <input id="magic-link-input" readonly value="${escapeHtml(reviewUrl)}"
-              style="flex:1;background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:12px;font-family:monospace;cursor:text;" />
-            <button onclick="copyMagicLink()" style="white-space:nowrap;padding:8px 14px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;" id="copy-link-btn">Copy</button>
-            <a href="${escapeHtml(reviewUrl)}" target="_blank" style="padding:8px 14px;background:rgba(255,255,255,0.07);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">Open ↗</a>
+              style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;color:#0f172a;font-size:12px;font-family:monospace;cursor:text;" />
+            <button onclick="copyMagicLink()" style="white-space:nowrap;padding:8px 14px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;" id="copy-link-btn">Copy</button>
+            <a href="${escapeHtml(reviewUrl)}" target="_blank" style="padding:8px 14px;background:#f8fafc;color:#0f172a;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">Open ↗</a>
           </div>
         </div>` : ''}`;
       succEl.style.display = 'block';
@@ -1555,9 +1556,9 @@
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:6px;">🔗 Review Portal Link</div>
           <div style="display:flex;gap:8px;align-items:center;">
             <input readonly value="${escapeHtml(portalUrl)}"
-              style="flex:1;background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:8px 12px;color:#e2e8f0;font-size:12px;font-family:monospace;" />
-            <button onclick="copyReviewLink('${escapeHtml(portalUrl)}')" style="padding:8px 14px;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">Copy</button>
-            <a href="${escapeHtml(portalUrl)}" target="_blank" style="padding:8px 14px;background:rgba(255,255,255,0.07);color:#e2e8f0;border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">Open ↗</a>
+              style="flex:1;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;color:#0f172a;font-size:12px;font-family:monospace;" />
+            <button onclick="copyReviewLink('${escapeHtml(portalUrl)}')" style="padding:8px 14px;background:#2563eb;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">Copy</button>
+            <a href="${escapeHtml(portalUrl)}" target="_blank" style="padding:8px 14px;background:#f8fafc;color:#0f172a;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:700;text-decoration:none;white-space:nowrap;">Open ↗</a>
           </div>
         </div>` : ''}`;
       succEl.style.display = 'block';
@@ -1580,8 +1581,8 @@
     navigator.clipboard.writeText(input.value).then(() => {
       const btn = document.getElementById('copy-link-btn');
       btn.textContent = 'Copied!';
-      btn.style.background = '#22c55e';
-      setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = '#0ea5e9'; }, 2000);
+      btn.style.background = '#16a34a';
+      setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = '#2563eb'; }, 2000);
     }).catch(() => {
       input.select();
       document.execCommand('copy');
@@ -1665,7 +1666,7 @@
       globalTemplates = (data && data.templates) || [];
       renderAddModalTemplates();
     } catch(e) {
-      container.innerHTML = `<div style="text-align:center;padding:24px;color:#f87171;font-size:13px;">⚠ Failed to load templates: ${escapeHtml(e.message)}</div>`;
+      container.innerHTML = `<div style="text-align:center;padding:24px;color:#dc2626;font-size:13px;">⚠ Failed to load templates: ${escapeHtml(e.message)}</div>`;
     }
   }
 

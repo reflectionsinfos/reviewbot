@@ -98,6 +98,7 @@ class ReviewTable {
                 .rt-score-red { color: #f87171; }
                 .rt-score-na { color: #64748b; }
                 .rt-type { text-transform: capitalize; }
+                .rt-table thead th { background: #0f172a; color: #e2e8f0; }
             `;
             document.head.appendChild(style);
         }
@@ -226,11 +227,11 @@ class ReviewTable {
 
         return `
             <tr>
-                <td style="font-family:monospace;font-size:12px;color:#94a3b8;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${this.esc(item.project_name)}">${this.esc(item.project_name)}</td>
-                <td><a href="${summaryHref}" style="color:inherit;text-decoration:none;">${this.esc(item.checklist_name)}</a></td>
+                <td style="font-family:monospace;font-size:12px;color:#0f172a;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600" title="${this.esc(item.project_name)}">${this.esc(item.project_name)}</td>
+                <td><a href="${summaryHref}" style="color:#64748b;text-decoration:none;">${this.esc(item.checklist_name)}</a></td>
                 <td>${typeBadge}</td>
                 <td>${status}</td>
-                <td style="text-align:center"><span class="badge badge-gray" style="background:#1e293b22;min-width:32px;justify-content:center;color:#e2e8f0;font-family:monospace">${item.total_items || 0}</span></td>
+                <td style="text-align:center"><span class="badge badge-gray" style="background:#f1f5f9;min-width:32px;justify-content:center;color:#0f172a;font-family:monospace;font-weight:600">${item.total_items || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-green" style="background:#14532d22;min-width:24px;justify-content:center">${item.green_count || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-amber" style="background:#78350f22;min-width:24px;justify-content:center">${item.amber_count || 0}</span></td>
                 <td style="text-align:center"><span class="badge badge-red" style="background:#7f1d1d22;min-width:24px;justify-content:center">${item.red_count || 0}</span></td>

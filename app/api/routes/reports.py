@@ -243,10 +243,10 @@ async def get_review_activity(
             "red_count": job.red_count,
             "skipped_count": (job.skipped_count or 0) + (job.na_count or 0),
             "total_items": job.total_items,
-            "created_at": job.created_at.isoformat() if job.created_at else None,
-            "started_at": job.started_at.isoformat() if job.started_at else None,
-            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-            "generated_at": generated_at.isoformat() if generated_at else None,
+            "created_at": job.created_at.isoformat() + "Z" if job.created_at else None,
+            "started_at": job.started_at.isoformat() + "Z" if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() + "Z" if job.completed_at else None,
+            "generated_at": generated_at.isoformat() + "Z" if generated_at else None,
             "llm_audit_count": 0,
         })
 
@@ -282,10 +282,10 @@ async def get_review_activity(
             "red_count": red,
             "skipped_count": na,
             "total_items": total_items,
-            "created_at": review.created_at.isoformat() if review.created_at else None,
-            "started_at": review.created_at.isoformat() if review.created_at else None,
-            "completed_at": review.completed_at.isoformat() if review.completed_at else None,
-            "generated_at": generated_at.isoformat() if generated_at else None,
+            "created_at": review.created_at.isoformat() + "Z" if review.created_at else None,
+            "started_at": review.created_at.isoformat() + "Z" if review.created_at else None,
+            "completed_at": review.completed_at.isoformat() + "Z" if review.completed_at else None,
+            "generated_at": generated_at.isoformat() + "Z" if generated_at else None,
             "llm_audit_count": 0,
         })
 
